@@ -54,6 +54,11 @@ private slots:
     void toggleFullscreen();
 
 private:
+    enum class ImageSwitchViewPolicy {
+        ResetToBaseMode,
+        PreserveView,
+    };
+
     struct DecodeJobResult {
         quint64 generation = 0;
         QString cacheKey;
@@ -81,6 +86,8 @@ private:
     void updateInteractionState();
     void scheduleFitReload();
     void prefetchNeighbors(const core::DecodeRequest &request);
+    void reloadAfterImageSwitch();
+    void applyImageSwitchViewPolicy();
     void rememberTemporaryZoomReturnMode();
     bool restoreTemporaryZoomReturnMode();
     [[nodiscard]] core::DecodeRequest currentDecodeRequest() const;
@@ -106,6 +113,8 @@ private:
 
     core::ViewerController m_controller;
     core::DecodedImage m_currentDecoded;
+    core::ZoomMode m_baseZoomMode = core::ZoomMode::FitToWindow;
+    ImageSwitchViewPolicy m_imageSwitchViewPolicy = ImageSwitchViewPolicy::ResetToBaseMode;
     std::optional<core::ZoomMode> m_temporaryZoomReturnMode;
     std::shared_ptr<core::MemoryImageCache> m_cache;
     QFutureWatcher<DecodeJobResult> m_decodeWatcher;

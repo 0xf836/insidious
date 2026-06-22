@@ -61,8 +61,11 @@ Opening a folder:
 Navigation:
 
 1. Actions, shortcuts, wheel events, or mouse gestures call `ViewerController` commands through `MainWindow`.
-2. On a changed index or view transform, `MainWindow` builds a new `DecodeRequest`.
-3. Cache keys include file identity and render request details, so fit/zoom/rotation variants do not collide.
+2. Next/previous image switching goes through `MainWindow::reloadAfterImageSwitch()`. The current default `ImageSwitchViewPolicy` is `ResetToBaseMode`, which resets temporary zoom state, pan, and zoom to the selected base mode (`FitToWindow` or `ActualSize`) before loading.
+3. If next/previous cannot change the index, `MainWindow` still reloads the current entry after applying the switch policy. This clears transient render errors, including errors caused by an excessive custom zoom request.
+4. `ImageSwitchViewPolicy::PreserveView` is reserved for a future setting where image switches keep the current zoom/pan instead of resetting them.
+5. On a changed index or view transform, `MainWindow` builds a new `DecodeRequest`.
+6. Cache keys include file identity and render request details, so fit/zoom/rotation variants do not collide.
 
 Mouse input:
 

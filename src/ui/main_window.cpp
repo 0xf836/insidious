@@ -197,16 +197,22 @@ void MainWindow::loadCurrentImage()
 
 void MainWindow::showNextImage()
 {
-    if (m_controller.goNext()) {
-        loadCurrentImage();
+    if (!m_controller.hasCollection()) {
+        return;
     }
+
+    m_controller.goNext();
+    reloadAfterImageSwitch();
 }
 
 void MainWindow::showPreviousImage()
 {
-    if (m_controller.goPrevious()) {
-        loadCurrentImage();
+    if (!m_controller.hasCollection()) {
+        return;
     }
+
+    m_controller.goPrevious();
+    reloadAfterImageSwitch();
 }
 
 void MainWindow::showFirstImage()
@@ -242,6 +248,7 @@ void MainWindow::zoomOut()
 void MainWindow::setFitToWindow()
 {
     m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = core::ZoomMode::FitToWindow;
     m_controller.setFitToWindow();
     m_imageView->resetPan();
     updateInteractionState();
@@ -251,6 +258,7 @@ void MainWindow::setFitToWindow()
 void MainWindow::setActualSize()
 {
     m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = core::ZoomMode::ActualSize;
     m_controller.setActualSize();
     m_imageView->resetPan();
     updateInteractionState();
@@ -492,6 +500,7 @@ void MainWindow::openFile(const QString &filePath)
 
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = core::ZoomMode::FitToWindow;
     m_cache->clear();
     m_controller.setCollection(single.entries, single.selectedIndex);
     m_controller.setFitToWindow();
@@ -506,6 +515,7 @@ void MainWindow::openFolder(const QString &folderPath)
 {
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = core::ZoomMode::FitToWindow;
     m_cache->clear();
     m_controller.clearCollection();
     m_imageView->setMessage(tr("Scanning folder..."));
@@ -615,8 +625,8 @@ void MainWindow::updateActionState()
     const bool hasPrevious = hasImage && m_controller.currentIndex() > 0;
     const bool hasNext = hasImage && m_controller.currentIndex() + 1 < m_controller.count();
 
-    m_previousAction->setEnabled(hasPrevious);
-    m_nextAction->setEnabled(hasNext);
+    m_previousAction->setEnabled(hasImage);
+    m_nextAction->setEnabled(hasImage);
     m_firstAction->setEnabled(hasPrevious);
     m_lastAction->setEnabled(hasNext);
     m_zoomInAction->setEnabled(hasImage);
@@ -670,6 +680,28 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
     }
 }
 
+void MainWindow::reloadAfterImageSwitch()
+{
+    applyImageSwitchViewPolicy();
+    loadCurrentImage();
+}
+
+void MainWindow::applyImageSwitchViewPolicy()
+{
+    m_temporaryZoomReturnMode.reset();
+
+    if (m_imageSwitchViewPolicy == ImageSwitchViewPolicy::ResetToBaseMode) {
+        if (m_baseZoomMode == core::ZoomMode::ActualSize) {
+            m_controller.setActualSize();
+        } else {
+            m_controller.setFitToWindow();
+        }
+        m_imageView->resetPan();
+    }
+
+    updateInteractionState();
+}
+
 void MainWindow::rememberTemporaryZoomReturnMode()
 {
     if (m_temporaryZoomReturnMode.has_value()) {
@@ -689,6 +721,7 @@ bool MainWindow::restoreTemporaryZoomReturnMode()
 
     const core::ZoomMode returnMode = *m_temporaryZoomReturnMode;
     m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = returnMode;
     if (returnMode == core::ZoomMode::ActualSize) {
         m_controller.setActualSize();
     } else {

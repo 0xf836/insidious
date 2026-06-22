@@ -87,6 +87,7 @@ Current MVP mouse behavior:
 
 - Wheel navigates previous/next image.
 - `Ctrl+wheel` zooms in/out.
+- Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. Keep this behavior configurable in code as reset-vs-preserve when image-switch settings are added.
 - Simple left click enters temporary default zoom at 200%, centered on the clicked image point.
 - Simple left click while in temporary click/rectangle zoom returns to the saved base mode: fit or actual size.
 - Hold left mouse button and drag to pan the image only outside base `fit to window`.
