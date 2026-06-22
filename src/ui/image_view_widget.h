@@ -17,6 +17,7 @@ public:
 
     void setImage(const QImage &image);
     void setMessage(const QString &message);
+    void setPanningEnabled(bool enabled);
     void setPanOffset(QPointF offset);
     [[nodiscard]] QPointF panOffset() const;
     [[nodiscard]] QRectF imageRect() const;
@@ -51,6 +52,7 @@ private:
     QPoint m_leftPressPosition;
     QPoint m_zoomSelectionStart;
     QPoint m_zoomSelectionEnd;
+    bool m_panningEnabled = true;
     bool m_panning = false;
     bool m_leftDragMoved = false;
     bool m_selectingZoom = false;

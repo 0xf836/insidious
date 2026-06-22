@@ -29,6 +29,20 @@ void ImageViewWidget::setMessage(const QString &message)
     update();
 }
 
+void ImageViewWidget::setPanningEnabled(bool enabled)
+{
+    if (m_panningEnabled == enabled) {
+        return;
+    }
+
+    m_panningEnabled = enabled;
+    if (!m_panningEnabled) {
+        m_panning = false;
+        m_leftDragMoved = false;
+        unsetCursor();
+    }
+}
+
 void ImageViewWidget::setPanOffset(QPointF offset)
 {
     m_panOffset = offset;
@@ -105,12 +119,18 @@ void ImageViewWidget::wheelEvent(QWheelEvent *event)
 
 void ImageViewWidget::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton && !m_image.isNull()) {
+    if (event->button() == Qt::LeftButton && !m_image.isNull() && m_panningEnabled) {
         m_panning = true;
         m_leftDragMoved = false;
         m_leftPressPosition = event->pos();
         m_lastMousePosition = event->pos();
         setCursor(Qt::OpenHandCursor);
+        event->accept();
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton && !m_image.isNull()) {
+        m_leftPressPosition = event->pos();
         event->accept();
         return;
     }
@@ -168,6 +188,15 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
         m_leftDragMoved = false;
         unsetCursor();
         if (!wasDrag) {
+            emit imageClicked(event->pos());
+        }
+        event->accept();
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton && !m_image.isNull()) {
+        const int distance = (event->pos() - m_leftPressPosition).manhattanLength();
+        if (distance < QApplication::startDragDistance()) {
             emit imageClicked(event->pos());
         }
         event->accept();

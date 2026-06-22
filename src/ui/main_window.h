@@ -78,6 +78,7 @@ private:
     void showImageLoadError(const core::ImageEntry &entry, const QString &reason, const QString &details = {});
     void updateStatus(const QString &message = {});
     void updateActionState();
+    void updateInteractionState();
     void scheduleFitReload();
     void prefetchNeighbors(const core::DecodeRequest &request);
     void rememberTemporaryZoomReturnMode();

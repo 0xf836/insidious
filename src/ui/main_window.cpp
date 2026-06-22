@@ -65,6 +65,7 @@ MainWindow::MainWindow(QWidget *parent)
     resize(1100, 760);
     updateStatus();
     updateActionState();
+    updateInteractionState();
 }
 
 void MainWindow::openPath(const QString &path)
@@ -226,6 +227,7 @@ void MainWindow::zoomIn()
 {
     m_controller.zoomIn();
     m_imageView->resetPan();
+    updateInteractionState();
     loadCurrentImage();
 }
 
@@ -233,6 +235,7 @@ void MainWindow::zoomOut()
 {
     m_controller.zoomOut();
     m_imageView->resetPan();
+    updateInteractionState();
     loadCurrentImage();
 }
 
@@ -241,6 +244,7 @@ void MainWindow::setFitToWindow()
     m_temporaryZoomReturnMode.reset();
     m_controller.setFitToWindow();
     m_imageView->resetPan();
+    updateInteractionState();
     loadCurrentImage();
 }
 
@@ -249,6 +253,7 @@ void MainWindow::setActualSize()
     m_temporaryZoomReturnMode.reset();
     m_controller.setActualSize();
     m_imageView->resetPan();
+    updateInteractionState();
     loadCurrentImage();
 }
 
@@ -286,6 +291,7 @@ void MainWindow::handleImageClick(const QPoint &position)
     m_controller.setCustomZoom(newScale);
     m_controller.setPanOffset(newPanOffset);
     m_imageView->setPanOffset(newPanOffset);
+    updateInteractionState();
     loadCurrentImage();
 }
 
@@ -324,6 +330,7 @@ void MainWindow::zoomToRect(const QRect &selectionRect)
     m_controller.setCustomZoom(newScale);
     m_controller.setPanOffset(newPanOffset);
     m_imageView->setPanOffset(newPanOffset);
+    updateInteractionState();
     loadCurrentImage();
 }
 
@@ -488,6 +495,7 @@ void MainWindow::openFile(const QString &filePath)
     m_cache->clear();
     m_controller.setCollection(single.entries, single.selectedIndex);
     m_controller.setFitToWindow();
+    updateInteractionState();
     loadCurrentImage();
 
     const QFileInfo fileInfo(filePath);
@@ -502,6 +510,7 @@ void MainWindow::openFolder(const QString &folderPath)
     m_controller.clearCollection();
     m_imageView->setMessage(tr("Scanning folder..."));
     updateStatus(tr("Scanning folder..."));
+    updateInteractionState();
     startFolderScan(folderPath, QString());
 }
 
@@ -552,6 +561,7 @@ void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
     m_imageView->setPanOffset(m_controller.panOffset());
     updateStatus();
     updateActionState();
+    updateInteractionState();
 }
 
 void MainWindow::showError(const QString &message)
@@ -561,6 +571,7 @@ void MainWindow::showError(const QString &message)
     m_imageView->setMessage(fallback);
     updateStatus(fallback);
     updateActionState();
+    updateInteractionState();
 }
 
 void MainWindow::showImageLoadError(const core::ImageEntry &entry, const QString &reason, const QString &details)
@@ -615,6 +626,13 @@ void MainWindow::updateActionState()
     m_rotateLeftAction->setEnabled(hasImage);
     m_rotateRightAction->setEnabled(hasImage);
     m_fullscreenAction->setEnabled(hasImage);
+}
+
+void MainWindow::updateInteractionState()
+{
+    const bool panningEnabled = m_controller.hasCollection()
+        && m_controller.zoomMode() != core::ZoomMode::FitToWindow;
+    m_imageView->setPanningEnabled(panningEnabled);
 }
 
 void MainWindow::scheduleFitReload()

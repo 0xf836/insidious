@@ -89,7 +89,7 @@ Current MVP mouse behavior:
 - `Ctrl+wheel` zooms in/out.
 - Simple left click enters temporary default zoom at 200%, centered on the clicked image point.
 - Simple left click while in temporary click/rectangle zoom returns to the saved base mode: fit or actual size.
-- Hold left mouse button and drag to pan the image.
+- Hold left mouse button and drag to pan the image only outside base `fit to window`.
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
 - Double click toggles fullscreen.
 
