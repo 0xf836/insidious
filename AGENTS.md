@@ -17,6 +17,9 @@ This is a native Linux GUI image viewer. The application should quickly open and
 - Prefer small, reviewable diffs.
 - Do not rewrite unrelated code.
 - Do not introduce new dependencies without explaining why they are needed.
+- Keep `docs/`, `AGENTS.md`, and `README.md` up to date.
+- Any feature addition, change, or removal must be reflected in the relevant documentation.
+- Any change to project structure, architecture, layering, dependencies, or implementation flow must be reflected in the relevant documentation.
 - Keep GUI code separate from core image, collection, archive, metadata, and cache logic.
 - Keep long-running work off the UI thread.
 - Add or update tests for non-trivial core logic.
