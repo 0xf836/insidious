@@ -23,6 +23,7 @@ The build creates:
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys.
+- `src/core/image_entry_validation.*` validates that a filesystem entry is still loadable before decode.
 - `src/core/image_formats.*` contains the MVP extension allowlist: JPEG, PNG, WebP, BMP, DIB.
 - `src/core/natural_sort.*` contains case-folded natural ordering for folder entries.
 - `src/core/folder_collection_source.*` scans non-recursive filesystem folders and creates `ImageEntry` vectors.
@@ -43,6 +44,13 @@ Opening one image:
 5. `MainWindow::loadCurrentImage()` checks `MemoryImageCache`; on a miss it starts a `QtConcurrent` decode job.
 6. `VipsImageDecoder::decode()` returns a display raster as `DecodedImage`.
 7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries.
+
+Current image failures:
+
+- `MainWindow::loadCurrentImage()` validates that the current filesystem entry still exists, is a regular file, and is readable before cache/decode work.
+- Missing, unreadable, non-file, and decode-failed entries show an error for the current filename but keep the collection and index.
+- The user can navigate away from a failed entry with next/previous actions.
+- Failed loads are not inserted into `MemoryImageCache`; prefetch failures stay silent.
 
 Opening a folder:
 

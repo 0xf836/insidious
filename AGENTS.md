@@ -99,6 +99,7 @@ Current MVP mouse behavior:
 - Do not run folder scanning or libvips decoding on the UI thread.
 - Guard async UI updates against stale results when the current source or decode request changes.
 - Keep cache state memory-only. Do not introduce persistent cache files, recent-file lists, or viewed-path settings.
+- Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
 - Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.
 - If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
 - If adding dependencies, update `README.md`, `docs/decisions.md`, and this file with why they are needed.

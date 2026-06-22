@@ -1,5 +1,6 @@
 #include "ui/main_window.h"
 
+#include "core/image_entry_validation.h"
 #include "core/image_formats.h"
 #include "core/vips_image_decoder.h"
 
@@ -152,6 +153,16 @@ void MainWindow::loadCurrentImage()
         return;
     }
 
+    const core::EntryValidationResult validation = core::validateImageEntryLoadable(*entry);
+    if (!validation.ok()) {
+        ++m_decodeGeneration;
+        if (m_decodeWatcher.isRunning()) {
+            m_decodeWatcher.cancel();
+        }
+        showImageLoadError(*entry, validation.errorMessage);
+        return;
+    }
+
     const core::DecodeRequest request = currentDecodeRequest();
     const QString cacheKey = currentCacheKey(request);
 
@@ -177,6 +188,7 @@ void MainWindow::loadCurrentImage()
         DecodeJobResult job;
         job.generation = generation;
         job.cacheKey = cacheKey;
+        job.entry = entryCopy;
         job.decoded = decoder.decode(entryCopy, request);
         return job;
     }));
@@ -450,7 +462,7 @@ void MainWindow::setupConnections()
             return;
         }
         if (!job.decoded.ok()) {
-            showError(job.decoded.errorMessage);
+            showImageLoadError(job.entry, tr("Could not decode image."), job.decoded.errorMessage);
             return;
         }
         m_cache->insert(job.cacheKey, job.decoded);
@@ -549,6 +561,15 @@ void MainWindow::showError(const QString &message)
     m_imageView->setMessage(fallback);
     updateStatus(fallback);
     updateActionState();
+}
+
+void MainWindow::showImageLoadError(const core::ImageEntry &entry, const QString &reason, const QString &details)
+{
+    const QString displayName = entry.displayName.isEmpty() ? entry.absolutePath : entry.displayName;
+    const QString message = details.isEmpty()
+        ? tr("%1: %2").arg(displayName, reason)
+        : tr("%1: %2 (%3)").arg(displayName, reason, details);
+    showError(message);
 }
 
 void MainWindow::updateStatus(const QString &message)

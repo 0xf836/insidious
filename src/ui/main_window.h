@@ -57,6 +57,7 @@ private:
     struct DecodeJobResult {
         quint64 generation = 0;
         QString cacheKey;
+        core::ImageEntry entry;
         core::DecodedImage decoded;
     };
 
@@ -74,6 +75,7 @@ private:
     void applyScanResult(const ScanJobResult &job);
     void displayDecodedImage(const core::DecodedImage &decoded);
     void showError(const QString &message);
+    void showImageLoadError(const core::ImageEntry &entry, const QString &reason, const QString &details = {});
     void updateStatus(const QString &message = {});
     void updateActionState();
     void scheduleFitReload();

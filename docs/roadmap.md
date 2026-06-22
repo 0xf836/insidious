@@ -44,8 +44,8 @@
 - Image loading outside UI thread.
 - Memory cache current/previous/next.
 - Prefetch соседних изображений.
-- Обработка corrupted/unsupported files.
-- Поведение при удалении файла во время просмотра.
+- Обработка corrupted/unsupported files без сброса коллекции.
+- Поведение при удалении файла во время просмотра без сброса коллекции.
 - Проверка больших папок.
 
 ## Phase 5 — Metadata and side panels

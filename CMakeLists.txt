@@ -20,6 +20,8 @@ set(CORE_SOURCES
     src/core/folder_collection_source.h
     src/core/image_entry.cpp
     src/core/image_entry.h
+    src/core/image_entry_validation.cpp
+    src/core/image_entry_validation.h
     src/core/image_formats.cpp
     src/core/image_formats.h
     src/core/memory_image_cache.cpp

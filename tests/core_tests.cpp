@@ -1,4 +1,5 @@
 #include "core/folder_collection_source.h"
+#include "core/image_entry_validation.h"
 #include "core/image_formats.h"
 #include "core/memory_image_cache.h"
 #include "core/natural_sort.h"
@@ -22,10 +23,12 @@ private slots:
     void cleanupTestCase();
     void naturalSortOrdersNumbers();
     void supportedExtensionsAreMvpOnly();
+    void entryLoadValidationReportsMissingAndDirectory();
     void folderScanIsNonRecursiveAndSorted();
     void viewerNavigationStopsAtBounds();
     void memoryCacheEvictsByBudget();
     void decoderLoadsTemporaryPng();
+    void decoderRejectsBrokenSupportedFile();
 };
 
 void CoreTests::initTestCase()
@@ -72,6 +75,26 @@ void CoreTests::supportedExtensionsAreMvpOnly()
     QVERIFY(!isSupportedImageExtension(QStringLiteral("avif")));
     QVERIFY(!isSupportedImageExtension(QStringLiteral("jxl")));
     QVERIFY(!isSupportedImageExtension(QStringLiteral("raw")));
+}
+
+void CoreTests::entryLoadValidationReportsMissingAndDirectory()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+
+    ImageEntry missing;
+    missing.displayName = QStringLiteral("missing.png");
+    missing.absolutePath = QDir(tempDir.path()).filePath(QStringLiteral("missing.png"));
+    const EntryValidationResult missingResult = validateImageEntryLoadable(missing);
+    QVERIFY(!missingResult.ok());
+    QCOMPARE(missingResult.errorMessage, QStringLiteral("File no longer exists."));
+
+    ImageEntry directory;
+    directory.displayName = QStringLiteral("nested");
+    directory.absolutePath = tempDir.path();
+    const EntryValidationResult directoryResult = validateImageEntryLoadable(directory);
+    QVERIFY(!directoryResult.ok());
+    QCOMPARE(directoryResult.errorMessage, QStringLiteral("Path is not a regular file."));
 }
 
 void CoreTests::folderScanIsNonRecursiveAndSorted()
@@ -162,6 +185,28 @@ void CoreTests::decoderLoadsTemporaryPng()
     QCOMPARE(decoded.sourceSize, QSize(16, 8));
     QVERIFY(decoded.displaySize.width() <= 8);
     QVERIFY(decoded.displaySize.height() <= 8);
+}
+
+void CoreTests::decoderRejectsBrokenSupportedFile()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("broken.png"));
+
+    QFile broken(path);
+    QVERIFY(broken.open(QIODevice::WriteOnly));
+    broken.write("not an image");
+    broken.close();
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(8, 8);
+    request.fitToWindow = true;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY(!decoded.ok());
+    QVERIFY(!decoded.errorMessage.isEmpty());
 }
 
 QTEST_MAIN(CoreTests)
