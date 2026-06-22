@@ -23,6 +23,31 @@ This is a native Linux GUI image viewer. The application should quickly open and
 - After changes, run the relevant build/test command if it exists.
 - If a requirement is ambiguous, stop and ask for clarification or write down the assumption before implementing.
 
+## Current implementation quick map
+
+The current MVP implementation is C++20 with Qt6 Widgets and libvips/vips-cpp.
+
+- `CMakeLists.txt` defines the build, `insidious_core`, the `insidious` GUI executable, and `insidious_core_tests`.
+- `src/app/main.cpp` owns process bootstrap: initializes libvips, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
+- `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
+- `src/ui/main_window.*` coordinates UI commands, async folder scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
+- `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
+- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder scanning, viewer state, decode request/result types, memory cache, and libvips decoding.
+- `tests/core_tests.cpp` covers core behavior with Qt Test. Add tests here for non-trivial core changes.
+- `docs/implementation.md` is the longer orientation document for current code structure and data flow.
+
+## Build and test
+
+Use an out-of-source build. The default local build directory is ignored by git.
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for the core test executable.
+
 ## Architectural principles
 
 - Separate the app into clear layers:
@@ -52,6 +77,18 @@ This is a native Linux GUI image viewer. The application should quickly open and
 ## MVP boundaries
 
 The first implementation should focus on regular filesystem images and folders. Archive support, RAW support, advanced metadata, configurable hotkeys, and thumbnail panels are later milestones unless explicitly requested.
+
+Current MVP supports only regular filesystem images and non-recursive folders. The enabled extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, archives, thumbnails, EXIF side panels, file-list panels, settings UI, and recent-file history are intentionally out of scope.
+
+## Implementation constraints
+
+- Keep `src/core` free of `QWidget`/GUI dependencies. QtCore/QtGui value types such as `QString`, `QImage`, `QSize`, and `QDateTime` are currently accepted there.
+- Do not run folder scanning or libvips decoding on the UI thread.
+- Guard async UI updates against stale results when the current source or decode request changes.
+- Keep cache state memory-only. Do not introduce persistent cache files, recent-file lists, or viewed-path settings.
+- Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.
+- If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
+- If adding dependencies, update `README.md`, `docs/decisions.md`, and this file with why they are needed.
 
 ## Definition of done
 
