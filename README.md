@@ -40,6 +40,16 @@
 
 Для ориентации по коду см. `docs/implementation.md`.
 
+## Управление в MVP
+
+- Wheel — предыдущее/следующее изображение.
+- `Ctrl+wheel` — zoom in/out.
+- Простой клик ЛКМ — временный zoom 200% с центровкой по точке клика.
+- Простой клик ЛКМ после click/rectangle zoom — возврат в исходный режим `fit` или `actual size`.
+- Зажатая левая кнопка мыши — pan/hand mode.
+- Зажатая правая кнопка мыши — прямоугольник zoom-to-selection.
+- Double click — fullscreen.
+
 ## Build
 
 MVP implementation uses C++20, Qt6 Widgets and libvips/vips-cpp.

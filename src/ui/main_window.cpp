@@ -18,14 +18,24 @@
 #include <QUrl>
 #include <QtConcurrent>
 
+#include <algorithm>
 #include <cmath>
 
 namespace insidious::ui {
 namespace {
 
+constexpr double DefaultClickZoomFactor = 2.0;
+
 QString formattedFileSize(qint64 bytes)
 {
     return QLocale::system().formattedDataSize(bytes);
+}
+
+QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
+{
+    return QPointF(
+        std::clamp(point.x(), rect.left(), rect.right()),
+        std::clamp(point.y(), rect.top(), rect.bottom()));
 }
 
 } // namespace
@@ -153,6 +163,7 @@ void MainWindow::loadCurrentImage()
     }
 
     const quint64 generation = ++m_decodeGeneration;
+    m_currentDecoded = {};
     m_imageView->setMessage(tr("Loading image..."));
     updateStatus(tr("Loading image..."));
 
@@ -215,6 +226,7 @@ void MainWindow::zoomOut()
 
 void MainWindow::setFitToWindow()
 {
+    m_temporaryZoomReturnMode.reset();
     m_controller.setFitToWindow();
     m_imageView->resetPan();
     loadCurrentImage();
@@ -222,15 +234,84 @@ void MainWindow::setFitToWindow()
 
 void MainWindow::setActualSize()
 {
+    m_temporaryZoomReturnMode.reset();
     m_controller.setActualSize();
     m_imageView->resetPan();
     loadCurrentImage();
 }
 
-void MainWindow::toggleZoom()
+void MainWindow::handleImageClick(const QPoint &position)
 {
-    m_controller.toggleFitActual();
-    m_imageView->resetPan();
+    if (!m_controller.hasCollection() || !m_currentDecoded.ok() || m_currentDecoded.effectiveScale <= 0.0) {
+        return;
+    }
+
+    if (m_controller.zoomMode() == core::ZoomMode::Custom && restoreTemporaryZoomReturnMode()) {
+        return;
+    }
+
+    rememberTemporaryZoomReturnMode();
+
+    const QRectF imageRect = m_imageView->imageRect();
+    if (imageRect.isEmpty()) {
+        return;
+    }
+
+    const double currentScale = m_currentDecoded.effectiveScale;
+    const QPointF imagePoint = clampedPointToRect(QPointF(position), imageRect) - imageRect.topLeft();
+    const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
+    const double newScale = std::clamp(DefaultClickZoomFactor, 0.05, 16.0);
+    const QSizeF newDisplaySize(
+        m_currentDecoded.image.width() * newScale / currentScale,
+        m_currentDecoded.image.height() * newScale / currentScale);
+    const QPointF centeredTopLeft(
+        (m_imageView->width() - newDisplaySize.width()) / 2.0,
+        (m_imageView->height() - newDisplaySize.height()) / 2.0);
+    const QPointF viewportCenter(m_imageView->width() / 2.0, m_imageView->height() / 2.0);
+    const QPointF pointAtNewScale(sourcePoint.x() * newScale, sourcePoint.y() * newScale);
+    const QPointF newPanOffset = viewportCenter - centeredTopLeft - pointAtNewScale;
+
+    m_controller.setCustomZoom(newScale);
+    m_controller.setPanOffset(newPanOffset);
+    m_imageView->setPanOffset(newPanOffset);
+    loadCurrentImage();
+}
+
+void MainWindow::zoomToRect(const QRect &selectionRect)
+{
+    if (!m_controller.hasCollection() || !m_currentDecoded.ok() || m_currentDecoded.effectiveScale <= 0.0) {
+        return;
+    }
+
+    const QRectF imageRect = m_imageView->imageRect();
+    const QRectF selected = QRectF(selectionRect).intersected(imageRect);
+    if (selected.width() < 8.0 || selected.height() < 8.0) {
+        return;
+    }
+
+    rememberTemporaryZoomReturnMode();
+
+    const double currentScale = m_currentDecoded.effectiveScale;
+    const double scaleMultiplier = std::min(
+        static_cast<double>(m_imageView->width()) / selected.width(),
+        static_cast<double>(m_imageView->height()) / selected.height());
+    const double newScale = std::clamp(currentScale * scaleMultiplier, 0.05, 16.0);
+
+    const QPointF selectedCenterInImage = selected.center() - imageRect.topLeft();
+    const QPointF sourceCenter(selectedCenterInImage.x() / currentScale, selectedCenterInImage.y() / currentScale);
+    const QSizeF newDisplaySize(
+        m_currentDecoded.image.width() * newScale / currentScale,
+        m_currentDecoded.image.height() * newScale / currentScale);
+    const QPointF centeredTopLeft(
+        (m_imageView->width() - newDisplaySize.width()) / 2.0,
+        (m_imageView->height() - newDisplaySize.height()) / 2.0);
+    const QPointF viewportCenter(m_imageView->width() / 2.0, m_imageView->height() / 2.0);
+    const QPointF selectedCenterAtNewScale(sourceCenter.x() * newScale, sourceCenter.y() * newScale);
+    const QPointF newPanOffset = viewportCenter - centeredTopLeft - selectedCenterAtNewScale;
+
+    m_controller.setCustomZoom(newScale);
+    m_controller.setPanOffset(newPanOffset);
+    m_imageView->setPanOffset(newPanOffset);
     loadCurrentImage();
 }
 
@@ -356,7 +437,8 @@ void MainWindow::setupConnections()
     connect(m_imageView, &ImageViewWidget::navigateNextRequested, this, &MainWindow::showNextImage);
     connect(m_imageView, &ImageViewWidget::zoomInRequested, this, &MainWindow::zoomIn);
     connect(m_imageView, &ImageViewWidget::zoomOutRequested, this, &MainWindow::zoomOut);
-    connect(m_imageView, &ImageViewWidget::toggleZoomRequested, this, &MainWindow::toggleZoom);
+    connect(m_imageView, &ImageViewWidget::imageClicked, this, &MainWindow::handleImageClick);
+    connect(m_imageView, &ImageViewWidget::zoomToRectRequested, this, &MainWindow::zoomToRect);
     connect(m_imageView, &ImageViewWidget::toggleFullscreenRequested, this, &MainWindow::toggleFullscreen);
     connect(m_imageView, &ImageViewWidget::panChanged, this, [this](QPointF offset) {
         m_controller.setPanOffset(offset);
@@ -390,6 +472,7 @@ void MainWindow::openFile(const QString &filePath)
     }
 
     ++m_sourceGeneration;
+    m_temporaryZoomReturnMode.reset();
     m_cache->clear();
     m_controller.setCollection(single.entries, single.selectedIndex);
     m_controller.setFitToWindow();
@@ -402,6 +485,7 @@ void MainWindow::openFile(const QString &filePath)
 void MainWindow::openFolder(const QString &folderPath)
 {
     ++m_sourceGeneration;
+    m_temporaryZoomReturnMode.reset();
     m_cache->clear();
     m_controller.clearCollection();
     m_imageView->setMessage(tr("Scanning folder..."));
@@ -451,6 +535,7 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
 
 void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
 {
+    m_currentDecoded = decoded;
     m_imageView->setImage(decoded.image);
     m_imageView->setPanOffset(m_controller.panOffset());
     updateStatus();
@@ -459,6 +544,7 @@ void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
 
 void MainWindow::showError(const QString &message)
 {
+    m_currentDecoded = {};
     const QString fallback = message.isEmpty() ? tr("Operation failed.") : message;
     m_imageView->setMessage(fallback);
     updateStatus(fallback);
@@ -543,6 +629,35 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
         });
         Q_UNUSED(future)
     }
+}
+
+void MainWindow::rememberTemporaryZoomReturnMode()
+{
+    if (m_temporaryZoomReturnMode.has_value()) {
+        return;
+    }
+
+    m_temporaryZoomReturnMode = m_controller.zoomMode() == core::ZoomMode::ActualSize
+        ? core::ZoomMode::ActualSize
+        : core::ZoomMode::FitToWindow;
+}
+
+bool MainWindow::restoreTemporaryZoomReturnMode()
+{
+    if (!m_temporaryZoomReturnMode.has_value()) {
+        return false;
+    }
+
+    const core::ZoomMode returnMode = *m_temporaryZoomReturnMode;
+    m_temporaryZoomReturnMode.reset();
+    if (returnMode == core::ZoomMode::ActualSize) {
+        m_controller.setActualSize();
+    } else {
+        m_controller.setFitToWindow();
+    }
+    m_imageView->resetPan();
+    loadCurrentImage();
+    return true;
 }
 
 core::DecodeRequest MainWindow::currentDecodeRequest() const

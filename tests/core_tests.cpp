@@ -108,6 +108,9 @@ void CoreTests::viewerNavigationStopsAtBounds()
 
     controller.setCollection(entries, 0);
     QCOMPARE(controller.currentIndex(), 0);
+    controller.setCustomZoom(2.5);
+    QCOMPARE(controller.zoomMode(), ZoomMode::Custom);
+    QCOMPARE(controller.zoomFactor(), 2.5);
     QVERIFY(!controller.goPrevious());
     QVERIFY(controller.goNext());
     QCOMPARE(controller.currentIndex(), 1);

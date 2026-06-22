@@ -32,7 +32,7 @@ public:
 
     void setFitToWindow();
     void setActualSize();
-    void toggleFitActual();
+    void setCustomZoom(double zoomFactor);
     void zoomIn();
     void zoomOut();
     void resetPan();

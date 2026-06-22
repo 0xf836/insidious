@@ -9,10 +9,13 @@
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QMainWindow>
+#include <QPoint>
 #include <QPointer>
+#include <QRect>
 #include <QTimer>
 
 #include <memory>
+#include <optional>
 
 class QAction;
 
@@ -44,7 +47,8 @@ private slots:
     void zoomOut();
     void setFitToWindow();
     void setActualSize();
-    void toggleZoom();
+    void handleImageClick(const QPoint &position);
+    void zoomToRect(const QRect &selectionRect);
     void rotateLeft();
     void rotateRight();
     void toggleFullscreen();
@@ -74,6 +78,8 @@ private:
     void updateActionState();
     void scheduleFitReload();
     void prefetchNeighbors(const core::DecodeRequest &request);
+    void rememberTemporaryZoomReturnMode();
+    bool restoreTemporaryZoomReturnMode();
     [[nodiscard]] core::DecodeRequest currentDecodeRequest() const;
     [[nodiscard]] QString currentCacheKey(const core::DecodeRequest &request) const;
     [[nodiscard]] QString imageDialogFilter() const;
@@ -96,6 +102,8 @@ private:
     QAction *m_fullscreenAction = nullptr;
 
     core::ViewerController m_controller;
+    core::DecodedImage m_currentDecoded;
+    std::optional<core::ZoomMode> m_temporaryZoomReturnMode;
     std::shared_ptr<core::MemoryImageCache> m_cache;
     QFutureWatcher<DecodeJobResult> m_decodeWatcher;
     QFutureWatcher<ScanJobResult> m_scanWatcher;

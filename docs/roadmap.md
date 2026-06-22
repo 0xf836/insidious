@@ -32,8 +32,10 @@
 
 - Keyboard shortcuts.
 - Mouse wheel navigation.
-- Left click zoom behavior.
-- Right-button pan mode.
+- Ctrl+wheel zoom behavior.
+- Left-click default zoom / restore behavior.
+- Left-button pan mode.
+- Right-button rectangle zoom.
 - Fullscreen.
 - Drag'n'drop файла и папки.
 

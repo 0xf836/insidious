@@ -83,6 +83,16 @@ The first implementation should focus on regular filesystem images and folders. 
 
 Current MVP supports only regular filesystem images and non-recursive folders. The enabled extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, archives, thumbnails, EXIF side panels, file-list panels, settings UI, and recent-file history are intentionally out of scope.
 
+Current MVP mouse behavior:
+
+- Wheel navigates previous/next image.
+- `Ctrl+wheel` zooms in/out.
+- Simple left click enters temporary default zoom at 200%, centered on the clicked image point.
+- Simple left click while in temporary click/rectangle zoom returns to the saved base mode: fit or actual size.
+- Hold left mouse button and drag to pan the image.
+- Hold right mouse button and drag a rectangle to zoom to that selected area.
+- Double click toggles fullscreen.
+
 ## Implementation constraints
 
 - Keep `src/core` free of `QWidget`/GUI dependencies. QtCore/QtGui value types such as `QString`, `QImage`, `QSize`, and `QDateTime` are currently accepted there.

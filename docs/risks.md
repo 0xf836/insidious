@@ -47,8 +47,9 @@ AVIF и JPEG XL зависят от поддержки в выбранном ima
 
 - wheel = next/previous;
 - Ctrl + wheel = zoom;
-- right drag = pan;
-- left click = zoom toggle.
+- left click = temporary default zoom centered on the click point, or restore fit/actual size after temporary zoom;
+- left drag = pan;
+- right drag = zoom-to-selection rectangle.
 
 Или вынести это в настройки позже.
 

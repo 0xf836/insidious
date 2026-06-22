@@ -106,13 +106,10 @@ void ViewerController::setActualSize()
     resetPan();
 }
 
-void ViewerController::toggleFitActual()
+void ViewerController::setCustomZoom(double zoomFactor)
 {
-    if (m_zoomMode == ZoomMode::FitToWindow) {
-        setActualSize();
-    } else {
-        setFitToWindow();
-    }
+    m_zoomMode = ZoomMode::Custom;
+    m_zoomFactor = std::clamp(zoomFactor, 0.05, 16.0);
 }
 
 void ViewerController::zoomIn()

@@ -3,6 +3,8 @@
 #include <QImage>
 #include <QPoint>
 #include <QPointF>
+#include <QRect>
+#include <QRectF>
 #include <QWidget>
 
 namespace insidious::ui {
@@ -17,6 +19,7 @@ public:
     void setMessage(const QString &message);
     void setPanOffset(QPointF offset);
     [[nodiscard]] QPointF panOffset() const;
+    [[nodiscard]] QRectF imageRect() const;
     void resetPan();
 
 signals:
@@ -24,7 +27,8 @@ signals:
     void navigateNextRequested();
     void zoomInRequested();
     void zoomOutRequested();
-    void toggleZoomRequested();
+    void imageClicked(QPoint position);
+    void zoomToRectRequested(QRect rect);
     void toggleFullscreenRequested();
     void panChanged(QPointF offset);
 
@@ -38,12 +42,18 @@ protected:
 
 private:
     [[nodiscard]] QPointF imageTopLeft() const;
+    [[nodiscard]] QRect zoomSelectionRect() const;
 
     QImage m_image;
     QString m_message;
     QPointF m_panOffset;
     QPoint m_lastMousePosition;
+    QPoint m_leftPressPosition;
+    QPoint m_zoomSelectionStart;
+    QPoint m_zoomSelectionEnd;
     bool m_panning = false;
+    bool m_leftDragMoved = false;
+    bool m_selectingZoom = false;
 };
 
 } // namespace insidious::ui

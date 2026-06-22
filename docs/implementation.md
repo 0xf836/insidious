@@ -56,6 +56,15 @@ Navigation:
 2. On a changed index or view transform, `MainWindow` builds a new `DecodeRequest`.
 3. Cache keys include file identity and render request details, so fit/zoom/rotation variants do not collide.
 
+Mouse input:
+
+- Wheel navigates previous/next image.
+- `Ctrl+wheel` zooms in/out.
+- Simple left click calls `MainWindow::handleImageClick()`: it enters temporary 200% zoom centered on the clicked point, or restores the saved `fit`/`actual size` base mode after click/rectangle zoom.
+- Left-button drag pans the current raster and stores the pan offset in `ViewerController`.
+- Right-button drag draws a rectangle in `ImageViewWidget`; `MainWindow::zoomToRect()` converts that widget rectangle into a custom zoom factor and pan offset.
+- Left double click toggles fullscreen.
+
 ## Threading and stale results
 
 - UI widgets must only be touched on the UI thread.
