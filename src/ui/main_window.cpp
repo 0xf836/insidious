@@ -175,8 +175,14 @@ void MainWindow::loadCurrentImage()
     }
 
     const quint64 generation = ++m_decodeGeneration;
+    const bool hasDisplayedImage = m_imageView->hasImage();
     m_currentDecoded = {};
-    m_imageView->setMessage(tr("Loading image..."));
+    m_imageView->setImageInteractionEnabled(false);
+    if (hasDisplayedImage) {
+        m_imageView->setOverlayMessage(tr("Loading image..."));
+    } else {
+        m_imageView->setMessage(tr("Loading image..."));
+    }
     updateStatus(tr("Loading image..."));
 
     if (m_decodeWatcher.isRunning()) {
@@ -567,6 +573,7 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
 void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
 {
     m_currentDecoded = decoded;
+    m_imageView->setImageInteractionEnabled(true);
     m_imageView->setImage(decoded.image);
     m_imageView->setPanOffset(m_controller.panOffset());
     updateStatus();

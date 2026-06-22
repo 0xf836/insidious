@@ -45,6 +45,12 @@ Opening one image:
 6. `VipsImageDecoder::decode()` returns a display raster as `DecodedImage`.
 7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries.
 
+Transient loading display:
+
+- Cache misses during navigation or zoom keep the previous `ImageViewWidget` raster visible and show `Loading image...` as a translucent overlay.
+- While that stale raster is displayed, image-specific interactions such as pan, click zoom, and rectangle zoom are disabled; wheel navigation and fullscreen remain available.
+- Full messages still clear the image for initial loading, scanning, empty states, and current-entry errors.
+
 Current image failures:
 
 - `MainWindow::loadCurrentImage()` validates that the current filesystem entry still exists, is a regular file, and is readable before cache/decode work.

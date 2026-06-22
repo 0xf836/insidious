@@ -18,8 +18,11 @@ public:
 
     void setImage(const QImage &image);
     void setMessage(const QString &message);
+    void setOverlayMessage(const QString &message);
+    void setImageInteractionEnabled(bool enabled);
     void setPanningEnabled(bool enabled);
     void setPanOffset(QPointF offset);
+    [[nodiscard]] bool hasImage() const;
     [[nodiscard]] QPointF panOffset() const;
     [[nodiscard]] QRectF imageRect() const;
     void resetPan();
@@ -47,9 +50,11 @@ private:
     [[nodiscard]] QRect zoomSelectionRect() const;
     void scheduleImageClick(QPoint position);
     void cancelPendingImageClick();
+    void stopImageInteraction();
 
     QImage m_image;
     QString m_message;
+    QString m_overlayMessage;
     QPointF m_panOffset;
     QPoint m_lastMousePosition;
     QPoint m_leftPressPosition;
@@ -57,6 +62,7 @@ private:
     QPoint m_zoomSelectionStart;
     QPoint m_zoomSelectionEnd;
     QTimer m_clickTimer;
+    bool m_imageInteractionEnabled = true;
     bool m_panningEnabled = true;
     bool m_panning = false;
     bool m_leftDragMoved = false;

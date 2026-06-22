@@ -29,6 +29,7 @@ void ImageViewWidget::setImage(const QImage &image)
 {
     m_image = image;
     m_message.clear();
+    m_overlayMessage.clear();
     update();
 }
 
@@ -36,8 +37,30 @@ void ImageViewWidget::setMessage(const QString &message)
 {
     m_image = QImage();
     m_message = message;
+    m_overlayMessage.clear();
+    stopImageInteraction();
     cancelPendingImageClick();
     update();
+}
+
+void ImageViewWidget::setOverlayMessage(const QString &message)
+{
+    m_overlayMessage = message;
+    update();
+}
+
+void ImageViewWidget::setImageInteractionEnabled(bool enabled)
+{
+    if (m_imageInteractionEnabled == enabled) {
+        return;
+    }
+
+    m_imageInteractionEnabled = enabled;
+    if (!m_imageInteractionEnabled) {
+        stopImageInteraction();
+        cancelPendingImageClick();
+        update();
+    }
 }
 
 void ImageViewWidget::setPanningEnabled(bool enabled)
@@ -58,6 +81,11 @@ void ImageViewWidget::setPanOffset(QPointF offset)
 {
     m_panOffset = offset;
     update();
+}
+
+bool ImageViewWidget::hasImage() const
+{
+    return !m_image.isNull();
 }
 
 QPointF ImageViewWidget::panOffset() const
@@ -99,6 +127,26 @@ void ImageViewWidget::paintEvent(QPaintEvent *event)
             }
         }
 
+        if (!m_overlayMessage.isEmpty()) {
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            const QFontMetrics metrics(painter.font());
+            const QSize textSize = metrics.size(Qt::TextSingleLine, m_overlayMessage);
+            const int horizontalPadding = 18;
+            const int verticalPadding = 8;
+            const QSize boxSize(textSize.width() + horizontalPadding * 2, textSize.height() + verticalPadding * 2);
+            const QRect box(
+                (width() - boxSize.width()) / 2,
+                18,
+                boxSize.width(),
+                boxSize.height());
+
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QColor(0, 0, 0, 120));
+            painter.drawRoundedRect(box, 6, 6);
+            painter.setPen(QColor(245, 245, 245, 220));
+            painter.drawText(box, Qt::AlignCenter, m_overlayMessage);
+        }
+
         return;
     }
 
@@ -130,6 +178,11 @@ void ImageViewWidget::wheelEvent(QWheelEvent *event)
 
 void ImageViewWidget::mousePressEvent(QMouseEvent *event)
 {
+    if (!m_imageInteractionEnabled && (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)) {
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton && !m_image.isNull() && m_panningEnabled) {
         m_panning = true;
         m_leftDragMoved = false;
@@ -193,6 +246,11 @@ void ImageViewWidget::mouseMoveEvent(QMouseEvent *event)
 
 void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (!m_imageInteractionEnabled && (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)) {
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton && m_panning) {
         const bool wasDrag = m_leftDragMoved;
         m_panning = false;
@@ -269,6 +327,14 @@ void ImageViewWidget::cancelPendingImageClick()
 {
     m_clickPending = false;
     m_clickTimer.stop();
+}
+
+void ImageViewWidget::stopImageInteraction()
+{
+    m_panning = false;
+    m_leftDragMoved = false;
+    m_selectingZoom = false;
+    unsetCursor();
 }
 
 } // namespace insidious::ui
