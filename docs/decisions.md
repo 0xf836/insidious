@@ -35,3 +35,27 @@
 Решение: rotate left/right в базовом viewer является view-only операцией.
 
 Причина: программа является просмотрщиком, а не редактором. Изменение исходного файла потребовало бы отдельного save workflow.
+
+## ADR-007: GUI и приложение реализуются на C++/Qt6
+
+Решение: первая реализация использует C++20 и Qt6 Widgets.
+
+Причина: Qt6 даёт нативное Linux GUI, готовую инфраструктуру событий, drag'n'drop, QAction/shortcuts, асинхронные задачи через QtConcurrent и тесты через Qt Test.
+
+## ADR-008: Декодирование и display raster строятся через libvips
+
+Решение: image backend MVP использует libvips/vips-cpp.
+
+Причина: libvips хорошо подходит под требования производительности и памяти: он demand-driven, умеет streaming/parallel processing и поддерживает основные форматы MVP. Если libvips или конкретный codec недоступны в системе, приложение показывает ошибку декодирования вместо fallback на другой backend.
+
+## ADR-009: MVP строит display-sized raster, когда это возможно
+
+Решение: для `fit to window` и zoom приложение просит libvips подготовить raster под текущий размер отображения, а не всегда держит полный decoded image.
+
+Причина: это снижает расход памяти на больших изображениях и лучше соответствует цели быстрого viewer. `actual size` ограничивается бюджетом decoded bytes.
+
+## ADR-010: MVP избегает recent-file integration
+
+Решение: приложение не использует `QSettings`, recent files и persistent cache в MVP; file dialogs открываются в non-native режиме, чтобы не включать toolkit/desktop recent-file integration без явного решения.
+
+Причина: это поддерживает требование privacy/no-traces.

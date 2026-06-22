@@ -25,3 +25,36 @@
 ## Начальный принцип разработки
 
 Сначала делается маленькая, стабильная версия: открыть изображение, открыть папку, навигация, масштабирование, fullscreen, базовый drag'n'drop. Архивы, RAW, JPEG XL, глубокая настройка UI и сложные панели добавляются после стабилизации базового viewer pipeline.
+
+## Build
+
+MVP implementation uses C++20, Qt6 Widgets and libvips/vips-cpp.
+
+Arch-like systems:
+
+```sh
+sudo pacman -S qt6-base libvips cmake ninja pkgconf
+```
+
+Debian/Ubuntu-like systems:
+
+```sh
+sudo apt install qt6-base-dev libvips-dev cmake ninja-build pkg-config
+```
+
+Configure, build and test:
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+Run:
+
+```sh
+./build/insidious
+./build/insidious /path/to/image-or-folder
+```
+
+The app intentionally does not use recent-file history, persistent thumbnail caches, archive extraction or file logging in the MVP.

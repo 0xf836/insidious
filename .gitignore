@@ -1,0 +1,44 @@
+# Build directories
+/build/
+/cmake-build-*/
+
+# CMake and Ninja generated files
+/CMakeCache.txt
+/CMakeFiles/
+/CTestTestfile.cmake
+/Testing/
+/cmake_install.cmake
+/install_manifest.txt
+/compile_commands.json
+/build.ninja
+/.ninja_deps
+/.ninja_log
+
+# Qt autogen artifacts
+/*_autogen/
+/.qmake.stash
+
+# Built binaries and libraries
+/insidious
+/insidious_core_tests
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dll
+*.dylib
+*.exe
+
+# Test and runtime leftovers
+*.gcda
+*.gcno
+*.gcov
+
+# Editor and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
