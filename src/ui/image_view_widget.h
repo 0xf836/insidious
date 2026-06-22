@@ -5,6 +5,7 @@
 #include <QPointF>
 #include <QRect>
 #include <QRectF>
+#include <QTimer>
 #include <QWidget>
 
 namespace insidious::ui {
@@ -44,17 +45,22 @@ protected:
 private:
     [[nodiscard]] QPointF imageTopLeft() const;
     [[nodiscard]] QRect zoomSelectionRect() const;
+    void scheduleImageClick(QPoint position);
+    void cancelPendingImageClick();
 
     QImage m_image;
     QString m_message;
     QPointF m_panOffset;
     QPoint m_lastMousePosition;
     QPoint m_leftPressPosition;
+    QPoint m_pendingClickPosition;
     QPoint m_zoomSelectionStart;
     QPoint m_zoomSelectionEnd;
+    QTimer m_clickTimer;
     bool m_panningEnabled = true;
     bool m_panning = false;
     bool m_leftDragMoved = false;
+    bool m_clickPending = false;
     bool m_selectingZoom = false;
 };
 

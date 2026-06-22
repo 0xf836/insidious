@@ -51,7 +51,7 @@
 - Простой клик ЛКМ после click/rectangle zoom — возврат в исходный режим `fit` или `actual size`.
 - Зажатая левая кнопка мыши — pan/hand mode только вне базового `fit`; простой клик ЛКМ работает как zoom/restore.
 - Зажатая правая кнопка мыши — прямоугольник zoom-to-selection.
-- Double click — fullscreen.
+- Double click — fullscreen; temporary click zoom is suppressed for double clicks.
 
 ## Build
 

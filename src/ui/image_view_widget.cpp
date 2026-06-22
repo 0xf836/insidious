@@ -13,6 +13,16 @@ ImageViewWidget::ImageViewWidget(QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
     setMinimumSize(320, 240);
     setMouseTracking(true);
+
+    m_clickTimer.setSingleShot(true);
+    m_clickTimer.setInterval(QApplication::doubleClickInterval());
+    connect(&m_clickTimer, &QTimer::timeout, this, [this]() {
+        if (!m_clickPending) {
+            return;
+        }
+        m_clickPending = false;
+        emit imageClicked(m_pendingClickPosition);
+    });
 }
 
 void ImageViewWidget::setImage(const QImage &image)
@@ -26,6 +36,7 @@ void ImageViewWidget::setMessage(const QString &message)
 {
     m_image = QImage();
     m_message = message;
+    cancelPendingImageClick();
     update();
 }
 
@@ -188,7 +199,7 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
         m_leftDragMoved = false;
         unsetCursor();
         if (!wasDrag) {
-            emit imageClicked(event->pos());
+            scheduleImageClick(event->pos());
         }
         event->accept();
         return;
@@ -197,7 +208,7 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton && !m_image.isNull()) {
         const int distance = (event->pos() - m_leftPressPosition).manhattanLength();
         if (distance < QApplication::startDragDistance()) {
-            emit imageClicked(event->pos());
+            scheduleImageClick(event->pos());
         }
         event->accept();
         return;
@@ -222,6 +233,7 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
 void ImageViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
+        cancelPendingImageClick();
         m_panning = false;
         m_leftDragMoved = false;
         m_selectingZoom = false;
@@ -244,6 +256,19 @@ QPointF ImageViewWidget::imageTopLeft() const
 QRect ImageViewWidget::zoomSelectionRect() const
 {
     return QRect(m_zoomSelectionStart, m_zoomSelectionEnd).normalized();
+}
+
+void ImageViewWidget::scheduleImageClick(QPoint position)
+{
+    m_pendingClickPosition = position;
+    m_clickPending = true;
+    m_clickTimer.start();
+}
+
+void ImageViewWidget::cancelPendingImageClick()
+{
+    m_clickPending = false;
+    m_clickTimer.stop();
 }
 
 } // namespace insidious::ui

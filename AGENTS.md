@@ -92,7 +92,7 @@ Current MVP mouse behavior:
 - Simple left click while in temporary click/rectangle zoom returns to the saved base mode: fit or actual size.
 - Hold left mouse button and drag to pan the image only outside base `fit to window`.
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
-- Double click toggles fullscreen.
+- Double click toggles fullscreen and must not also trigger temporary click zoom.
 
 ## Implementation constraints
 
