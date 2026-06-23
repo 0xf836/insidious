@@ -5,15 +5,20 @@
 #include "core/vips_image_decoder.h"
 
 #include <QAction>
+#include <QAbstractItemView>
 #include <QApplication>
+#include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QItemSelectionModel>
 #include <QKeyEvent>
+#include <QListView>
 #include <QLocale>
 #include <QMenuBar>
 #include <QMimeData>
+#include <QScopedValueRollback>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QUrl>
@@ -55,8 +60,10 @@ MainWindow::MainWindow(QWidget *parent)
     m_statusLabel = new QLabel(this);
     statusBar()->addPermanentWidget(m_statusLabel, 1);
 
+    setupFileListPanel();
     setupActions();
     setupConnections();
+    refreshFileList();
 
     m_resizeReloadTimer.setSingleShot(true);
     m_resizeReloadTimer.setInterval(120);
@@ -224,6 +231,7 @@ void MainWindow::showPreviousImage()
 void MainWindow::showFirstImage()
 {
     if (m_controller.goFirst()) {
+        syncFileListSelection();
         loadCurrentImage();
     }
 }
@@ -231,6 +239,7 @@ void MainWindow::showFirstImage()
 void MainWindow::showLastImage()
 {
     if (m_controller.goLast()) {
+        syncFileListSelection();
         loadCurrentImage();
     }
 }
@@ -462,6 +471,11 @@ void MainWindow::setupActions()
     connect(m_fullscreenAction, &QAction::triggered, this, &MainWindow::toggleFullscreen);
     viewMenu->addAction(m_fullscreenAction);
     toolbar->addAction(m_fullscreenAction);
+
+    viewMenu->addSeparator();
+    QAction *fileListAction = m_fileListDock->toggleViewAction();
+    fileListAction->setText(tr("Files"));
+    viewMenu->addAction(fileListAction);
 }
 
 void MainWindow::setupConnections()
@@ -476,6 +490,13 @@ void MainWindow::setupConnections()
     connect(m_imageView, &ImageViewWidget::panChanged, this, [this](QPointF offset) {
         m_controller.setPanOffset(offset);
     });
+    connect(m_fileListView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
+        if (m_syncingFileListSelection) {
+            return;
+        }
+        selectImageFromFileList(current);
+    });
+    connect(m_fileListView, &QListView::activated, this, &MainWindow::selectImageFromFileList);
 
     connect(&m_decodeWatcher, &QFutureWatcher<DecodeJobResult>::finished, this, [this]() {
         const DecodeJobResult job = m_decodeWatcher.result();
@@ -496,6 +517,25 @@ void MainWindow::setupConnections()
     });
 }
 
+void MainWindow::setupFileListPanel()
+{
+    m_fileListModel = new ImageListModel(this);
+
+    m_fileListView = new QListView(this);
+    m_fileListView->setModel(m_fileListModel);
+    m_fileListView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_fileListView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_fileListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_fileListView->setAlternatingRowColors(true);
+    m_fileListView->setUniformItemSizes(true);
+
+    m_fileListDock = new QDockWidget(tr("Files"), this);
+    m_fileListDock->setObjectName(QStringLiteral("fileListDock"));
+    m_fileListDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_fileListDock->setWidget(m_fileListView);
+    addDockWidget(Qt::LeftDockWidgetArea, m_fileListDock);
+}
+
 void MainWindow::openFile(const QString &filePath)
 {
     const core::ScanResult single = core::singleImageCollection(filePath);
@@ -510,6 +550,7 @@ void MainWindow::openFile(const QString &filePath)
     m_cache->clear();
     m_controller.setCollection(single.entries, single.selectedIndex);
     m_controller.setFitToWindow();
+    refreshFileList();
     updateInteractionState();
     loadCurrentImage();
 
@@ -524,6 +565,7 @@ void MainWindow::openFolder(const QString &folderPath)
     m_baseZoomMode = core::ZoomMode::FitToWindow;
     m_cache->clear();
     m_controller.clearCollection();
+    refreshFileList();
     m_imageView->setMessage(tr("Scanning folder..."));
     updateStatus(tr("Scanning folder..."));
     updateInteractionState();
@@ -561,6 +603,7 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
 
     const QString currentPath = m_controller.currentEntry() == nullptr ? QString() : m_controller.currentEntry()->absolutePath;
     m_controller.setCollection(job.result.entries, job.result.selectedIndex);
+    refreshFileList();
 
     if (currentPath.isEmpty() || currentPath != m_controller.currentEntry()->absolutePath) {
         loadCurrentImage();
@@ -690,6 +733,7 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
 void MainWindow::reloadAfterImageSwitch()
 {
     applyImageSwitchViewPolicy();
+    syncFileListSelection();
     loadCurrentImage();
 }
 
@@ -707,6 +751,46 @@ void MainWindow::applyImageSwitchViewPolicy()
     }
 
     updateInteractionState();
+}
+
+void MainWindow::refreshFileList()
+{
+    m_fileListModel->setEntries(m_controller.entries());
+    m_fileListView->setEnabled(m_controller.hasCollection());
+    syncFileListSelection();
+}
+
+void MainWindow::syncFileListSelection()
+{
+    QItemSelectionModel *selectionModel = m_fileListView->selectionModel();
+    if (selectionModel == nullptr) {
+        return;
+    }
+
+    const QScopedValueRollback<bool> guard(m_syncingFileListSelection, true);
+    const int currentIndex = m_controller.currentIndex();
+    if (currentIndex < 0 || currentIndex >= m_fileListModel->rowCount()) {
+        selectionModel->clear();
+        m_fileListView->setCurrentIndex(QModelIndex());
+        return;
+    }
+
+    const QModelIndex modelIndex = m_fileListModel->index(currentIndex, 0);
+    selectionModel->setCurrentIndex(
+        modelIndex,
+        QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current | QItemSelectionModel::Rows);
+    m_fileListView->scrollTo(modelIndex, QAbstractItemView::EnsureVisible);
+}
+
+void MainWindow::selectImageFromFileList(const QModelIndex &index)
+{
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_controller.count()) {
+        return;
+    }
+
+    if (m_controller.setCurrentIndex(index.row())) {
+        reloadAfterImageSwitch();
+    }
 }
 
 void MainWindow::rememberTemporaryZoomReturnMode()

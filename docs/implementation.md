@@ -21,6 +21,7 @@ The build creates:
 
 - `src/app/main.cpp` initializes libvips, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
+- `src/ui/image_list_model.*` exposes the current collection to a `QListView` in the left `Files` dock. It is UI-only and does not scan sources, decode images, or build thumbnails.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys.
 - `src/core/image_entry_validation.*` validates that a filesystem entry is still loadable before decode.
@@ -62,7 +63,14 @@ Opening a folder:
 
 1. `MainWindow::openFolder()` clears the current collection and starts an async `scanFolder()`.
 2. `scanFolder()` returns naturally sorted, non-recursive supported image entries.
-3. `MainWindow::applyScanResult()` installs the collection and loads the selected image.
+3. `MainWindow::applyScanResult()` installs the collection, refreshes the left file list, and loads the selected image.
+
+Left file list:
+
+- `MainWindow` owns a left `QDockWidget` named `Files` with a `QListView` backed by `ImageListModel`.
+- The model is reset from `ViewerController::entries()` whenever the collection changes.
+- Programmatic navigation syncs the selected row from `ViewerController::currentIndex()`.
+- Selecting a row by mouse or keyboard calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
 
 Navigation:
 
@@ -111,7 +119,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - TIFF, AVIF, JPEG XL, RAW.
 - EXIF side panel and advanced metadata UI.
 - Thumbnail panel.
-- File list panel and quick filename jump.
+- Quick filename jump.
 - Settings UI and configurable hotkeys.
 
 ## Change guidance

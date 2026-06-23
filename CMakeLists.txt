@@ -46,6 +46,8 @@ target_link_libraries(insidious_core
 
 add_executable(insidious
     src/app/main.cpp
+    src/ui/image_list_model.cpp
+    src/ui/image_list_model.h
     src/ui/image_view_widget.cpp
     src/ui/image_view_widget.h
     src/ui/main_window.cpp

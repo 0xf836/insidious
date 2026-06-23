@@ -4,6 +4,7 @@
 #include "core/folder_collection_source.h"
 #include "core/memory_image_cache.h"
 #include "core/viewer_controller.h"
+#include "ui/image_list_model.h"
 #include "ui/image_view_widget.h"
 
 #include <QFutureWatcher>
@@ -18,6 +19,9 @@
 #include <optional>
 
 class QAction;
+class QDockWidget;
+class QListView;
+class QModelIndex;
 
 namespace insidious::ui {
 
@@ -74,6 +78,7 @@ private:
 
     void setupActions();
     void setupConnections();
+    void setupFileListPanel();
     void openFile(const QString &filePath);
     void openFolder(const QString &folderPath);
     void startFolderScan(const QString &folderPath, const QString &selectedPath);
@@ -88,6 +93,9 @@ private:
     void prefetchNeighbors(const core::DecodeRequest &request);
     void reloadAfterImageSwitch();
     void applyImageSwitchViewPolicy();
+    void refreshFileList();
+    void syncFileListSelection();
+    void selectImageFromFileList(const QModelIndex &index);
     void rememberTemporaryZoomReturnMode();
     bool restoreTemporaryZoomReturnMode();
     [[nodiscard]] core::DecodeRequest currentDecodeRequest() const;
@@ -95,6 +103,9 @@ private:
     [[nodiscard]] QString imageDialogFilter() const;
 
     ImageViewWidget *m_imageView = nullptr;
+    QDockWidget *m_fileListDock = nullptr;
+    QListView *m_fileListView = nullptr;
+    ImageListModel *m_fileListModel = nullptr;
     QLabel *m_statusLabel = nullptr;
 
     QAction *m_openFileAction = nullptr;
@@ -122,6 +133,7 @@ private:
     QTimer m_resizeReloadTimer;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
+    bool m_syncingFileListSelection = false;
 };
 
 } // namespace insidious::ui
