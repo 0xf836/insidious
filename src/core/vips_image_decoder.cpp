@@ -87,6 +87,62 @@ QString vipsErrorMessage(const char *message)
     return text.isEmpty() ? QObject::tr("Image decoding failed.") : text;
 }
 
+struct ExifFieldSpec {
+    QString field;
+    QString label;
+};
+
+QVector<ExifFieldSpec> usefulExifFields()
+{
+    return {
+        { QStringLiteral("exif-ifd0-Model"), QStringLiteral("Camera") },
+        { QStringLiteral("exif-ifd0-Make"), QStringLiteral("Make") },
+        { QStringLiteral("exif-ifd2-LensModel"), QStringLiteral("Lens") },
+        { QStringLiteral("exif-ifd2-DateTimeOriginal"), QStringLiteral("Date taken") },
+        { QStringLiteral("exif-ifd0-DateTime"), QStringLiteral("Date") },
+        { QStringLiteral("exif-ifd2-OffsetTimeOriginal"), QStringLiteral("Time offset") },
+        { QStringLiteral("exif-ifd2-OffsetTime"), QStringLiteral("Time offset") },
+        { QStringLiteral("exif-ifd0-Software"), QStringLiteral("Software") },
+        { QStringLiteral("exif-ifd2-ExposureTime"), QStringLiteral("Exposure") },
+        { QStringLiteral("exif-ifd2-FNumber"), QStringLiteral("Aperture") },
+        { QStringLiteral("exif-ifd2-ISOSpeedRatings"), QStringLiteral("ISO") },
+        { QStringLiteral("exif-ifd2-PhotographicSensitivity"), QStringLiteral("ISO") },
+        { QStringLiteral("exif-ifd2-FocalLength"), QStringLiteral("Focal length") },
+        { QStringLiteral("exif-ifd2-ExposureBiasValue"), QStringLiteral("Exposure bias") },
+    };
+}
+
+QVector<ImageMetadataField> extractExifFields(const vips::VImage &image)
+{
+    QVector<ImageMetadataField> metadata;
+    for (const ExifFieldSpec &spec : usefulExifFields()) {
+        const QByteArray fieldName = spec.field.toUtf8();
+        QString value;
+        try {
+            value = QString::fromUtf8(image.get_string(fieldName.constData())).trimmed();
+        } catch (const vips::VError &) {
+            continue;
+        }
+
+        if (value.isEmpty()) {
+            continue;
+        }
+
+        bool duplicate = false;
+        for (const ImageMetadataField &existing : metadata) {
+            if (existing.name == spec.label) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate) {
+            metadata.append(ImageMetadataField { spec.label, value });
+        }
+    }
+
+    return metadata;
+}
+
 } // namespace
 
 QString cacheKeyFor(const ImageEntry &entry, const DecodeRequest &request)
@@ -103,6 +159,8 @@ DecodedImage VipsImageDecoder::decode(const ImageEntry &entry, const DecodeReque
         vips::VImage image = vips::VImage::new_from_file(
             path.constData(),
             vips::VImage::option()->set("access", "sequential"));
+
+        result.metadataFields = extractExifFields(image);
 
         image = image.autorot();
         result.sourceSize = QSize(image.width(), image.height());

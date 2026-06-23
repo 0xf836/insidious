@@ -3,6 +3,7 @@
 #include <QImage>
 #include <QSize>
 #include <QString>
+#include <QVector>
 
 namespace insidious::core {
 
@@ -25,10 +26,16 @@ struct DecodeRequest {
     }
 };
 
+struct ImageMetadataField {
+    QString name;
+    QString value;
+};
+
 struct DecodedImage {
     QImage image;
     QSize sourceSize;
     QSize displaySize;
+    QVector<ImageMetadataField> metadataFields;
     double effectiveScale = 1.0;
     QString errorMessage;
 

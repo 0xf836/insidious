@@ -6,6 +6,7 @@
 #include <QWidget>
 
 class QLabel;
+class QFormLayout;
 
 namespace insidious::ui {
 
@@ -23,6 +24,9 @@ public:
 private:
     void setEntryFields(const core::ImageEntry &entry);
     void setDimensions(const QSize &sourceSize);
+    void setExifFields(const QVector<core::ImageMetadataField> &fields);
+    void setExifMessage(const QString &message);
+    void clearExifRows();
     void setLabel(QLabel *label, const QString &value);
 
     QLabel *m_stateValue = nullptr;
@@ -32,6 +36,9 @@ private:
     QLabel *m_fileSizeValue = nullptr;
     QLabel *m_dimensionsValue = nullptr;
     QLabel *m_modifiedValue = nullptr;
+    QLabel *m_exifHeader = nullptr;
+    QFormLayout *m_exifForm = nullptr;
+    QVector<QWidget *> m_exifRows;
 };
 
 } // namespace insidious::ui

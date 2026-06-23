@@ -34,7 +34,7 @@ The current MVP implementation is C++20 with Qt6 Widgets and libvips/vips-cpp.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
 - `src/ui/main_window.*` coordinates UI commands, async folder scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
-- `src/ui/image_info_panel.*` is a UI-only basic metadata panel for the current entry and decoded dimensions. Keep EXIF parsing and metadata backends out of this widget.
+- `src/ui/image_info_panel.*` is a UI-only metadata panel for the current entry, decoded dimensions, and EXIF fields supplied by the decoder. Keep EXIF parsing and metadata backends out of this widget.
 - `src/ui/image_list_model.*` is a UI-only list model for the current collection. Keep it source-agnostic and free of thumbnail/decode work.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
 - `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder scanning, viewer state, decode request/result types, memory cache, and libvips decoding.
@@ -83,7 +83,7 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 The first implementation should focus on regular filesystem images and folders. Archive support, RAW support, advanced metadata, configurable hotkeys, and thumbnail panels are later milestones unless explicitly requested.
 
-Current MVP supports only regular filesystem images and non-recursive folders. The enabled extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, archives, thumbnails, EXIF parsing, settings UI, configurable quick jump, and recent-file history are intentionally out of scope.
+Current MVP supports only regular filesystem images and non-recursive folders. The enabled extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, archives, thumbnails, advanced metadata backends, settings UI, configurable quick jump, and recent-file history are intentionally out of scope.
 
 Current MVP mouse behavior:
 
@@ -107,7 +107,7 @@ Current MVP mouse behavior:
 - Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.
 - If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
 - The left file list panel should mirror the current collection only. Do not put source scanning, archive access, decoding, thumbnails, or persistence there.
-- The right info panel should display existing entry/decode data only. Do not add EXIF readers or persistent panel state there until those milestones are explicitly planned.
+- The right info panel should display existing entry/decode data only. EXIF currently comes from libvips metadata collected during decode; do not add separate metadata backends or persistent panel state until those milestones are explicitly planned.
 - If adding dependencies, update `README.md`, `docs/decisions.md`, and this file with why they are needed.
 
 ## Definition of done

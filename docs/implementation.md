@@ -21,7 +21,7 @@ The build creates:
 
 - `src/app/main.cpp` initializes libvips, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
-- `src/ui/image_info_panel.*` shows basic current-entry information in the right `Info` dock. It consumes `ImageEntry` and `DecodedImage::sourceSize` only; it does not parse EXIF or read files.
+- `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, and EXIF metadata fields collected by the decoder; it does not read files.
 - `src/ui/image_list_model.*` exposes the current collection to a `QListView` in the left `Files` dock. It is UI-only and does not scan sources, decode images, or build thumbnails.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys.
@@ -30,9 +30,9 @@ The build creates:
 - `src/core/natural_sort.*` contains case-folded natural ordering for folder entries.
 - `src/core/folder_collection_source.*` scans non-recursive filesystem folders and creates `ImageEntry` vectors.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
-- `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder.
+- `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions and metadata fields.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
-- `src/core/vips_image_decoder.*` uses libvips to autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
+- `src/core/vips_image_decoder.*` uses libvips to read a curated set of useful string EXIF metadata, autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder scanning, viewer navigation, cache eviction, and a libvips PNG decode smoke test.
 
 ## Data flow
@@ -79,6 +79,7 @@ Right info panel:
 - `MainWindow` owns a right `QDockWidget` named `Info`, hidden by default and toggled from the `View` menu.
 - The panel shows `ImageEntry` metadata immediately when the current entry changes.
 - Decoded dimensions are filled from `DecodedImage::sourceSize` after successful decode.
+- EXIF is displayed from `DecodedImage::metadataFields`; only a compact set of useful libvips `exif-*` string fields is collected during decode.
 - Current-entry errors keep entry metadata visible and mark dimensions unavailable.
 
 Navigation:
@@ -126,7 +127,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - Multiple selected files as a temporary collection.
 - GIF animation.
 - TIFF, AVIF, JPEG XL, RAW.
-- EXIF reader and advanced metadata UI.
+- Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.
 - Thumbnail panel.
 - Quick filename jump.
 - Settings UI and configurable hotkeys.
