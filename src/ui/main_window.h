@@ -4,6 +4,7 @@
 #include "core/folder_collection_source.h"
 #include "core/memory_image_cache.h"
 #include "core/viewer_controller.h"
+#include "ui/image_info_panel.h"
 #include "ui/image_list_model.h"
 #include "ui/image_view_widget.h"
 
@@ -79,6 +80,7 @@ private:
     void setupActions();
     void setupConnections();
     void setupFileListPanel();
+    void setupInfoPanel();
     void openFile(const QString &filePath);
     void openFolder(const QString &folderPath);
     void startFolderScan(const QString &folderPath, const QString &selectedPath);
@@ -90,6 +92,7 @@ private:
     void updateStatus(const QString &message = {});
     void updateActionState();
     void updateInteractionState();
+    void updateInfoPanelForCurrentImage(const QString &state = {});
     void scheduleFitReload();
     void prefetchNeighbors(const core::DecodeRequest &request);
     void reloadAfterImageSwitch();
@@ -107,6 +110,8 @@ private:
     QDockWidget *m_fileListDock = nullptr;
     QListView *m_fileListView = nullptr;
     ImageListModel *m_fileListModel = nullptr;
+    QDockWidget *m_infoDock = nullptr;
+    ImageInfoPanel *m_infoPanel = nullptr;
     QLabel *m_statusLabel = nullptr;
 
     QAction *m_openFileAction = nullptr;

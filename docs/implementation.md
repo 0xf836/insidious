@@ -21,6 +21,7 @@ The build creates:
 
 - `src/app/main.cpp` initializes libvips, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
+- `src/ui/image_info_panel.*` shows basic current-entry information in the right `Info` dock. It consumes `ImageEntry` and `DecodedImage::sourceSize` only; it does not parse EXIF or read files.
 - `src/ui/image_list_model.*` exposes the current collection to a `QListView` in the left `Files` dock. It is UI-only and does not scan sources, decode images, or build thumbnails.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys.
@@ -73,6 +74,13 @@ Left file list:
 - Programmatic navigation syncs the selected row from `ViewerController::currentIndex()`.
 - Selecting a row by mouse or keyboard calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
 
+Right info panel:
+
+- `MainWindow` owns a right `QDockWidget` named `Info`, hidden by default and toggled from the `View` menu.
+- The panel shows `ImageEntry` metadata immediately when the current entry changes.
+- Decoded dimensions are filled from `DecodedImage::sourceSize` after successful decode.
+- Current-entry errors keep entry metadata visible and mark dimensions unavailable.
+
 Navigation:
 
 1. Actions, shortcuts, wheel events, or mouse gestures call `ViewerController` commands through `MainWindow`.
@@ -118,7 +126,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - Multiple selected files as a temporary collection.
 - GIF animation.
 - TIFF, AVIF, JPEG XL, RAW.
-- EXIF side panel and advanced metadata UI.
+- EXIF reader and advanced metadata UI.
 - Thumbnail panel.
 - Quick filename jump.
 - Settings UI and configurable hotkeys.

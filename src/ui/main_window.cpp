@@ -64,9 +64,11 @@ MainWindow::MainWindow(QWidget *parent)
     statusBar()->addPermanentWidget(m_statusLabel, 1);
 
     setupFileListPanel();
+    setupInfoPanel();
     setupActions();
     setupConnections();
     refreshFileList();
+    updateInfoPanelForCurrentImage();
 
     m_resizeReloadTimer.setSingleShot(true);
     m_resizeReloadTimer.setInterval(120);
@@ -168,6 +170,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
     const core::ImageEntry *entry = m_controller.currentEntry();
     if (entry == nullptr) {
         updateActionState();
+        updateInfoPanelForCurrentImage();
         return;
     }
 
@@ -194,6 +197,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
     const quint64 generation = ++m_decodeGeneration;
     const bool hasDisplayedImage = m_imageView->hasImage();
     m_currentDecoded = {};
+    updateInfoPanelForCurrentImage(tr("Loading..."));
     m_imageView->setImageInteractionEnabled(false);
     if (hasDisplayedImage && showTransientLoading) {
         m_imageView->setOverlayMessage(tr("Loading image..."));
@@ -491,6 +495,10 @@ void MainWindow::setupActions()
     QAction *fileListAction = m_fileListDock->toggleViewAction();
     fileListAction->setText(tr("Files"));
     viewMenu->addAction(fileListAction);
+
+    QAction *infoAction = m_infoDock->toggleViewAction();
+    infoAction->setText(tr("Info"));
+    viewMenu->addAction(infoAction);
 }
 
 void MainWindow::setupConnections()
@@ -551,6 +559,18 @@ void MainWindow::setupFileListPanel()
     addDockWidget(Qt::LeftDockWidgetArea, m_fileListDock);
 }
 
+void MainWindow::setupInfoPanel()
+{
+    m_infoPanel = new ImageInfoPanel(this);
+
+    m_infoDock = new QDockWidget(tr("Info"), this);
+    m_infoDock->setObjectName(QStringLiteral("imageInfoDock"));
+    m_infoDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_infoDock->setWidget(m_infoPanel);
+    addDockWidget(Qt::RightDockWidgetArea, m_infoDock);
+    m_infoDock->hide();
+}
+
 void MainWindow::openFile(const QString &filePath)
 {
     const core::ScanResult single = core::singleImageCollection(filePath);
@@ -566,6 +586,7 @@ void MainWindow::openFile(const QString &filePath)
     m_controller.setCollection(single.entries, single.selectedIndex);
     m_controller.setFitToWindow();
     refreshFileList();
+    updateInfoPanelForCurrentImage();
     updateInteractionState();
     loadCurrentImage();
 
@@ -581,6 +602,7 @@ void MainWindow::openFolder(const QString &folderPath)
     m_cache->clear();
     m_controller.clearCollection();
     refreshFileList();
+    m_infoPanel->showMessage(tr("Scanning folder..."));
     m_imageView->setMessage(tr("Scanning folder..."));
     updateStatus(tr("Scanning folder..."));
     updateInteractionState();
@@ -623,6 +645,7 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
     if (currentPath.isEmpty() || currentPath != m_controller.currentEntry()->absolutePath) {
         loadCurrentImage();
     } else {
+        updateInfoPanelForCurrentImage();
         updateStatus();
         updateActionState();
     }
@@ -634,6 +657,7 @@ void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
     m_imageView->setImageInteractionEnabled(true);
     m_imageView->setImage(decoded.image);
     m_imageView->setPanOffset(m_controller.panOffset());
+    updateInfoPanelForCurrentImage();
     updateStatus();
     updateActionState();
     updateInteractionState();
@@ -644,6 +668,7 @@ void MainWindow::showError(const QString &message)
     m_currentDecoded = {};
     const QString fallback = message.isEmpty() ? tr("Operation failed.") : message;
     m_imageView->setMessage(fallback);
+    m_infoPanel->showMessage(fallback);
     updateStatus(fallback);
     updateActionState();
     updateInteractionState();
@@ -656,6 +681,7 @@ void MainWindow::showImageLoadError(const core::ImageEntry &entry, const QString
         ? tr("%1: %2").arg(displayName, reason)
         : tr("%1: %2 (%3)").arg(displayName, reason, details);
     showError(message);
+    m_infoPanel->showError(entry, details.isEmpty() ? reason : tr("%1 (%2)").arg(reason, details));
 }
 
 void MainWindow::updateStatus(const QString &message)
@@ -676,6 +702,23 @@ void MainWindow::updateStatus(const QString &message)
         : tr("%1%").arg(std::lround(m_controller.zoomFactor() * 100.0));
 
     const QString indexText = tr("%1 / %2").arg(m_controller.currentIndex() + 1).arg(m_controller.count());
+    if (m_currentDecoded.ok() && !m_currentDecoded.sourceSize.isEmpty()) {
+        const QSize sourceSize = m_currentDecoded.sourceSize;
+        const double megapixels = static_cast<double>(sourceSize.width()) * static_cast<double>(sourceSize.height()) / 1'000'000.0;
+        const QString dimensionsText = tr("%1 x %2 · %3 MP")
+                                           .arg(sourceSize.width())
+                                           .arg(sourceSize.height())
+                                           .arg(QLocale::system().toString(megapixels, 'f', 2));
+        m_statusLabel->setText(tr("%1 · %2 · %3 · %4 · %5 · %6")
+                                   .arg(entry->displayName,
+                                        entry->formatHint,
+                                        formattedFileSize(entry->fileSize),
+                                        dimensionsText,
+                                        zoomText,
+                                        indexText));
+        return;
+    }
+
     m_statusLabel->setText(tr("%1 · %2 · %3 · %4 · %5")
                                .arg(entry->displayName,
                                     entry->formatHint,
@@ -708,6 +751,22 @@ void MainWindow::updateInteractionState()
     const bool panningEnabled = m_controller.hasCollection()
         && m_controller.zoomMode() != core::ZoomMode::FitToWindow;
     m_imageView->setPanningEnabled(panningEnabled);
+}
+
+void MainWindow::updateInfoPanelForCurrentImage(const QString &state)
+{
+    const core::ImageEntry *entry = m_controller.currentEntry();
+    if (entry == nullptr) {
+        m_infoPanel->showMessage(tr("No image loaded."));
+        return;
+    }
+
+    if (state.isEmpty() && m_currentDecoded.ok()) {
+        m_infoPanel->showDecodedImage(*entry, m_currentDecoded);
+        return;
+    }
+
+    m_infoPanel->showEntry(*entry, state);
 }
 
 void MainWindow::scheduleFitReload()

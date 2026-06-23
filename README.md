@@ -32,13 +32,15 @@
 Проект сейчас реализован как C++20 / Qt6 Widgets приложение с libvips/vips-cpp для декодирования изображений.
 
 - `src/app/` — запуск процесса, инициализация libvips, создание `QApplication`, обработка optional path argument.
-- `src/ui/` — Qt Widgets слой: главное окно, actions/shortcuts, drag'n'drop, statusbar, fullscreen, левая панель списка файлов, widget отрисовки изображения.
+- `src/ui/` — Qt Widgets слой: главное окно, actions/shortcuts, drag'n'drop, statusbar, fullscreen, левая панель списка файлов, правая панель базовой информации, widget отрисовки изображения.
 - `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки, состояние viewer, memory-only cache, libvips decoder.
 - `tests/` — Qt Test тесты для core-логики.
 
 Главный поток открытия изображения: UI принимает путь, core создаёт одиночную коллекцию или сканирует папку, `ViewerController` выбирает текущий entry, `VipsImageDecoder` асинхронно строит display-sized `QImage`, `MainWindow` обновляет `ImageViewWidget` и statusbar.
 
 Левая панель `Files` показывает текущую коллекцию без thumbnails. Список синхронизируется с `ViewerController`: next/previous/first/last обновляют выделение, а выбор строки мышью или клавиатурой переключает текущее изображение через существующий viewer pipeline.
+
+Правая панель `Info` по умолчанию скрыта и включается через `View -> Info`. Она показывает базовую информацию о текущем entry: имя, путь, формат, размер файла, dimensions после decode и дату изменения. EXIF пока не читается.
 
 Если текущий файл удалён, стал нечитаемым или не декодируется, viewer показывает ошибку для этого entry, но сохраняет коллекцию и навигацию. Ошибки загрузки не попадают в memory cache.
 
