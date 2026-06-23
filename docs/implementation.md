@@ -126,7 +126,7 @@ Settings:
 
 - `Edit -> Preferences` opens `SettingsDialog`.
 - Settings are loaded in `MainWindow` construction and saved on Apply/OK and window close through `QSettings` using the application/organization name `Insidious`.
-- Viewer settings currently include default zoom mode, image-switch view policy, and click zoom multiplier.
+- Viewer settings currently include default zoom mode, image-switch view policy, click zoom multiplier, shared zoom step, and wheel / Ctrl+wheel / Shift+wheel actions.
 - Fullscreen settings currently include side and top/bottom edge trigger ratios.
 - Interface settings currently include whether to remember layout plus window geometry/state and normal/fullscreen Files splitter state.
 - Settings must stay privacy-safe: do not store recent files, source paths, archive paths, default image folders, archive passwords, thumbnails, decoded image data, or file logs.
@@ -145,7 +145,8 @@ Navigation:
 Mouse input:
 
 - Wheel navigates previous/next image.
-- `Ctrl+wheel` zooms in/out relative to the current decoded `effectiveScale`, so zooming from `FitToWindow` starts from the actual fit scale rather than from 100%.
+- `ImageViewWidget` emits wheel delta and modifiers to `MainWindow`; `MainWindow` maps them through settings to navigate, zoom, or no action. Defaults are wheel=navigate, `Ctrl+wheel`=zoom, `Shift+wheel`=no action.
+- Wheel zoom, toolbar zoom, and shortcut zoom use the same configurable step percent. `Ctrl+wheel` zooms relative to the current decoded `effectiveScale`, so zooming from `FitToWindow` starts from the actual fit scale rather than from 100%.
 - Simple left click calls `MainWindow::handleImageClick()`: it enters temporary 2x zoom relative to the current decoded `effectiveScale`, centered on the clicked point, or restores the saved `fit`/`actual size` base mode after click/rectangle zoom.
 - Left-button drag pans the current raster and stores the pan offset in `ViewerController` only outside base `FitToWindow`.
 - Right-button drag draws a rectangle in `ImageViewWidget`; `MainWindow::zoomToRect()` converts that widget rectangle into a custom zoom factor and pan offset.

@@ -127,7 +127,7 @@ Trigger zones:
 
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
-- `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), multiplier для temporary click zoom.
+- `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
 - `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей.
 - `Interface` — запоминание layout окна, dock-панелей и splitter sizes.
 
@@ -139,6 +139,9 @@ Trigger zones:
 
 - колесо мыши: следующее/предыдущее изображение;
 - `Ctrl + wheel`: zoom in / zoom out относительно текущего отображаемого масштаба, включая текущий `fit` scale;
+- `Shift + wheel`: no action по умолчанию;
+- действия wheel / `Ctrl+wheel` / `Shift+wheel` можно настроить как navigation, zoom или no action;
+- toolbar, shortcuts и wheel zoom используют общий настраиваемый zoom step, по умолчанию 25%;
 - next/previous через toolbar, shortcuts или wheel по умолчанию сбрасывает zoom и pan в установленный базовый режим `fit` или `actual size`; в настройках можно переключить это на сохранение текущего view. Если в активной папке достигнута граница, но дальше по дереву есть подходящая папка, viewer переходит к ней; если переходить некуда, текущий entry перерендеривается с тем же сбросом;
 - простой клик левой кнопкой: временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика; multiplier настраивается;
 - простой клик левой кнопкой после click/rectangle zoom: возврат в исходный режим `fit` или `actual size`;
@@ -147,7 +150,7 @@ Trigger zones:
 - drag'n'drop в окно: открыть соответствующий источник.
 - double click - переход в Fullscreen/выход из него; временный zoom по простому клику при double click не срабатывает
 
-Открытый вопрос: нужно определить поведение `Shift + wheel`.
+Настройка горячих клавиш пока не входит в текущий MVP.
 
 ## Клавиатура
 

@@ -499,6 +499,10 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.viewer.defaultZoomMode = ZoomMode::ActualSize;
     values.viewer.imageSwitchPolicy = ImageSwitchPolicy::PreserveView;
     values.viewer.clickZoomMultiplier = 3.5;
+    values.viewer.wheelAction = WheelAction::NoAction;
+    values.viewer.ctrlWheelAction = WheelAction::NavigateImages;
+    values.viewer.shiftWheelAction = WheelAction::Zoom;
+    values.viewer.zoomStepPercent = 40.0;
     values.fullscreen.sideTriggerRatio = 0.12;
     values.fullscreen.verticalTriggerRatio = 0.08;
     values.interface.rememberLayout = true;
@@ -517,6 +521,10 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.viewer.defaultZoomMode, ZoomMode::ActualSize);
     QCOMPARE(loaded.viewer.imageSwitchPolicy, ImageSwitchPolicy::PreserveView);
     QCOMPARE(loaded.viewer.clickZoomMultiplier, 3.5);
+    QCOMPARE(loaded.viewer.wheelAction, WheelAction::NoAction);
+    QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::NavigateImages);
+    QCOMPARE(loaded.viewer.shiftWheelAction, WheelAction::Zoom);
+    QCOMPARE(loaded.viewer.zoomStepPercent, 40.0);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.12);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.08);
     QVERIFY(loaded.interface.rememberLayout);
@@ -537,6 +545,10 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     writeSettings.setValue(QStringLiteral("defaultZoomMode"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("imageSwitchPolicy"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("clickZoomMultiplier"), 100.0);
+    writeSettings.setValue(QStringLiteral("wheelAction"), QStringLiteral("invalid"));
+    writeSettings.setValue(QStringLiteral("ctrlWheelAction"), QStringLiteral("invalid"));
+    writeSettings.setValue(QStringLiteral("shiftWheelAction"), QStringLiteral("invalid"));
+    writeSettings.setValue(QStringLiteral("zoomStepPercent"), 999.0);
     writeSettings.endGroup();
     writeSettings.beginGroup(QStringLiteral("fullscreen"));
     writeSettings.setValue(QStringLiteral("sideTriggerRatio"), -1.0);
@@ -550,8 +562,21 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     QCOMPARE(loaded.viewer.defaultZoomMode, ZoomMode::FitToWindow);
     QCOMPARE(loaded.viewer.imageSwitchPolicy, ImageSwitchPolicy::ResetToBaseMode);
     QCOMPARE(loaded.viewer.clickZoomMultiplier, 8.0);
+    QCOMPARE(loaded.viewer.wheelAction, WheelAction::NavigateImages);
+    QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::Zoom);
+    QCOMPARE(loaded.viewer.shiftWheelAction, WheelAction::NoAction);
+    QCOMPARE(loaded.viewer.zoomStepPercent, 100.0);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.01);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.30);
+
+    writeSettings.beginGroup(QStringLiteral("viewer"));
+    writeSettings.setValue(QStringLiteral("zoomStepPercent"), 1.0);
+    writeSettings.endGroup();
+    writeSettings.sync();
+
+    QSettings lowStepReadSettings(settingsPath, QSettings::IniFormat);
+    const AppSettings lowStepLoaded = AppSettings::read(lowStepReadSettings);
+    QCOMPARE(lowStepLoaded.viewer.zoomStepPercent, 5.0);
 }
 
 QTEST_MAIN(CoreTests)

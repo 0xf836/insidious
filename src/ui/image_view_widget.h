@@ -7,6 +7,7 @@
 #include <QRectF>
 #include <QTimer>
 #include <QWidget>
+#include <Qt>
 
 namespace insidious::ui {
 
@@ -32,6 +33,7 @@ signals:
     void navigateNextRequested();
     void zoomInRequested();
     void zoomOutRequested();
+    void wheelActionRequested(Qt::KeyboardModifiers modifiers, int angleDeltaY);
     void imageClicked(QPoint position);
     void zoomToRectRequested(QRect rect);
     void toggleFullscreenRequested();

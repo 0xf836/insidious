@@ -40,12 +40,14 @@ AVIF и JPEG XL зависят от поддержки в выбранном ima
 
 ## Колесо мыши
 
-Сейчас колесо мыши задано как переход между изображениями. Это удобно для image viewer, но конфликтует с распространённым ожиданием zoom через wheel.
+Сейчас колесо мыши по умолчанию задано как переход между изображениями. Это удобно для image viewer, но конфликтует с распространённым ожиданием zoom через wheel.
 
 Нужно зафиксировать схему:
 
 - wheel = next/previous;
 - Ctrl + wheel = zoom;
+- Shift + wheel = no action;
+- пользователь может изменить wheel actions в Preferences;
 - left click = temporary default zoom centered on the click point, or restore fit/actual size after temporary zoom;
 - left drag = pan;
 - right drag = zoom-to-selection rectangle.

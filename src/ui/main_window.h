@@ -17,6 +17,7 @@
 #include <QPointer>
 #include <QRect>
 #include <QTimer>
+#include <Qt>
 
 #include <memory>
 #include <optional>
@@ -67,6 +68,7 @@ private slots:
     void toggleFullscreen();
     void showQuickJumpDialog();
     void showSettingsDialog();
+    void handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY);
 
 private:
     struct DecodeJobResult {
@@ -133,6 +135,8 @@ private:
     void prefetchNeighbors(const core::DecodeRequest &request);
     void reloadAfterImageSwitch();
     void applyImageSwitchViewPolicy();
+    void applyWheelAction(core::WheelAction action, int angleDeltaY);
+    [[nodiscard]] core::WheelAction wheelActionForModifiers(Qt::KeyboardModifiers modifiers) const;
     void clearSourceTree();
     void activateFolder(const QString &folderRelativePath, int selectedImageIndex = 0, bool loadCurrent = true);
     bool navigateToAdjacentFolder(bool forward);
@@ -200,6 +204,7 @@ private:
     std::optional<core::ZoomMode> m_temporaryZoomReturnMode;
     core::AppSettings m_settings;
     double m_clickZoomMultiplier = 2.0;
+    double m_zoomStepMultiplier = 1.25;
     std::shared_ptr<core::MemoryImageCache> m_cache;
     QFutureWatcher<DecodeJobResult> m_decodeWatcher;
     QFutureWatcher<ScanJobResult> m_scanWatcher;

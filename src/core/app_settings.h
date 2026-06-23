@@ -14,6 +14,12 @@ enum class ImageSwitchPolicy {
     PreserveView,
 };
 
+enum class WheelAction {
+    NavigateImages,
+    Zoom,
+    NoAction,
+};
+
 enum class SettingsCategory {
     Viewer,
     Fullscreen,
@@ -24,6 +30,10 @@ struct ViewerSettings {
     ZoomMode defaultZoomMode = ZoomMode::FitToWindow;
     ImageSwitchPolicy imageSwitchPolicy = ImageSwitchPolicy::ResetToBaseMode;
     double clickZoomMultiplier = 2.0;
+    WheelAction wheelAction = WheelAction::NavigateImages;
+    WheelAction ctrlWheelAction = WheelAction::Zoom;
+    WheelAction shiftWheelAction = WheelAction::NoAction;
+    double zoomStepPercent = 25.0;
 };
 
 struct FullscreenSettings {
@@ -55,5 +65,7 @@ struct AppSettings {
 [[nodiscard]] ZoomMode zoomModeFromSettingsString(const QString &value, ZoomMode fallback);
 [[nodiscard]] QString imageSwitchPolicyToSettingsString(ImageSwitchPolicy policy);
 [[nodiscard]] ImageSwitchPolicy imageSwitchPolicyFromSettingsString(const QString &value, ImageSwitchPolicy fallback);
+[[nodiscard]] QString wheelActionToSettingsString(WheelAction action);
+[[nodiscard]] WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fallback);
 
 } // namespace insidious::core

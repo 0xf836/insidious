@@ -42,6 +42,13 @@ void setComboToData(QComboBox *combo, int value)
     combo->setCurrentIndex(index < 0 ? 0 : index);
 }
 
+void addWheelActionItems(QComboBox *combo)
+{
+    combo->addItem(QObject::tr("Navigate images"), static_cast<int>(core::WheelAction::NavigateImages));
+    combo->addItem(QObject::tr("Zoom"), static_cast<int>(core::WheelAction::Zoom));
+    combo->addItem(QObject::tr("No action"), static_cast<int>(core::WheelAction::NoAction));
+}
+
 } // namespace
 
 SettingsDialog::SettingsDialog(QWidget *parent)
@@ -134,6 +141,25 @@ void SettingsDialog::setupViewerPage()
     m_clickZoomSpin->setSuffix(QStringLiteral("x"));
     form->addRow(tr("Click zoom multiplier:"), m_clickZoomSpin);
 
+    m_zoomStepSpin = new QDoubleSpinBox(page);
+    m_zoomStepSpin->setRange(5.0, 100.0);
+    m_zoomStepSpin->setSingleStep(5.0);
+    m_zoomStepSpin->setDecimals(0);
+    m_zoomStepSpin->setSuffix(QStringLiteral("%"));
+    form->addRow(tr("Zoom step:"), m_zoomStepSpin);
+
+    m_wheelActionCombo = new QComboBox(page);
+    addWheelActionItems(m_wheelActionCombo);
+    form->addRow(tr("Wheel:"), m_wheelActionCombo);
+
+    m_ctrlWheelActionCombo = new QComboBox(page);
+    addWheelActionItems(m_ctrlWheelActionCombo);
+    form->addRow(tr("Ctrl+wheel:"), m_ctrlWheelActionCombo);
+
+    m_shiftWheelActionCombo = new QComboBox(page);
+    addWheelActionItems(m_shiftWheelActionCombo);
+    form->addRow(tr("Shift+wheel:"), m_shiftWheelActionCombo);
+
     m_pages->addWidget(page);
 }
 
@@ -183,6 +209,10 @@ void SettingsDialog::updateControlsFromSettings()
     setComboToData(m_defaultZoomCombo, static_cast<int>(m_settings.viewer.defaultZoomMode));
     setComboToData(m_imageSwitchPolicyCombo, static_cast<int>(m_settings.viewer.imageSwitchPolicy));
     m_clickZoomSpin->setValue(m_settings.viewer.clickZoomMultiplier);
+    m_zoomStepSpin->setValue(m_settings.viewer.zoomStepPercent);
+    setComboToData(m_wheelActionCombo, static_cast<int>(m_settings.viewer.wheelAction));
+    setComboToData(m_ctrlWheelActionCombo, static_cast<int>(m_settings.viewer.ctrlWheelAction));
+    setComboToData(m_shiftWheelActionCombo, static_cast<int>(m_settings.viewer.shiftWheelAction));
     m_fullscreenSideTriggerSpin->setValue(m_settings.fullscreen.sideTriggerRatio * 100.0);
     m_fullscreenVerticalTriggerSpin->setValue(m_settings.fullscreen.verticalTriggerRatio * 100.0);
     m_rememberLayoutCheck->setChecked(m_settings.interface.rememberLayout);
@@ -193,6 +223,10 @@ void SettingsDialog::updateSettingsFromControls()
     m_settings.viewer.defaultZoomMode = static_cast<core::ZoomMode>(m_defaultZoomCombo->currentData().toInt());
     m_settings.viewer.imageSwitchPolicy = static_cast<core::ImageSwitchPolicy>(m_imageSwitchPolicyCombo->currentData().toInt());
     m_settings.viewer.clickZoomMultiplier = m_clickZoomSpin->value();
+    m_settings.viewer.zoomStepPercent = m_zoomStepSpin->value();
+    m_settings.viewer.wheelAction = static_cast<core::WheelAction>(m_wheelActionCombo->currentData().toInt());
+    m_settings.viewer.ctrlWheelAction = static_cast<core::WheelAction>(m_ctrlWheelActionCombo->currentData().toInt());
+    m_settings.viewer.shiftWheelAction = static_cast<core::WheelAction>(m_shiftWheelActionCombo->currentData().toInt());
     m_settings.fullscreen.sideTriggerRatio = m_fullscreenSideTriggerSpin->value() / 100.0;
     m_settings.fullscreen.verticalTriggerRatio = m_fullscreenVerticalTriggerSpin->value() / 100.0;
     m_settings.interface.rememberLayout = m_rememberLayoutCheck->isChecked();

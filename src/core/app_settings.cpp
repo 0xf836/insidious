@@ -11,6 +11,8 @@ namespace {
 constexpr int CurrentSettingsSchemaVersion = 1;
 constexpr double MinClickZoomMultiplier = 1.1;
 constexpr double MaxClickZoomMultiplier = 8.0;
+constexpr double MinZoomStepPercent = 5.0;
+constexpr double MaxZoomStepPercent = 100.0;
 constexpr double MinFullscreenTriggerRatio = 0.01;
 constexpr double MaxFullscreenTriggerRatio = 0.30;
 
@@ -48,6 +50,20 @@ AppSettings AppSettings::read(QSettings &settings)
         defaults.viewer.clickZoomMultiplier,
         MinClickZoomMultiplier,
         MaxClickZoomMultiplier);
+    result.viewer.wheelAction = wheelActionFromSettingsString(
+        settings.value(QStringLiteral("wheelAction"), wheelActionToSettingsString(defaults.viewer.wheelAction)).toString(),
+        defaults.viewer.wheelAction);
+    result.viewer.ctrlWheelAction = wheelActionFromSettingsString(
+        settings.value(QStringLiteral("ctrlWheelAction"), wheelActionToSettingsString(defaults.viewer.ctrlWheelAction)).toString(),
+        defaults.viewer.ctrlWheelAction);
+    result.viewer.shiftWheelAction = wheelActionFromSettingsString(
+        settings.value(QStringLiteral("shiftWheelAction"), wheelActionToSettingsString(defaults.viewer.shiftWheelAction)).toString(),
+        defaults.viewer.shiftWheelAction);
+    result.viewer.zoomStepPercent = clampedDouble(
+        settings.value(QStringLiteral("zoomStepPercent"), defaults.viewer.zoomStepPercent),
+        defaults.viewer.zoomStepPercent,
+        MinZoomStepPercent,
+        MaxZoomStepPercent);
     settings.endGroup();
 
     settings.beginGroup(QStringLiteral("fullscreen"));
@@ -84,6 +100,10 @@ void AppSettings::write(QSettings &settings) const
     settings.setValue(QStringLiteral("defaultZoomMode"), zoomModeToSettingsString(viewer.defaultZoomMode));
     settings.setValue(QStringLiteral("imageSwitchPolicy"), imageSwitchPolicyToSettingsString(viewer.imageSwitchPolicy));
     settings.setValue(QStringLiteral("clickZoomMultiplier"), std::clamp(viewer.clickZoomMultiplier, MinClickZoomMultiplier, MaxClickZoomMultiplier));
+    settings.setValue(QStringLiteral("wheelAction"), wheelActionToSettingsString(viewer.wheelAction));
+    settings.setValue(QStringLiteral("ctrlWheelAction"), wheelActionToSettingsString(viewer.ctrlWheelAction));
+    settings.setValue(QStringLiteral("shiftWheelAction"), wheelActionToSettingsString(viewer.shiftWheelAction));
+    settings.setValue(QStringLiteral("zoomStepPercent"), std::clamp(viewer.zoomStepPercent, MinZoomStepPercent, MaxZoomStepPercent));
     settings.endGroup();
 
     settings.beginGroup(QStringLiteral("fullscreen"));
@@ -167,6 +187,34 @@ ImageSwitchPolicy imageSwitchPolicyFromSettingsString(const QString &value, Imag
     }
     if (normalized == QLatin1String("preserve")) {
         return ImageSwitchPolicy::PreserveView;
+    }
+    return fallback;
+}
+
+QString wheelActionToSettingsString(WheelAction action)
+{
+    switch (action) {
+    case WheelAction::NavigateImages:
+        return QStringLiteral("navigate");
+    case WheelAction::Zoom:
+        return QStringLiteral("zoom");
+    case WheelAction::NoAction:
+        return QStringLiteral("none");
+    }
+    return QStringLiteral("navigate");
+}
+
+WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fallback)
+{
+    const QString normalized = value.toCaseFolded();
+    if (normalized == QLatin1String("navigate")) {
+        return WheelAction::NavigateImages;
+    }
+    if (normalized == QLatin1String("zoom")) {
+        return WheelAction::Zoom;
+    }
+    if (normalized == QLatin1String("none")) {
+        return WheelAction::NoAction;
     }
     return fallback;
 }

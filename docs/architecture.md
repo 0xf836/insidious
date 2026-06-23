@@ -106,6 +106,8 @@ Persistent cache запрещён текущими privacy requirements.
 - default zoom mode;
 - reset/preserve view при переключении изображений;
 - click zoom multiplier;
+- wheel / Ctrl+wheel / Shift+wheel actions;
+- shared zoom step percent;
 - fullscreen edge trigger ratios;
 - window/dock/splitter layout, если включено.
 

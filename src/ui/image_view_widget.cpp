@@ -158,21 +158,7 @@ void ImageViewWidget::paintEvent(QPaintEvent *event)
 
 void ImageViewWidget::wheelEvent(QWheelEvent *event)
 {
-    if (event->modifiers().testFlag(Qt::ControlModifier)) {
-        if (event->angleDelta().y() > 0) {
-            emit zoomInRequested();
-        } else if (event->angleDelta().y() < 0) {
-            emit zoomOutRequested();
-        }
-        event->accept();
-        return;
-    }
-
-    if (event->angleDelta().y() > 0) {
-        emit navigatePreviousRequested();
-    } else if (event->angleDelta().y() < 0) {
-        emit navigateNextRequested();
-    }
+    emit wheelActionRequested(event->modifiers(), event->angleDelta().y());
     event->accept();
 }
 

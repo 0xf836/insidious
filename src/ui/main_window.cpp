@@ -47,7 +47,6 @@
 namespace insidious::ui {
 namespace {
 
-constexpr double ZoomStepMultiplier = 1.25;
 constexpr double MinZoomFactor = 0.05;
 constexpr double MaxZoomFactor = 16.0;
 
@@ -345,7 +344,7 @@ void MainWindow::showLastImage()
 void MainWindow::zoomIn()
 {
     if (m_currentDecoded.ok() && m_currentDecoded.effectiveScale > 0.0) {
-        m_controller.setCustomZoom(m_currentDecoded.effectiveScale * ZoomStepMultiplier);
+        m_controller.setCustomZoom(m_currentDecoded.effectiveScale * m_zoomStepMultiplier);
     } else {
         m_controller.zoomIn();
     }
@@ -357,7 +356,7 @@ void MainWindow::zoomIn()
 void MainWindow::zoomOut()
 {
     if (m_currentDecoded.ok() && m_currentDecoded.effectiveScale > 0.0) {
-        m_controller.setCustomZoom(m_currentDecoded.effectiveScale / ZoomStepMultiplier);
+        m_controller.setCustomZoom(m_currentDecoded.effectiveScale / m_zoomStepMultiplier);
     } else {
         m_controller.zoomOut();
     }
@@ -559,6 +558,11 @@ void MainWindow::showSettingsDialog()
     dialog.exec();
 }
 
+void MainWindow::handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY)
+{
+    applyWheelAction(wheelActionForModifiers(modifiers), angleDeltaY);
+}
+
 void MainWindow::setupActions()
 {
     auto *fileMenu = menuBar()->addMenu(tr("&File"));
@@ -679,6 +683,7 @@ void MainWindow::setupConnections()
     connect(m_imageView, &ImageViewWidget::navigateNextRequested, this, &MainWindow::showNextImage);
     connect(m_imageView, &ImageViewWidget::zoomInRequested, this, &MainWindow::zoomIn);
     connect(m_imageView, &ImageViewWidget::zoomOutRequested, this, &MainWindow::zoomOut);
+    connect(m_imageView, &ImageViewWidget::wheelActionRequested, this, &MainWindow::handleWheelAction);
     connect(m_imageView, &ImageViewWidget::imageClicked, this, &MainWindow::handleImageClick);
     connect(m_imageView, &ImageViewWidget::zoomToRectRequested, this, &MainWindow::zoomToRect);
     connect(m_imageView, &ImageViewWidget::toggleFullscreenRequested, this, &MainWindow::toggleFullscreen);
@@ -971,6 +976,7 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
     }
     m_imageSwitchPolicy = m_settings.viewer.imageSwitchPolicy;
     m_clickZoomMultiplier = m_settings.viewer.clickZoomMultiplier;
+    m_zoomStepMultiplier = 1.0 + (m_settings.viewer.zoomStepPercent / 100.0);
     m_fullscreenOverlaySettings.sideTriggerRatio = m_settings.fullscreen.sideTriggerRatio;
     m_fullscreenOverlaySettings.verticalTriggerRatio = m_settings.fullscreen.verticalTriggerRatio;
 
@@ -1492,6 +1498,43 @@ void MainWindow::applyImageSwitchViewPolicy()
     }
 
     updateInteractionState();
+}
+
+void MainWindow::applyWheelAction(core::WheelAction action, int angleDeltaY)
+{
+    if (angleDeltaY == 0) {
+        return;
+    }
+
+    switch (action) {
+    case core::WheelAction::NavigateImages:
+        if (angleDeltaY > 0) {
+            showPreviousImage();
+        } else {
+            showNextImage();
+        }
+        break;
+    case core::WheelAction::Zoom:
+        if (angleDeltaY > 0) {
+            zoomIn();
+        } else {
+            zoomOut();
+        }
+        break;
+    case core::WheelAction::NoAction:
+        break;
+    }
+}
+
+core::WheelAction MainWindow::wheelActionForModifiers(Qt::KeyboardModifiers modifiers) const
+{
+    if (modifiers.testFlag(Qt::ControlModifier)) {
+        return m_settings.viewer.ctrlWheelAction;
+    }
+    if (modifiers.testFlag(Qt::ShiftModifier)) {
+        return m_settings.viewer.shiftWheelAction;
+    }
+    return m_settings.viewer.wheelAction;
 }
 
 void MainWindow::clearSourceTree()
