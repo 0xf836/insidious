@@ -5,6 +5,7 @@
 
 #include <QDateTime>
 #include <QFileInfo>
+#include <QHash>
 #include <QObject>
 #include <QtGlobal>
 
@@ -136,6 +137,81 @@ bool openArchive(archive *archiveReader, const QString &archivePath, const QStri
 bool isRegularFile(archive_entry *entry)
 {
     return archive_entry_filetype(entry) == AE_IFREG;
+}
+
+QString cleanArchiveRelativePath(QString path)
+{
+    path.replace(QChar('\\'), QChar('/'));
+    while (path.startsWith(QChar('/'))) {
+        path.remove(0, 1);
+    }
+    while (path.endsWith(QChar('/'))) {
+        path.chop(1);
+    }
+    return path == QLatin1String(".") ? QString() : path;
+}
+
+QString archiveFolderPath(const QString &entryPath)
+{
+    const QString folder = QFileInfo(entryPath).path();
+    return folder == QLatin1String(".") ? QString() : cleanArchiveRelativePath(folder);
+}
+
+QString archiveFolderDisplayName(const QString &relativePath, const QString &rootName)
+{
+    if (relativePath.isEmpty()) {
+        return rootName;
+    }
+    return relativePath.section(QChar('/'), -1);
+}
+
+std::shared_ptr<CollectionFolderNode> ensureArchiveFolder(
+    QHash<QString, std::shared_ptr<CollectionFolderNode>> *folders,
+    const QString &relativePath,
+    const QString &rootName)
+{
+    const QString normalized = cleanArchiveRelativePath(relativePath);
+    if (folders->contains(normalized)) {
+        return folders->value(normalized);
+    }
+
+    const QString parentPath = archiveFolderPath(normalized);
+    std::shared_ptr<CollectionFolderNode> parent = ensureArchiveFolder(folders, parentPath, rootName);
+    auto folder = std::make_shared<CollectionFolderNode>();
+    folder->relativePath = normalized;
+    folder->displayName = archiveFolderDisplayName(normalized, rootName);
+    folder->loaded = true;
+    folder->canLoadChildren = false;
+    folder->parent = parent.get();
+    parent->children.append(folder);
+    folders->insert(normalized, folder);
+    return folder;
+}
+
+void sortArchiveFolderTree(const std::shared_ptr<CollectionFolderNode> &folder)
+{
+    std::stable_sort(folder->children.begin(), folder->children.end(), [](const auto &left, const auto &right) {
+        return naturalLess(left->displayName, right->displayName);
+    });
+    std::stable_sort(folder->images.begin(), folder->images.end(), [](const ImageEntry &left, const ImageEntry &right) {
+        return naturalLess(left.displayName, right.displayName);
+    });
+    for (const auto &child : folder->children) {
+        sortArchiveFolderTree(child);
+    }
+}
+
+const CollectionFolderNode *firstFolderWithImages(const std::shared_ptr<CollectionFolderNode> &folder)
+{
+    if (!folder->images.isEmpty()) {
+        return folder.get();
+    }
+    for (const auto &child : folder->children) {
+        if (const CollectionFolderNode *candidate = firstFolderWithImages(child)) {
+            return candidate;
+        }
+    }
+    return nullptr;
 }
 
 void setScanArchiveReadError(ScanResult *result, archive *archiveReader, const QString &password)
@@ -283,6 +359,130 @@ ScanResult scanArchive(const QString &archivePath, const QString &password)
     }
 
     result.selectedIndex = 0;
+    return result;
+}
+
+CollectionTreeResult scanArchiveSourceTree(const QString &archivePath, const QString &password)
+{
+    CollectionTreeResult result;
+
+    const QFileInfo archiveInfo(archivePath);
+    if (!archiveInfo.exists()) {
+        result.errorMessage = QObject::tr("Archive does not exist.");
+        result.errorReason = ScanErrorReason::Generic;
+        return result;
+    }
+    if (!archiveInfo.isFile()) {
+        result.errorMessage = QObject::tr("Path is not a regular file.");
+        result.errorReason = ScanErrorReason::Generic;
+        return result;
+    }
+    if (!archiveInfo.isReadable()) {
+        result.errorMessage = QObject::tr("Archive is not readable.");
+        result.errorReason = ScanErrorReason::Generic;
+        return result;
+    }
+
+    archive *archiveReader = archive_read_new();
+    QString openError;
+    if (!openArchive(archiveReader, archiveInfo.absoluteFilePath(), password, &openError)) {
+        archive_read_free(archiveReader);
+        result.errorMessage = openError;
+        result.errorReason = looksLikePasswordError(openError) ? scanPasswordReason(password) : ScanErrorReason::Generic;
+        return result;
+    }
+
+    result.rootPath = archiveInfo.absoluteFilePath();
+    const QString rootName = archiveInfo.fileName();
+    auto root = std::make_shared<CollectionFolderNode>();
+    root->relativePath = QString();
+    root->displayName = rootName;
+    root->loaded = true;
+    root->canLoadChildren = false;
+
+    QHash<QString, std::shared_ptr<CollectionFolderNode>> folders;
+    folders.insert(QString(), root);
+
+    archive_entry *entry = nullptr;
+    bool passwordValidated = false;
+    for (;;) {
+        const int headerStatus = archive_read_next_header(archiveReader, &entry);
+        if (headerStatus == ARCHIVE_EOF) {
+            break;
+        }
+        if (headerStatus != ARCHIVE_OK) {
+            const QString message = archiveError(archiveReader, QObject::tr("Could not read archive."));
+            result.errorMessage = message;
+            result.errorReason = looksLikePasswordError(message) ? scanPasswordReason(password) : ScanErrorReason::Generic;
+            break;
+        }
+
+        const QString path = cleanArchiveRelativePath(entryPath(entry));
+        if (isRegularFile(entry) && isSupportedImageExtension(QFileInfo(path).suffix())) {
+            if (archive_entry_is_encrypted(entry) && password.isEmpty()) {
+                result.errorMessage = QObject::tr("Archive password is required.");
+                result.errorReason = ScanErrorReason::PasswordRequired;
+                break;
+            }
+
+            const QString folderPath = archiveFolderPath(path);
+            auto folder = ensureArchiveFolder(&folders, folderPath, rootName);
+
+            ImageEntry imageEntry;
+            imageEntry.source = ImageEntrySource::Archive;
+            imageEntry.displayName = QFileInfo(path).fileName();
+            imageEntry.sourceRelativePath = path;
+            imageEntry.sourceFolderPath = folderPath;
+            imageEntry.archivePath = archiveInfo.absoluteFilePath();
+            imageEntry.archiveEntryPath = path;
+            imageEntry.absolutePath = QStringLiteral("%1::%2").arg(imageEntry.archivePath, imageEntry.archiveEntryPath);
+            imageEntry.fileSize = archive_entry_size_is_set(entry) ? archive_entry_size(entry) : 0;
+            const time_t modifiedTime = archive_entry_mtime(entry);
+            if (modifiedTime > 0) {
+                imageEntry.modifiedTime = QDateTime::fromSecsSinceEpoch(modifiedTime);
+            }
+            imageEntry.formatHint = formatHintFromSuffix(QFileInfo(path).suffix());
+            folder->images.append(imageEntry);
+
+            if (archive_entry_is_encrypted(entry) && !passwordValidated) {
+                ScanResult validationResult;
+                if (!validateEncryptedEntryPassword(&validationResult, archiveReader, path, password)) {
+                    result.errorMessage = validationResult.errorMessage;
+                    result.errorReason = validationResult.errorReason;
+                    break;
+                }
+                passwordValidated = true;
+                continue;
+            }
+        }
+
+        const int skipStatus = archive_read_data_skip(archiveReader);
+        if (skipStatus != ARCHIVE_OK && skipStatus != ARCHIVE_EOF) {
+            const QString message = archiveError(archiveReader, QObject::tr("Could not read archive."));
+            result.errorMessage = message;
+            result.errorReason = looksLikePasswordError(message) ? scanPasswordReason(password) : ScanErrorReason::Generic;
+            break;
+        }
+    }
+
+    archive_read_close(archiveReader);
+    archive_read_free(archiveReader);
+
+    if (!result.errorMessage.isEmpty()) {
+        return result;
+    }
+
+    sortArchiveFolderTree(root);
+    const CollectionFolderNode *selectedFolder = firstFolderWithImages(root);
+    if (selectedFolder == nullptr) {
+        result.errorMessage = QObject::tr("Archive contains no supported images.");
+        result.errorReason = ScanErrorReason::Generic;
+        return result;
+    }
+
+    result.root = root;
+    result.selectedFolderPath = selectedFolder->relativePath;
+    result.selectedImageIndex = 0;
     return result;
 }
 

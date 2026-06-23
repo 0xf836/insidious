@@ -4,6 +4,7 @@
 #include "core/folder_collection_source.h"
 #include "core/memory_image_cache.h"
 #include "core/viewer_controller.h"
+#include "ui/collection_tree_model.h"
 #include "ui/image_info_panel.h"
 #include "ui/image_list_model.h"
 #include "ui/image_view_widget.h"
@@ -23,7 +24,9 @@ class QAction;
 class QDockWidget;
 class QListView;
 class QModelIndex;
+class QSplitter;
 class QToolBar;
+class QTreeView;
 
 namespace insidious::ui {
 
@@ -77,7 +80,13 @@ private:
     struct ScanJobResult {
         quint64 generation = 0;
         QString selectedPath;
-        core::ScanResult result;
+        core::CollectionTreeResult result;
+    };
+
+    struct FolderLoadJobResult {
+        quint64 generation = 0;
+        QString folderRelativePath;
+        core::FolderLoadResult result;
     };
 
     struct FullscreenOverlaySettings {
@@ -103,7 +112,9 @@ private:
     void openArchive(const QString &archivePath);
     void startFolderScan(const QString &folderPath, const QString &selectedPath);
     void startArchiveScan(const QString &archivePath, const QString &password);
+    void startFolderLoad(const QString &folderRelativePath);
     void applyScanResult(const ScanJobResult &job);
+    void applyFolderLoadResult(const FolderLoadJobResult &job);
     bool promptArchivePassword(const QString &archivePath, bool retry);
     void clearArchivePassword();
     void displayDecodedImage(const core::DecodedImage &decoded);
@@ -118,9 +129,14 @@ private:
     void prefetchNeighbors(const core::DecodeRequest &request);
     void reloadAfterImageSwitch();
     void applyImageSwitchViewPolicy();
+    void clearSourceTree();
+    void activateFolder(const QString &folderRelativePath, int selectedImageIndex = 0, bool loadCurrent = true);
     void refreshFileList();
     void syncFileListSelection();
+    void syncFolderTreeSelection();
     void selectImageFromFileList(const QModelIndex &index);
+    void selectFolderFromTree(const QModelIndex &index);
+    [[nodiscard]] core::CollectionFolderNode *folderNodeForPath(const QString &folderRelativePath) const;
     void rememberTemporaryZoomReturnMode();
     bool restoreTemporaryZoomReturnMode();
     void enterFullscreenMode();
@@ -136,7 +152,10 @@ private:
 
     ImageViewWidget *m_imageView = nullptr;
     QDockWidget *m_fileListDock = nullptr;
+    QSplitter *m_filePanelSplitter = nullptr;
+    QTreeView *m_fileTreeView = nullptr;
     QListView *m_fileListView = nullptr;
+    CollectionTreeModel *m_fileTreeModel = nullptr;
     ImageListModel *m_fileListModel = nullptr;
     QDockWidget *m_infoDock = nullptr;
     ImageInfoPanel *m_infoPanel = nullptr;
@@ -146,6 +165,8 @@ private:
     QWidget *m_fullscreenRightPanel = nullptr;
     QToolBar *m_fullscreenTopPanel = nullptr;
     QWidget *m_fullscreenBottomPanel = nullptr;
+    QSplitter *m_fullscreenFilePanelSplitter = nullptr;
+    QTreeView *m_fullscreenFileTreeView = nullptr;
     QListView *m_fullscreenFileListView = nullptr;
     ImageInfoPanel *m_fullscreenInfoPanel = nullptr;
     QLabel *m_fullscreenStatusLabel = nullptr;
@@ -173,13 +194,19 @@ private:
     std::shared_ptr<core::MemoryImageCache> m_cache;
     QFutureWatcher<DecodeJobResult> m_decodeWatcher;
     QFutureWatcher<ScanJobResult> m_scanWatcher;
+    QFutureWatcher<FolderLoadJobResult> m_folderLoadWatcher;
     QTimer m_resizeReloadTimer;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
     bool m_syncingFileListSelection = false;
+    bool m_syncingFolderTreeSelection = false;
     bool m_quickJumpDialogOpen = false;
     QString m_currentArchivePath;
     QString m_currentArchivePassword;
+    std::shared_ptr<core::CollectionFolderNode> m_sourceRoot;
+    QString m_sourceRootPath;
+    QString m_activeFolderPath;
+    QString m_loadingFolderPath;
     FullscreenOverlaySettings m_fullscreenOverlaySettings;
     FullscreenUiState m_preFullscreenUiState;
     bool m_fullscreenUiActive = false;

@@ -24,6 +24,7 @@ struct ArchiveEntryReadResult {
 };
 
 [[nodiscard]] ScanResult scanArchive(const QString &archivePath, const QString &password = {});
+[[nodiscard]] CollectionTreeResult scanArchiveSourceTree(const QString &archivePath, const QString &password = {});
 [[nodiscard]] ArchiveEntryReadResult readArchiveEntry(
     const ImageEntry &entry,
     const QString &password = {},

@@ -34,7 +34,9 @@ private slots:
     void archiveExtensionsAreSupportedSeparately();
     void entryLoadValidationReportsMissingAndDirectory();
     void folderScanIsNonRecursiveAndSorted();
+    void fileSystemSourceTreeLoadsFoldersLazily();
     void archiveScanFiltersImagesAndSorts();
+    void archiveSourceTreeGroupsImagesByFolder();
     void archivePasswordIsRequiredAndAccepted();
     void viewerNavigationStopsAtBounds();
     void memoryCacheEvictsByBudget();
@@ -224,6 +226,37 @@ void CoreTests::folderScanIsNonRecursiveAndSorted()
     QCOMPARE(result.entries.at(1).displayName, QStringLiteral("10.png"));
 }
 
+void CoreTests::fileSystemSourceTreeLoadsFoldersLazily()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QDir root(tempDir.path());
+    QVERIFY(root.mkpath(QStringLiteral("nested/deeper")));
+
+    QImage image(2, 2, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(root.filePath(QStringLiteral("root.png"))));
+    QVERIFY(image.save(root.filePath(QStringLiteral("nested/child.png"))));
+    QVERIFY(image.save(root.filePath(QStringLiteral("nested/deeper/grandchild.png"))));
+
+    const CollectionTreeResult tree = scanFileSystemSourceTree(tempDir.path());
+    QVERIFY2(tree.ok(), qPrintable(tree.errorMessage));
+    QVERIFY(tree.root != nullptr);
+    QCOMPARE(tree.root->images.size(), 1);
+    QCOMPARE(tree.root->images.first().displayName, QStringLiteral("root.png"));
+    QCOMPARE(tree.root->children.size(), 1);
+    QCOMPARE(tree.root->children.first()->relativePath, QStringLiteral("nested"));
+    QVERIFY(!tree.root->children.first()->loaded);
+
+    const FolderLoadResult nested = loadFileSystemFolder(tempDir.path(), QStringLiteral("nested"));
+    QVERIFY2(nested.ok(), qPrintable(nested.errorMessage));
+    QCOMPARE(nested.images.size(), 1);
+    QCOMPARE(nested.images.first().displayName, QStringLiteral("child.png"));
+    QCOMPARE(nested.images.first().sourceFolderPath, QStringLiteral("nested"));
+    QCOMPARE(nested.children.size(), 1);
+    QCOMPARE(nested.children.first()->relativePath, QStringLiteral("nested/deeper"));
+}
+
 void CoreTests::archiveScanFiltersImagesAndSorts()
 {
     QTemporaryDir tempDir;
@@ -243,6 +276,32 @@ void CoreTests::archiveScanFiltersImagesAndSorts()
     QCOMPARE(result.entries.at(0).displayName, QStringLiteral("images/2.png"));
     QCOMPARE(result.entries.at(1).displayName, QStringLiteral("images/10.png"));
     QCOMPARE(result.entries.at(0).source, ImageEntrySource::Archive);
+}
+
+void CoreTests::archiveSourceTreeGroupsImagesByFolder()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.zip"));
+
+    QVERIFY(writeZipArchive(path, {
+        { QStringLiteral("images/10.png"), pngBytes() },
+        { QStringLiteral("images/2.png"), pngBytes() },
+        { QStringLiteral("other/1.png"), pngBytes() },
+        { QStringLiteral("notes/readme.txt"), QByteArray("not an image") },
+    }));
+
+    const CollectionTreeResult tree = scanArchiveSourceTree(path);
+
+    QVERIFY2(tree.ok(), qPrintable(tree.errorMessage));
+    QVERIFY(tree.root != nullptr);
+    QCOMPARE(tree.root->children.size(), 2);
+    QCOMPARE(tree.root->children.at(0)->displayName, QStringLiteral("images"));
+    QCOMPARE(tree.root->children.at(0)->images.size(), 2);
+    QCOMPARE(tree.root->children.at(0)->images.at(0).displayName, QStringLiteral("2.png"));
+    QCOMPARE(tree.root->children.at(0)->images.at(0).sourceRelativePath, QStringLiteral("images/2.png"));
+    QCOMPARE(tree.root->children.at(1)->displayName, QStringLiteral("other"));
+    QCOMPARE(tree.selectedFolderPath, QStringLiteral("images"));
 }
 
 void CoreTests::archivePasswordIsRequiredAndAccepted()
@@ -267,6 +326,11 @@ void CoreTests::archivePasswordIsRequiredAndAccepted()
     const ScanResult correctPassword = scanArchive(path, QStringLiteral("secret"));
     QVERIFY2(correctPassword.ok(), qPrintable(correctPassword.errorMessage));
     QCOMPARE(correctPassword.entries.size(), 1);
+
+    const CollectionTreeResult correctTree = scanArchiveSourceTree(path, QStringLiteral("secret"));
+    QVERIFY2(correctTree.ok(), qPrintable(correctTree.errorMessage));
+    QVERIFY(correctTree.root != nullptr);
+    QCOMPARE(correctTree.root->images.size(), 1);
 
     const ArchiveEntryReadResult wrongRead = readArchiveEntry(correctPassword.entries.first(), QStringLiteral("wrong"));
     QVERIFY(!wrongRead.ok());

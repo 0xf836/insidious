@@ -35,7 +35,7 @@ QVariant ImageListModel::data(const QModelIndex &index, int role) const
         return entry.displayName.isEmpty() ? entry.absolutePath : entry.displayName;
     }
     if (role == Qt::ToolTipRole || role == Qt::StatusTipRole) {
-        return entry.absolutePath;
+        return entry.sourceRelativePath.isEmpty() ? entry.absolutePath : entry.sourceRelativePath;
     }
 
     return {};

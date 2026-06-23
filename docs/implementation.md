@@ -23,19 +23,20 @@ The build creates:
 - `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
 - `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, and EXIF metadata fields collected by the decoder; it does not read files.
-- `src/ui/image_list_model.*` exposes the current collection to a `QListView` in the left `Files` dock. It is UI-only and does not scan sources, decode images, or build thumbnails.
+- `src/ui/collection_tree_model.*` exposes the current source folder tree to `QTreeView` instances in the normal and fullscreen `Files` panels.
+- `src/ui/image_list_model.*` exposes the active folder's image entries to `QListView` instances in the left `Files` panel. It is UI-only and does not scan sources, decode images, or build thumbnails.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys, including filesystem and archive-backed entries.
 - `src/core/image_entry_validation.*` validates that a filesystem image or owning archive is still loadable before decode.
 - `src/core/image_formats.*` contains the MVP image extension allowlist: JPEG, PNG, WebP, BMP, DIB, plus archive extension detection for ZIP, 7z, and RAR.
 - `src/core/natural_sort.*` contains case-folded natural ordering for folder entries.
-- `src/core/folder_collection_source.*` scans non-recursive filesystem folders and creates `ImageEntry` vectors.
-- `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, filters supported image entries, and reads selected archive members into memory without extracting them to disk.
+- `src/core/folder_collection_source.*` supports the older flat non-recursive folder scan and the current source-tree flow: root folder scan plus lazy per-folder loading.
+- `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and reads selected archive members into memory without extracting them to disk.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions and metadata fields.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
-- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, viewer navigation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
+- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
 ## Data flow
 
@@ -65,31 +66,34 @@ Current image failures:
 
 Opening a folder:
 
-1. `MainWindow::openFolder()` clears the current collection and starts an async `scanFolder()`.
-2. `scanFolder()` returns naturally sorted, non-recursive supported image entries.
-3. `MainWindow::applyScanResult()` installs the collection, refreshes the left file list, and loads the selected image.
+1. `MainWindow::openFolder()` clears the current collection and starts an async `scanFileSystemSourceTree()`.
+2. The root folder scan returns direct images plus direct child folders; descendants are not scanned immediately.
+3. Selecting or expanding an unloaded filesystem folder starts async `loadFileSystemFolder()` for that folder.
+4. `MainWindow::activateFolder()` installs the selected folder's direct image entries as the current `ViewerController` collection.
 
 Opening an archive:
 
 1. `MainWindow::openPath()` detects ZIP/7z/RAR files and calls `openArchive()`.
-2. `openArchive()` clears the current collection and starts async `scanArchive()`.
-3. `scanArchive()` uses libarchive to list regular archive entries, filters supported image extensions, and sorts virtual paths naturally.
-4. Archive-backed `ImageEntry` values keep both the archive path and internal entry path; the left file list and quick jump treat them as the current collection.
+2. `openArchive()` clears the current collection and starts async `scanArchiveSourceTree()`.
+3. `scanArchiveSourceTree()` uses libarchive to enumerate headers, filter supported image extensions, build virtual folder nodes, and sort folders/files naturally.
+4. Archive-backed `ImageEntry` values keep both the archive path and internal entry path; the active folder's file list and quick jump treat direct images in that folder as the current collection.
 5. If libarchive reports that a password is required or invalid, `MainWindow` prompts the user and retries the scan until the password works or the user cancels.
 6. The current archive password is stored only in `MainWindow` memory for the active archive source and is passed by value to archive scan/decode jobs; it is never written to `ImageEntry`, cache keys, docs, logs, settings, or UI labels.
 7. During decode, `VipsImageDecoder` reads the selected archive entry into a bounded `QByteArray` with the current archive password and passes it to `vips::VImage::new_from_buffer()`.
 
 Left file list:
 
-- `MainWindow` owns a left `QDockWidget` named `Files` with a `QListView` backed by `ImageListModel`.
-- The model is reset from `ViewerController::entries()` whenever the collection changes.
-- Programmatic navigation syncs the selected row from `ViewerController::currentIndex()`.
-- Selecting a row by mouse or keyboard calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
+- `MainWindow` owns a left `QDockWidget` named `Files` with a vertical `QSplitter`: `QTreeView` above and `QListView` below.
+- The tree uses `CollectionTreeModel` and represents folders for the current filesystem/archive source.
+- The list uses `ImageListModel` and is reset from `ViewerController::entries()` whenever the active folder changes.
+- Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
+- Programmatic navigation syncs the selected file row and the selected/expanded folder in both normal and fullscreen panels.
 
 Quick filename jump:
 
 - `Navigate -> Quick Jump` / `Ctrl+F` opens a UI-only dialog backed by `ImageListModel` and a case-insensitive `QSortFilterProxyModel`.
 - Matching is contains-based against the display name only; no filesystem scan or metadata lookup happens in the dialog.
+- Matching is scoped to the active folder collection, not the whole source tree.
 - In fullscreen, `MainWindow` keeps the viewer fullscreen and shows the same dialog inside an in-window overlay, avoiding a separate top-level dialog that can make the window manager leave fullscreen.
 - Accepted selection maps the proxy row back to the collection row and switches through `MainWindow::reloadAfterImageSwitch()`.
 
@@ -97,7 +101,7 @@ Fullscreen overlay UI:
 
 - Entering fullscreen stores the normal visibility of the menu bar, main toolbar, statusbar, `Files` dock, and `Info` dock, hides them, and makes the central image viewer occupy the window.
 - Fullscreen edge UI is implemented as child overlay widgets of `MainWindow`, not as dock widgets and not as layout participants. Showing or hiding these overlays must not resize `ImageViewWidget`, alter zoom/pan, or trigger image reload.
-- The left overlay owns a second `QListView` backed by the same `ImageListModel` as the normal `Files` dock. The two views have separate selection models and are synchronized from `ViewerController::currentIndex()`.
+- The left overlay owns a second `QTreeView` and `QListView` backed by the same tree/list models as the normal `Files` dock. The views have separate selection models and are synchronized from the active folder and `ViewerController::currentIndex()`.
 - The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.
 - The top overlay is a `QToolBar` using the same `QAction` objects as the normal menu/toolbar flow, so shortcuts, enabled state, and command routing remain centralized.
 - The bottom overlay mirrors the normal statusbar text.
@@ -156,7 +160,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 ## Out of scope for current MVP
 
 - Archive password persistence.
-- Recursive folders.
+- Recursive "include all descendants" folder collections.
 - Multiple selected files as a temporary collection.
 - GIF animation.
 - TIFF, AVIF, JPEG XL, RAW.

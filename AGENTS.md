@@ -35,7 +35,8 @@ The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp, and 
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
 - `src/ui/main_window.*` coordinates UI commands, async folder scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
 - `src/ui/image_info_panel.*` is a UI-only metadata panel for the current entry, decoded dimensions, and EXIF fields supplied by the decoder. Keep EXIF parsing and metadata backends out of this widget.
-- `src/ui/image_list_model.*` is a UI-only list model for the current collection. Keep it source-agnostic and free of thumbnail/decode work.
+- `src/ui/collection_tree_model.*` is a UI-only tree model for folders in the current collection source.
+- `src/ui/image_list_model.*` is a UI-only list model for images in the active folder. Keep it source-agnostic and free of thumbnail/decode work.
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
 - `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive scanning, viewer state, decode request/result types, memory cache, libarchive entry reading, and libvips decoding.
@@ -84,7 +85,7 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 The first implementation should focus on regular filesystem images, folders, and archives. RAW support, advanced metadata, configurable hotkeys, password persistence, and thumbnail panels are later milestones unless explicitly requested.
 
-Current MVP supports regular filesystem images, non-recursive folders, and ZIP/7z/RAR archives through libarchive without disk extraction. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, settings UI, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
+Current MVP supports regular filesystem images, filesystem folder trees with lazy per-folder loading, and ZIP/7z/RAR archive trees through libarchive without disk extraction. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, settings UI, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
 
 Current MVP mouse behavior:
 
@@ -115,7 +116,10 @@ Current MVP fullscreen behavior:
 - Transient loading during image navigation should preserve the currently displayed raster and use a subtle overlay. Zoom-triggered loading should preserve the displayed raster without showing a loading label or moving the old image. Error, empty, and scanning states may clear the image and show a full message.
 - Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.
 - If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
-- The left file list panel should mirror the current collection only. Do not put source scanning, archive access, decoding, thumbnails, or persistence there.
+- The left `Files` panel is split into a folder tree and an active-folder image list. Selecting a folder changes the active viewer collection to direct images in that folder only.
+- Filesystem folder nodes should be loaded lazily on selection/expansion. Do not reintroduce full recursive filesystem scans for normal folder opening.
+- Archive folder trees are built from async header enumeration; do not extract archives to disk or read image data before decode.
+- The left file list should mirror the active folder collection only. Do not put source scanning, archive access, decoding, thumbnails, or persistence there.
 - The right info panel should display existing entry/decode data only. EXIF currently comes from libvips metadata collected during decode; do not add separate metadata backends or persistent panel state until those milestones are explicitly planned.
 - If adding dependencies, update `README.md`, `docs/decisions.md`, and this file with why they are needed.
 

@@ -14,6 +14,8 @@ struct ImageEntry {
     ImageEntrySource source = ImageEntrySource::FileSystem;
     QString displayName;
     QString absolutePath;
+    QString sourceRelativePath;
+    QString sourceFolderPath;
     QString archivePath;
     QString archiveEntryPath;
     qint64 fileSize = 0;

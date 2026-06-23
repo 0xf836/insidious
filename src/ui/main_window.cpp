@@ -29,8 +29,10 @@
 #include <QMenuBar>
 #include <QMimeData>
 #include <QScopedValueRollback>
+#include <QSplitter>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QTreeView>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -620,6 +622,18 @@ void MainWindow::setupConnections()
     connect(m_imageView, &ImageViewWidget::panChanged, this, [this](QPointF offset) {
         m_controller.setPanOffset(offset);
     });
+    connect(m_fileTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
+        if (m_syncingFolderTreeSelection) {
+            return;
+        }
+        selectFolderFromTree(current);
+    });
+    connect(m_fileTreeView, &QTreeView::expanded, this, [this](const QModelIndex &index) {
+        const core::CollectionFolderNode *node = m_fileTreeModel->nodeForIndex(index);
+        if (node != nullptr && node->canLoadChildren && !node->loaded) {
+            startFolderLoad(node->relativePath);
+        }
+    });
     connect(m_fileListView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFileListSelection) {
             return;
@@ -645,11 +659,24 @@ void MainWindow::setupConnections()
     connect(&m_scanWatcher, &QFutureWatcher<ScanJobResult>::finished, this, [this]() {
         applyScanResult(m_scanWatcher.result());
     });
+    connect(&m_folderLoadWatcher, &QFutureWatcher<FolderLoadJobResult>::finished, this, [this]() {
+        applyFolderLoadResult(m_folderLoadWatcher.result());
+    });
 }
 
 void MainWindow::setupFileListPanel()
 {
+    m_fileTreeModel = new CollectionTreeModel(this);
     m_fileListModel = new ImageListModel(this);
+
+    m_fileTreeView = new QTreeView(this);
+    m_fileTreeView->setModel(m_fileTreeModel);
+    m_fileTreeView->setHeaderHidden(true);
+    m_fileTreeView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_fileTreeView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_fileTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_fileTreeView->setAnimated(false);
+    m_fileTreeView->setUniformRowHeights(true);
 
     m_fileListView = new QListView(this);
     m_fileListView->setModel(m_fileListModel);
@@ -659,10 +686,18 @@ void MainWindow::setupFileListPanel()
     m_fileListView->setAlternatingRowColors(true);
     m_fileListView->setUniformItemSizes(true);
 
+    m_filePanelSplitter = new QSplitter(Qt::Vertical, this);
+    m_filePanelSplitter->addWidget(m_fileTreeView);
+    m_filePanelSplitter->addWidget(m_fileListView);
+    m_filePanelSplitter->setChildrenCollapsible(false);
+    m_filePanelSplitter->setStretchFactor(0, 2);
+    m_filePanelSplitter->setStretchFactor(1, 3);
+    m_filePanelSplitter->setSizes(QList<int> { 240, 360 });
+
     m_fileListDock = new QDockWidget(tr("Files"), this);
     m_fileListDock->setObjectName(QStringLiteral("fileListDock"));
     m_fileListDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_fileListDock->setWidget(m_fileListView);
+    m_fileListDock->setWidget(m_filePanelSplitter);
     addDockWidget(Qt::LeftDockWidgetArea, m_fileListDock);
 }
 
@@ -698,6 +733,11 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenLeftPanel->setStyleSheet(QStringLiteral(
         "#fullscreenLeftPanel { background-color: rgba(24, 24, 24, 224); border-right: 1px solid rgba(255, 255, 255, 48); }"
         "#fullscreenLeftPanel QLabel { color: rgba(245, 245, 245, 230); }"
+        "#fullscreenLeftPanel QSplitter::handle { background-color: rgba(255, 255, 255, 32); height: 1px; }"
+        "#fullscreenLeftPanel QTreeView { background: transparent; border: none; outline: 0; color: rgba(245, 245, 245, 230); padding: 2px; }"
+        "#fullscreenLeftPanel QTreeView::item { padding: 5px 6px; margin: 1px 0; border-radius: 4px; }"
+        "#fullscreenLeftPanel QTreeView::item:hover { background-color: rgba(255, 255, 255, 28); }"
+        "#fullscreenLeftPanel QTreeView::item:selected { background-color: rgba(80, 150, 255, 96); color: rgba(255, 255, 255, 245); }"
         "#fullscreenLeftPanel QListView { background: transparent; border: none; outline: 0; color: rgba(245, 245, 245, 230); padding: 2px; }"
         "#fullscreenLeftPanel QListView::item { padding: 6px 8px; margin: 1px 0; border-radius: 4px; }"
         "#fullscreenLeftPanel QListView::item:hover { background-color: rgba(255, 255, 255, 28); }"
@@ -718,6 +758,28 @@ void MainWindow::setupFullscreenOverlayPanels()
     filesHeader->setFont(filesHeaderFont);
     leftLayout->addWidget(filesHeader);
 
+    m_fullscreenFilePanelSplitter = new QSplitter(Qt::Vertical, m_fullscreenLeftPanel);
+    m_fullscreenFilePanelSplitter->setChildrenCollapsible(false);
+    m_fullscreenFilePanelSplitter->setStretchFactor(0, 2);
+    m_fullscreenFilePanelSplitter->setStretchFactor(1, 3);
+
+    m_fullscreenFileTreeView = new QTreeView(m_fullscreenFilePanelSplitter);
+    m_fullscreenFileTreeView->setModel(m_fileTreeModel);
+    m_fullscreenFileTreeView->setHeaderHidden(true);
+    m_fullscreenFileTreeView->setFrameShape(QFrame::NoFrame);
+    m_fullscreenFileTreeView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_fullscreenFileTreeView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_fullscreenFileTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_fullscreenFileTreeView->setAnimated(false);
+    m_fullscreenFileTreeView->setUniformRowHeights(true);
+    m_fullscreenFileTreeView->setAutoFillBackground(false);
+    m_fullscreenFileTreeView->setMouseTracking(true);
+    m_fullscreenFileTreeView->installEventFilter(this);
+    m_fullscreenFileTreeView->viewport()->setAutoFillBackground(false);
+    m_fullscreenFileTreeView->viewport()->setMouseTracking(true);
+    m_fullscreenFileTreeView->viewport()->installEventFilter(this);
+    m_fullscreenFilePanelSplitter->addWidget(m_fullscreenFileTreeView);
+
     m_fullscreenFileListView = new QListView(m_fullscreenLeftPanel);
     m_fullscreenFileListView->setModel(m_fileListModel);
     m_fullscreenFileListView->setFrameShape(QFrame::NoFrame);
@@ -733,7 +795,22 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenFileListView->viewport()->setAutoFillBackground(false);
     m_fullscreenFileListView->viewport()->setMouseTracking(true);
     m_fullscreenFileListView->viewport()->installEventFilter(this);
-    leftLayout->addWidget(m_fullscreenFileListView, 1);
+    m_fullscreenFilePanelSplitter->addWidget(m_fullscreenFileListView);
+    m_fullscreenFilePanelSplitter->setSizes(QList<int> { 220, 340 });
+    leftLayout->addWidget(m_fullscreenFilePanelSplitter, 1);
+
+    connect(m_fullscreenFileTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
+        if (m_syncingFolderTreeSelection) {
+            return;
+        }
+        selectFolderFromTree(current);
+    });
+    connect(m_fullscreenFileTreeView, &QTreeView::expanded, this, [this](const QModelIndex &index) {
+        const core::CollectionFolderNode *node = m_fileTreeModel->nodeForIndex(index);
+        if (node != nullptr && node->canLoadChildren && !node->loaded) {
+            startFolderLoad(node->relativePath);
+        }
+    });
 
     connect(m_fullscreenFileListView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFileListSelection) {
@@ -821,6 +898,7 @@ void MainWindow::openFile(const QString &filePath)
     m_cache->clear();
     m_controller.setCollection(single.entries, single.selectedIndex);
     m_controller.setFitToWindow();
+    clearSourceTree();
     refreshFileList();
     updateInfoPanelForCurrentImage();
     updateInteractionState();
@@ -839,6 +917,7 @@ void MainWindow::openFolder(const QString &folderPath)
     m_baseZoomMode = core::ZoomMode::FitToWindow;
     m_cache->clear();
     m_controller.clearCollection();
+    clearSourceTree();
     refreshFileList();
     m_infoPanel->showMessage(tr("Scanning folder..."));
     m_fullscreenInfoPanel->showMessage(tr("Scanning folder..."));
@@ -858,6 +937,7 @@ void MainWindow::openArchive(const QString &archivePath)
     m_baseZoomMode = core::ZoomMode::FitToWindow;
     m_cache->clear();
     m_controller.clearCollection();
+    clearSourceTree();
     refreshFileList();
     m_infoPanel->showMessage(tr("Scanning archive..."));
     m_fullscreenInfoPanel->showMessage(tr("Scanning archive..."));
@@ -878,7 +958,7 @@ void MainWindow::startFolderScan(const QString &folderPath, const QString &selec
         ScanJobResult job;
         job.generation = generation;
         job.selectedPath = selectedPath;
-        job.result = core::scanFolder(folderPath, selectedPath);
+        job.result = core::scanFileSystemSourceTree(folderPath, selectedPath);
         return job;
     }));
 }
@@ -894,7 +974,37 @@ void MainWindow::startArchiveScan(const QString &archivePath, const QString &pas
         ScanJobResult job;
         job.generation = generation;
         job.selectedPath = archivePath;
-        job.result = core::scanArchive(archivePath, password);
+        job.result = core::scanArchiveSourceTree(archivePath, password);
+        return job;
+    }));
+}
+
+void MainWindow::startFolderLoad(const QString &folderRelativePath)
+{
+    if (m_sourceRootPath.isEmpty()) {
+        return;
+    }
+
+    core::CollectionFolderNode *node = folderNodeForPath(folderRelativePath);
+    if (node == nullptr || node->loaded || !node->canLoadChildren) {
+        return;
+    }
+    if (m_folderLoadWatcher.isRunning() && m_loadingFolderPath == folderRelativePath) {
+        return;
+    }
+
+    const quint64 generation = m_sourceGeneration;
+    if (m_folderLoadWatcher.isRunning()) {
+        m_folderLoadWatcher.cancel();
+    }
+
+    const QString rootPath = m_sourceRootPath;
+    m_loadingFolderPath = folderRelativePath;
+    m_folderLoadWatcher.setFuture(QtConcurrent::run([rootPath, folderRelativePath, generation]() {
+        FolderLoadJobResult job;
+        job.generation = generation;
+        job.folderRelativePath = folderRelativePath;
+        job.result = core::loadFileSystemFolder(rootPath, folderRelativePath);
         return job;
     }));
 }
@@ -929,16 +1039,59 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
         return;
     }
 
-    const QString currentPath = m_controller.currentEntry() == nullptr ? QString() : m_controller.currentEntry()->absolutePath;
-    m_controller.setCollection(job.result.entries, job.result.selectedIndex);
-    refreshFileList();
+    m_sourceRoot = job.result.root;
+    m_sourceRootPath = job.result.rootPath;
+    m_fileTreeModel->setRoot(m_sourceRoot);
+    if (m_sourceRoot != nullptr) {
+        m_fileTreeView->expand(m_fileTreeModel->indexForFolderPath(QString()));
+        if (m_fullscreenFileTreeView != nullptr) {
+            m_fullscreenFileTreeView->expand(m_fileTreeModel->indexForFolderPath(QString()));
+        }
+    }
+    activateFolder(job.result.selectedFolderPath, job.result.selectedImageIndex, true);
+}
 
-    if (currentPath.isEmpty() || currentPath != m_controller.currentEntry()->absolutePath) {
-        loadCurrentImage();
+void MainWindow::applyFolderLoadResult(const FolderLoadJobResult &job)
+{
+    if (job.generation != m_sourceGeneration) {
+        return;
+    }
+    if (m_loadingFolderPath == job.folderRelativePath) {
+        m_loadingFolderPath.clear();
+    }
+
+    core::CollectionFolderNode *node = folderNodeForPath(job.folderRelativePath);
+    if (node == nullptr) {
+        return;
+    }
+
+    if (!job.result.ok()) {
+        if (m_activeFolderPath == job.folderRelativePath) {
+            showError(job.result.errorMessage);
+        }
+        return;
+    }
+
+    node->images = job.result.images;
+    node->children = job.result.children;
+    node->loaded = true;
+    for (const auto &child : node->children) {
+        child->parent = node;
+    }
+
+    m_fileTreeModel->setRoot(m_sourceRoot);
+    const QModelIndex loadedIndex = m_fileTreeModel->indexForFolderPath(job.folderRelativePath);
+    if (loadedIndex.isValid()) {
+        m_fileTreeView->expand(loadedIndex);
+        if (m_fullscreenFileTreeView != nullptr) {
+            m_fullscreenFileTreeView->expand(loadedIndex);
+        }
+    }
+
+    if (m_activeFolderPath == job.folderRelativePath) {
+        activateFolder(job.folderRelativePath, 0, true);
     } else {
-        updateInfoPanelForCurrentImage();
-        updateStatus();
-        updateActionState();
+        syncFolderTreeSelection();
     }
 }
 
@@ -1022,6 +1175,9 @@ void MainWindow::updateStatus(const QString &message)
         if (entry == nullptr) {
             statusText = tr("No image loaded.");
         } else {
+            const QString displayPath = entry->sourceRelativePath.isEmpty()
+                ? entry->displayName
+                : entry->sourceRelativePath;
             const QString zoomText = m_controller.zoomMode() == core::ZoomMode::FitToWindow
                 ? tr("fit")
                 : tr("%1%").arg(std::lround(m_controller.zoomFactor() * 100.0));
@@ -1035,7 +1191,7 @@ void MainWindow::updateStatus(const QString &message)
                                                    .arg(sourceSize.height())
                                                    .arg(QLocale::system().toString(megapixels, 'f', 2));
                 statusText = tr("%1 · %2 · %3 · %4 · %5 · %6")
-                                 .arg(entry->displayName,
+                                 .arg(displayPath,
                                       entry->formatHint,
                                       formattedFileSize(entry->fileSize),
                                       dimensionsText,
@@ -1043,7 +1199,7 @@ void MainWindow::updateStatus(const QString &message)
                                       indexText);
             } else {
                 statusText = tr("%1 · %2 · %3 · %4 · %5")
-                                 .arg(entry->displayName,
+                                 .arg(displayPath,
                                       entry->formatHint,
                                       formattedFileSize(entry->fileSize),
                                       zoomText,
@@ -1172,6 +1328,78 @@ void MainWindow::applyImageSwitchViewPolicy()
     updateInteractionState();
 }
 
+void MainWindow::clearSourceTree()
+{
+    m_sourceRoot.reset();
+    m_sourceRootPath.clear();
+    m_activeFolderPath.clear();
+    m_loadingFolderPath.clear();
+    if (m_fileTreeModel != nullptr) {
+        m_fileTreeModel->clear();
+    }
+}
+
+void MainWindow::activateFolder(const QString &folderRelativePath, int selectedImageIndex, bool loadCurrent)
+{
+    core::CollectionFolderNode *folder = folderNodeForPath(folderRelativePath);
+    if (folder == nullptr) {
+        m_activeFolderPath.clear();
+        m_controller.clearCollection();
+        refreshFileList();
+        updateInfoPanelForCurrentImage();
+        updateStatus();
+        updateActionState();
+        return;
+    }
+
+    m_activeFolderPath = folder->relativePath;
+    syncFolderTreeSelection();
+
+    if (!folder->loaded && folder->canLoadChildren) {
+        m_currentDecoded = {};
+        m_controller.clearCollection();
+        refreshFileList();
+        m_imageView->setMessage(tr("Loading folder..."));
+        m_infoPanel->showMessage(tr("Loading folder..."));
+        if (m_fullscreenInfoPanel != nullptr) {
+            m_fullscreenInfoPanel->showMessage(tr("Loading folder..."));
+        }
+        updateStatus(tr("Loading folder..."));
+        updateActionState();
+        updateInteractionState();
+        startFolderLoad(folder->relativePath);
+        return;
+    }
+
+    m_temporaryZoomReturnMode.reset();
+    m_controller.setCollection(folder->images, selectedImageIndex);
+    if (m_baseZoomMode == core::ZoomMode::ActualSize) {
+        m_controller.setActualSize();
+    } else {
+        m_controller.setFitToWindow();
+    }
+    m_imageView->resetPan();
+    refreshFileList();
+    updateInteractionState();
+
+    if (!m_controller.hasCollection()) {
+        m_currentDecoded = {};
+        m_imageView->setMessage(tr("Folder contains no supported images."));
+        updateInfoPanelForCurrentImage();
+        updateStatus(tr("Folder contains no supported images."));
+        updateActionState();
+        return;
+    }
+
+    if (loadCurrent) {
+        loadCurrentImage();
+    } else {
+        updateInfoPanelForCurrentImage();
+        updateStatus();
+        updateActionState();
+    }
+}
+
 void MainWindow::refreshFileList()
 {
     m_fileListModel->setEntries(m_controller.entries());
@@ -1180,6 +1408,7 @@ void MainWindow::refreshFileList()
         m_fullscreenFileListView->setEnabled(m_controller.hasCollection());
     }
     syncFileListSelection();
+    syncFolderTreeSelection();
 }
 
 void MainWindow::syncFileListSelection()
@@ -1206,6 +1435,32 @@ void MainWindow::syncFileListSelection()
     syncFullscreenFileListSelection();
 }
 
+void MainWindow::syncFolderTreeSelection()
+{
+    if (m_fileTreeModel == nullptr || m_fileTreeView == nullptr) {
+        return;
+    }
+
+    const QModelIndex modelIndex = m_fileTreeModel->indexForFolderPath(m_activeFolderPath);
+    const QScopedValueRollback<bool> guard(m_syncingFolderTreeSelection, true);
+    if (!modelIndex.isValid()) {
+        m_fileTreeView->setCurrentIndex(QModelIndex());
+        if (m_fullscreenFileTreeView != nullptr) {
+            m_fullscreenFileTreeView->setCurrentIndex(QModelIndex());
+        }
+        return;
+    }
+
+    m_fileTreeView->setCurrentIndex(modelIndex);
+    m_fileTreeView->scrollTo(modelIndex, QAbstractItemView::EnsureVisible);
+    m_fileTreeView->expand(modelIndex);
+    if (m_fullscreenFileTreeView != nullptr) {
+        m_fullscreenFileTreeView->setCurrentIndex(modelIndex);
+        m_fullscreenFileTreeView->scrollTo(modelIndex, QAbstractItemView::EnsureVisible);
+        m_fullscreenFileTreeView->expand(modelIndex);
+    }
+}
+
 void MainWindow::selectImageFromFileList(const QModelIndex &index)
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_controller.count()) {
@@ -1215,6 +1470,24 @@ void MainWindow::selectImageFromFileList(const QModelIndex &index)
     if (m_controller.setCurrentIndex(index.row())) {
         reloadAfterImageSwitch();
     }
+}
+
+void MainWindow::selectFolderFromTree(const QModelIndex &index)
+{
+    core::CollectionFolderNode *node = m_fileTreeModel->nodeForIndex(index);
+    if (node == nullptr) {
+        return;
+    }
+    activateFolder(node->relativePath, 0, true);
+}
+
+core::CollectionFolderNode *MainWindow::folderNodeForPath(const QString &folderRelativePath) const
+{
+    if (m_fileTreeModel == nullptr) {
+        return nullptr;
+    }
+    const QModelIndex index = m_fileTreeModel->indexForFolderPath(folderRelativePath);
+    return m_fileTreeModel->nodeForIndex(index);
 }
 
 void MainWindow::rememberTemporaryZoomReturnMode()
