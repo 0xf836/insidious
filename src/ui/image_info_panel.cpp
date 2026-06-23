@@ -189,7 +189,8 @@ void ImageInfoPanel::addFieldRow(QFormLayout *form, QVector<QWidget *> &rows, co
 
 void ImageInfoPanel::clearRows(QFormLayout *form, QVector<QWidget *> &rows)
 {
-    while (QLayoutItem *item = form->takeAt(0)) {
+    while (form->count() > 0) {
+        QLayoutItem *item = form->takeAt(0);
         delete item;
     }
     for (QWidget *widget : rows) {
