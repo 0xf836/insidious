@@ -62,7 +62,7 @@
 
 ## ADR-011: Схема мыши в MVP
 
-Решение: wheel переключает изображения по умолчанию, `Ctrl + wheel` меняет zoom относительно текущего отображаемого масштаба по умолчанию с опорой на позицию курсора, `Shift + wheel` по умолчанию ничего не делает. Действия wheel / `Ctrl+wheel` / `Shift+wheel` настраиваются как navigate, zoom или no action. Простой клик левой кнопкой включает временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика, повторный клик после click/rectangle zoom возвращает исходный режим `fit` или `actual size`, зажатая левая кнопка мыши двигает изображение только вне базового `fit`, зажатая правая кнопка задаёт прямоугольник zoom-to-selection, double click переключает fullscreen и не запускает temporary click zoom.
+Решение: wheel переключает изображения по умолчанию, `Ctrl + wheel` меняет zoom относительно текущего отображаемого масштаба по умолчанию с опорой на позицию курсора, `Shift + wheel` по умолчанию ничего не делает. Действия wheel / `Ctrl+wheel` / `Shift+wheel` настраиваются как navigate, zoom или no action. ЛКМ имеет настраиваемое поведение: default `click to zoom / restore` включает временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика и повторным кликом возвращает исходный режим `fit` или `actual size`; альтернативный `hold to zoom, drag to pan` сразу включает временный zoom при зажатии, двигает увеличенный raster при движении мыши и возвращает исходный view при отпускании. Зажатая правая кнопка задаёт прямоугольник zoom-to-selection, double click переключает fullscreen и не запускает temporary click zoom.
 
 Причина: это разделяет навигацию, временное приближение, pan и точное приближение прямоугольником без конфликтов между одиночным кликом и drag-действиями.
 
@@ -92,6 +92,6 @@
 
 ## ADR-016: Настройки разделены на core schema и UI dialog
 
-Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, click zoom multiplier, wheel actions, zoom step, fullscreen edge trigger ratios и layout state.
+Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, click zoom multiplier, wheel actions, zoom step, fullscreen edge trigger ratios и layout state.
 
 Причина: настройки должны быть расширяемыми и тестируемыми без GUI. Core-слой валидирует enum/string conversion и clamp числовых значений, а UI остаётся тонким слоем отображения. Privacy boundary остаётся явным: не сохранять recent files, viewed paths, archive paths, passwords, thumbnails, decoded cache или file logs.

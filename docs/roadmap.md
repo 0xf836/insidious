@@ -8,6 +8,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Базовый viewer: открыть изображение, открыть папку, использовать родительскую папку как контекст при открытии одного файла.
 - Viewer controls: `fit to window`, `actual size`, zoom in/out, pan, view-only rotate left/right, fullscreen.
 - Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom around cursor, toolbar/shortcut zoom around viewport center, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
+- Настраиваемые режимы ЛКМ zoom: click-to-zoom/restore по умолчанию и hold-to-zoom-pan с возвратом на release.
 - Async decode pipeline через libvips: display-sized rasters, stale-result guards, neighbor prefetch, memory-only decoded image cache.
 - Zoom render budget guard: если zoom-запрос слишком большой для decode budget, viewer откатывает предыдущий raster/zoom/pan и показывает компактный overlay вместо full-screen ошибки.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
@@ -16,12 +17,11 @@ Roadmap — живой backlog реализации, а не обещание р
 - `Info` panel с компактной информацией об entry и полезными EXIF-полями из libvips metadata.
 - Quick Jump по имени файла в активной папке, включая fullscreen in-window overlay.
 - True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.
-- Basic Preferences dialog: viewer defaults, image-switch policy, wheel actions, zoom step, click zoom multiplier, fullscreen trigger zones, layout persistence.
+- Basic Preferences dialog: viewer defaults, image-switch policy, left-button zoom behavior, wheel actions, zoom step, click zoom multiplier, fullscreen trigger zones, layout persistence.
 
 ## Ближайшее / small stabilization
 
 - Zoom UX polish:
-  - У основного зума (по лкм) сделать две вариации: 1. zoom-in и возврат. 2. при зажатой лкм изображение зуммируется и ведется вслед за курсором, после отжатия возврат к исходному состоянию. Добавить выбор в настройки.
   - проверить, нужно ли поднимать maximum zoom выше текущих 1600%.
   - показывать magnifier cursor только когда click-zoom доступен.
 - Settings polish:
@@ -61,6 +61,8 @@ Roadmap — живой backlog реализации, а не обещание р
 
 ## Позже / larger milestones
 
+- Zoom UX polish:
+  - добавить будущий отдельный режим temporary view: при удержании ЛКМ zoom следует за курсором (размеры области настраиваются), после отпускания возврат к исходному состоянию.
 - Advanced rendering:
   - ICC/color management;
   - configurable scaling/filter quality;

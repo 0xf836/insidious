@@ -97,10 +97,9 @@ Current MVP mouse behavior:
 - `Ctrl+wheel` zooms in/out relative to the current displayed scale by default, including the current fit scale, anchored at the cursor position.
 - `Shift+wheel` has no action by default and is reserved for explicit user configuration.
 - Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. At an active-folder boundary, they continue to the next/previous suitable source-tree folder before treating the source as exhausted. The basic settings UI can switch image navigation to preserve the current view instead.
-- Simple left click enters temporary zoom relative to the current displayed scale, centered on the clicked image point. The default multiplier is 2x and is configurable in Preferences.
+- Left button zoom behavior is configurable. The default `ToggleOnClick` mode uses simple left click to enter temporary zoom relative to the current displayed scale, centered on the clicked image point; the next click after click/rectangle zoom restores fit or actual size. `HoldToZoomPan` starts temporary zoom immediately on left press, left-drag pans the zoomed raster, and release restores the exact previous view.
 - Toolbar, shortcut, and wheel zoom use the same configurable zoom step. The default is 25%. Toolbar and shortcut zoom anchor at the viewport center.
-- Simple left click while in temporary click/rectangle zoom returns to the saved base mode: fit or actual size.
-- Hold left mouse button and drag to pan the image only outside base `fit to window`.
+- In default left-button mode, hold left mouse button and drag pans the image only outside base `fit to window`.
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
 - Double click toggles fullscreen and must not also trigger temporary click zoom.
 

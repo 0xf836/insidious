@@ -538,6 +538,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     AppSettings values = AppSettings::defaults();
     values.viewer.defaultZoomMode = ZoomMode::ActualSize;
     values.viewer.imageSwitchPolicy = ImageSwitchPolicy::PreserveView;
+    values.viewer.clickZoomBehavior = ClickZoomBehavior::HoldToZoomPan;
     values.viewer.clickZoomMultiplier = 3.5;
     values.viewer.wheelAction = WheelAction::NoAction;
     values.viewer.ctrlWheelAction = WheelAction::NavigateImages;
@@ -560,6 +561,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
 
     QCOMPARE(loaded.viewer.defaultZoomMode, ZoomMode::ActualSize);
     QCOMPARE(loaded.viewer.imageSwitchPolicy, ImageSwitchPolicy::PreserveView);
+    QCOMPARE(loaded.viewer.clickZoomBehavior, ClickZoomBehavior::HoldToZoomPan);
     QCOMPARE(loaded.viewer.clickZoomMultiplier, 3.5);
     QCOMPARE(loaded.viewer.wheelAction, WheelAction::NoAction);
     QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::NavigateImages);
@@ -584,6 +586,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     writeSettings.beginGroup(QStringLiteral("viewer"));
     writeSettings.setValue(QStringLiteral("defaultZoomMode"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("imageSwitchPolicy"), QStringLiteral("invalid"));
+    writeSettings.setValue(QStringLiteral("clickZoomBehavior"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("clickZoomMultiplier"), 100.0);
     writeSettings.setValue(QStringLiteral("wheelAction"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("ctrlWheelAction"), QStringLiteral("invalid"));
@@ -601,6 +604,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
 
     QCOMPARE(loaded.viewer.defaultZoomMode, ZoomMode::FitToWindow);
     QCOMPARE(loaded.viewer.imageSwitchPolicy, ImageSwitchPolicy::ResetToBaseMode);
+    QCOMPARE(loaded.viewer.clickZoomBehavior, ClickZoomBehavior::ToggleOnClick);
     QCOMPARE(loaded.viewer.clickZoomMultiplier, 8.0);
     QCOMPARE(loaded.viewer.wheelAction, WheelAction::NavigateImages);
     QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::Zoom);

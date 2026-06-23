@@ -42,6 +42,7 @@ private:
 
     QComboBox *m_defaultZoomCombo = nullptr;
     QComboBox *m_imageSwitchPolicyCombo = nullptr;
+    QComboBox *m_clickZoomBehaviorCombo = nullptr;
     QDoubleSpinBox *m_clickZoomSpin = nullptr;
     QComboBox *m_wheelActionCombo = nullptr;
     QComboBox *m_ctrlWheelActionCombo = nullptr;

@@ -48,7 +48,7 @@ AVIF и JPEG XL зависят от поддержки в выбранном ima
 - Ctrl + wheel = zoom with cursor anchor;
 - Shift + wheel = no action;
 - пользователь может изменить wheel actions в Preferences;
-- left click = temporary default zoom centered on the click point, or restore fit/actual size after temporary zoom;
+- left button = configurable temporary zoom behavior: default click-to-zoom/restore or hold-to-zoom-pan;
 - left drag = pan;
 - right drag = zoom-to-selection rectangle.
 

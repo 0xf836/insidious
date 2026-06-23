@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/app_settings.h"
+
 #include <QImage>
 #include <QPoint>
 #include <QPointF>
@@ -22,6 +24,7 @@ public:
     void setOverlayMessage(const QString &message);
     void setImageInteractionEnabled(bool enabled);
     void setPanningEnabled(bool enabled);
+    void setClickZoomBehavior(core::ClickZoomBehavior behavior);
     void setPanOffset(QPointF offset);
     [[nodiscard]] bool hasImage() const;
     [[nodiscard]] QPointF panOffset() const;
@@ -35,6 +38,9 @@ signals:
     void zoomOutRequested();
     void wheelActionRequested(Qt::KeyboardModifiers modifiers, int angleDeltaY, QPoint position);
     void imageClicked(QPoint position);
+    void holdZoomStarted(QPoint position);
+    void holdZoomMoved(QPoint delta);
+    void holdZoomEnded();
     void zoomToRectRequested(QRect rect);
     void toggleFullscreenRequested();
     void panChanged(QPointF offset);
@@ -70,6 +76,8 @@ private:
     bool m_leftDragMoved = false;
     bool m_clickPending = false;
     bool m_selectingZoom = false;
+    bool m_holdingZoom = false;
+    core::ClickZoomBehavior m_clickZoomBehavior = core::ClickZoomBehavior::ToggleOnClick;
 };
 
 } // namespace insidious::ui

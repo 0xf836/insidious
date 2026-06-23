@@ -77,6 +77,18 @@ void ImageViewWidget::setPanningEnabled(bool enabled)
     }
 }
 
+void ImageViewWidget::setClickZoomBehavior(core::ClickZoomBehavior behavior)
+{
+    if (m_clickZoomBehavior == behavior) {
+        return;
+    }
+
+    m_clickZoomBehavior = behavior;
+    stopImageInteraction();
+    cancelPendingImageClick();
+    update();
+}
+
 void ImageViewWidget::setPanOffset(QPointF offset)
 {
     m_panOffset = offset;
@@ -170,6 +182,15 @@ void ImageViewWidget::mousePressEvent(QMouseEvent *event)
     }
 
     if (event->button() == Qt::LeftButton && !m_image.isNull() && m_panningEnabled) {
+        if (m_clickZoomBehavior == core::ClickZoomBehavior::HoldToZoomPan) {
+            m_holdingZoom = true;
+            m_lastMousePosition = event->pos();
+            setCursor(Qt::ClosedHandCursor);
+            emit holdZoomStarted(event->pos());
+            event->accept();
+            return;
+        }
+
         m_panning = true;
         m_leftDragMoved = false;
         m_leftPressPosition = event->pos();
@@ -180,6 +201,15 @@ void ImageViewWidget::mousePressEvent(QMouseEvent *event)
     }
 
     if (event->button() == Qt::LeftButton && !m_image.isNull()) {
+        if (m_clickZoomBehavior == core::ClickZoomBehavior::HoldToZoomPan) {
+            m_holdingZoom = true;
+            m_lastMousePosition = event->pos();
+            setCursor(Qt::ClosedHandCursor);
+            emit holdZoomStarted(event->pos());
+            event->accept();
+            return;
+        }
+
         m_leftPressPosition = event->pos();
         event->accept();
         return;
@@ -200,6 +230,16 @@ void ImageViewWidget::mousePressEvent(QMouseEvent *event)
 
 void ImageViewWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    if (m_holdingZoom) {
+        const QPoint delta = event->pos() - m_lastMousePosition;
+        m_lastMousePosition = event->pos();
+        if (!delta.isNull()) {
+            emit holdZoomMoved(delta);
+        }
+        event->accept();
+        return;
+    }
+
     if (m_panning) {
         if (!m_leftDragMoved) {
             const int distance = (event->pos() - m_leftPressPosition).manhattanLength();
@@ -249,6 +289,14 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
         return;
     }
 
+    if (event->button() == Qt::LeftButton && m_holdingZoom) {
+        m_holdingZoom = false;
+        unsetCursor();
+        emit holdZoomEnded();
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton && !m_image.isNull()) {
         const int distance = (event->pos() - m_leftPressPosition).manhattanLength();
         if (distance < QApplication::startDragDistance()) {
@@ -278,11 +326,16 @@ void ImageViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         cancelPendingImageClick();
+        const bool wasHoldingZoom = m_holdingZoom;
         m_panning = false;
         m_leftDragMoved = false;
         m_selectingZoom = false;
+        m_holdingZoom = false;
         unsetCursor();
         update();
+        if (wasHoldingZoom) {
+            emit holdZoomEnded();
+        }
         emit toggleFullscreenRequested();
         event->accept();
         return;
@@ -320,6 +373,7 @@ void ImageViewWidget::stopImageInteraction()
     m_panning = false;
     m_leftDragMoved = false;
     m_selectingZoom = false;
+    m_holdingZoom = false;
     unsetCursor();
 }
 

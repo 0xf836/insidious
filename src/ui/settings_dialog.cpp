@@ -134,6 +134,11 @@ void SettingsDialog::setupViewerPage()
     m_imageSwitchPolicyCombo->addItem(tr("Preserve current view"), static_cast<int>(core::ImageSwitchPolicy::PreserveView));
     form->addRow(tr("When switching images:"), m_imageSwitchPolicyCombo);
 
+    m_clickZoomBehaviorCombo = new QComboBox(page);
+    m_clickZoomBehaviorCombo->addItem(tr("Click to zoom / restore"), static_cast<int>(core::ClickZoomBehavior::ToggleOnClick));
+    m_clickZoomBehaviorCombo->addItem(tr("Hold to zoom, drag to pan"), static_cast<int>(core::ClickZoomBehavior::HoldToZoomPan));
+    form->addRow(tr("Left button zoom:"), m_clickZoomBehaviorCombo);
+
     m_clickZoomSpin = new QDoubleSpinBox(page);
     m_clickZoomSpin->setRange(1.1, 8.0);
     m_clickZoomSpin->setSingleStep(0.1);
@@ -208,6 +213,7 @@ void SettingsDialog::updateControlsFromSettings()
 {
     setComboToData(m_defaultZoomCombo, static_cast<int>(m_settings.viewer.defaultZoomMode));
     setComboToData(m_imageSwitchPolicyCombo, static_cast<int>(m_settings.viewer.imageSwitchPolicy));
+    setComboToData(m_clickZoomBehaviorCombo, static_cast<int>(m_settings.viewer.clickZoomBehavior));
     m_clickZoomSpin->setValue(m_settings.viewer.clickZoomMultiplier);
     m_zoomStepSpin->setValue(m_settings.viewer.zoomStepPercent);
     setComboToData(m_wheelActionCombo, static_cast<int>(m_settings.viewer.wheelAction));
@@ -222,6 +228,7 @@ void SettingsDialog::updateSettingsFromControls()
 {
     m_settings.viewer.defaultZoomMode = static_cast<core::ZoomMode>(m_defaultZoomCombo->currentData().toInt());
     m_settings.viewer.imageSwitchPolicy = static_cast<core::ImageSwitchPolicy>(m_imageSwitchPolicyCombo->currentData().toInt());
+    m_settings.viewer.clickZoomBehavior = static_cast<core::ClickZoomBehavior>(m_clickZoomBehaviorCombo->currentData().toInt());
     m_settings.viewer.clickZoomMultiplier = m_clickZoomSpin->value();
     m_settings.viewer.zoomStepPercent = m_zoomStepSpin->value();
     m_settings.viewer.wheelAction = static_cast<core::WheelAction>(m_wheelActionCombo->currentData().toInt());

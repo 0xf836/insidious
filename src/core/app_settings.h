@@ -20,6 +20,11 @@ enum class WheelAction {
     NoAction,
 };
 
+enum class ClickZoomBehavior {
+    ToggleOnClick,
+    HoldToZoomPan,
+};
+
 enum class SettingsCategory {
     Viewer,
     Fullscreen,
@@ -29,6 +34,7 @@ enum class SettingsCategory {
 struct ViewerSettings {
     ZoomMode defaultZoomMode = ZoomMode::FitToWindow;
     ImageSwitchPolicy imageSwitchPolicy = ImageSwitchPolicy::ResetToBaseMode;
+    ClickZoomBehavior clickZoomBehavior = ClickZoomBehavior::ToggleOnClick;
     double clickZoomMultiplier = 2.0;
     WheelAction wheelAction = WheelAction::NavigateImages;
     WheelAction ctrlWheelAction = WheelAction::Zoom;
@@ -65,6 +71,8 @@ struct AppSettings {
 [[nodiscard]] ZoomMode zoomModeFromSettingsString(const QString &value, ZoomMode fallback);
 [[nodiscard]] QString imageSwitchPolicyToSettingsString(ImageSwitchPolicy policy);
 [[nodiscard]] ImageSwitchPolicy imageSwitchPolicyFromSettingsString(const QString &value, ImageSwitchPolicy fallback);
+[[nodiscard]] QString clickZoomBehaviorToSettingsString(ClickZoomBehavior behavior);
+[[nodiscard]] ClickZoomBehavior clickZoomBehaviorFromSettingsString(const QString &value, ClickZoomBehavior fallback);
 [[nodiscard]] QString wheelActionToSettingsString(WheelAction action);
 [[nodiscard]] WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fallback);
 

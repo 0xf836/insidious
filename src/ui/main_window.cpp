@@ -229,6 +229,10 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
 
 void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback)
 {
+    if (!zoomFallback.has_value()) {
+        m_activeHoldZoom.reset();
+    }
+
     const core::ImageEntry *entry = m_controller.currentEntry();
     if (entry == nullptr) {
         m_imageRenderPending = false;
@@ -274,7 +278,10 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     }
     m_imageRenderPending = true;
     updateInfoPanelForCurrentImage(tr("Loading..."));
-    m_imageView->setImageInteractionEnabled(false);
+    const bool keepHoldZoomInteraction = zoomFallback.has_value() && m_activeHoldZoom.has_value();
+    if (!keepHoldZoomInteraction) {
+        m_imageView->setImageInteractionEnabled(false);
+    }
     if (hasDisplayedImage && showTransientLoading) {
         m_imageView->setOverlayMessage(tr("Loading image..."));
         updateStatus(tr("Loading image..."));
@@ -391,6 +398,7 @@ void MainWindow::setActualSize()
 void MainWindow::handleImageClick(const QPoint &position)
 {
     if (m_imageRenderPending
+        || m_activeHoldZoom.has_value()
         || !m_controller.hasCollection()
         || !m_currentDecoded.ok()
         || m_currentDecoded.effectiveScale <= 0.0) {
@@ -403,26 +411,11 @@ void MainWindow::handleImageClick(const QPoint &position)
 
     rememberTemporaryZoomReturnMode();
 
-    const QRectF imageRect = m_imageView->imageRect();
-    if (imageRect.isEmpty()) {
-        return;
+    double newScale = 1.0;
+    QPointF newPanOffset;
+    if (customZoomForAnchor(QPointF(position), m_clickZoomMultiplier, &newScale, &newPanOffset)) {
+        applyCustomZoomWithFallback(newScale, newPanOffset);
     }
-
-    const double currentScale = m_currentDecoded.effectiveScale;
-    const QPointF imagePoint = clampedPointToRect(QPointF(position), imageRect) - imageRect.topLeft();
-    const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
-    const double newScale = std::clamp(currentScale * m_clickZoomMultiplier, core::MinimumZoomFactor, core::MaximumZoomFactor);
-    const QSizeF newDisplaySize(
-        m_currentDecoded.image.width() * newScale / currentScale,
-        m_currentDecoded.image.height() * newScale / currentScale);
-    const QPointF centeredTopLeft(
-        (m_imageView->width() - newDisplaySize.width()) / 2.0,
-        (m_imageView->height() - newDisplaySize.height()) / 2.0);
-    const QPointF viewportCenter(m_imageView->width() / 2.0, m_imageView->height() / 2.0);
-    const QPointF pointAtNewScale(sourcePoint.x() * newScale, sourcePoint.y() * newScale);
-    const QPointF newPanOffset = viewportCenter - centeredTopLeft - pointAtNewScale;
-
-    applyCustomZoomWithFallback(newScale, newPanOffset);
 }
 
 void MainWindow::zoomToRect(const QRect &selectionRect)
@@ -690,6 +683,9 @@ void MainWindow::setupConnections()
     connect(m_imageView, &ImageViewWidget::zoomOutRequested, this, &MainWindow::zoomOut);
     connect(m_imageView, &ImageViewWidget::wheelActionRequested, this, &MainWindow::handleWheelAction);
     connect(m_imageView, &ImageViewWidget::imageClicked, this, &MainWindow::handleImageClick);
+    connect(m_imageView, &ImageViewWidget::holdZoomStarted, this, &MainWindow::handleHoldZoomStarted);
+    connect(m_imageView, &ImageViewWidget::holdZoomMoved, this, &MainWindow::handleHoldZoomMoved);
+    connect(m_imageView, &ImageViewWidget::holdZoomEnded, this, &MainWindow::handleHoldZoomEnded);
     connect(m_imageView, &ImageViewWidget::zoomToRectRequested, this, &MainWindow::zoomToRect);
     connect(m_imageView, &ImageViewWidget::toggleFullscreenRequested, this, &MainWindow::toggleFullscreen);
     connect(m_imageView, &ImageViewWidget::panChanged, this, [this](QPointF offset) {
@@ -716,7 +712,17 @@ void MainWindow::setupConnections()
     connect(m_fileListView, &QListView::activated, this, &MainWindow::selectImageFromFileList);
 
     connect(&m_decodeWatcher, &QFutureWatcher<DecodeJobResult>::finished, this, [this]() {
-        const DecodeJobResult job = m_decodeWatcher.result();
+        const QFuture<DecodeJobResult> future = m_decodeWatcher.future();
+        if (future.isCanceled() || future.resultCount() == 0 || !future.isResultReadyAt(0)) {
+            if (future.isCanceled()) {
+                m_imageRenderPending = false;
+                m_pendingZoomRenderFallback.reset();
+                updateActionState();
+            }
+            return;
+        }
+
+        const DecodeJobResult job = future.result();
         if (job.generation != m_decodeGeneration) {
             if (m_pendingZoomRenderFallback.has_value()
                 && m_pendingZoomRenderFallback->generation == job.generation) {
@@ -990,10 +996,12 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
             : core::ZoomMode::FitToWindow;
     }
     m_imageSwitchPolicy = m_settings.viewer.imageSwitchPolicy;
+    m_clickZoomBehavior = m_settings.viewer.clickZoomBehavior;
     m_clickZoomMultiplier = m_settings.viewer.clickZoomMultiplier;
     m_zoomStepMultiplier = 1.0 + (m_settings.viewer.zoomStepPercent / 100.0);
     m_fullscreenOverlaySettings.sideTriggerRatio = m_settings.fullscreen.sideTriggerRatio;
     m_fullscreenOverlaySettings.verticalTriggerRatio = m_settings.fullscreen.verticalTriggerRatio;
+    m_imageView->setClickZoomBehavior(m_clickZoomBehavior);
 
     if (!m_settings.interface.rememberLayout) {
         m_settings.interface.mainWindowGeometry.clear();
@@ -1336,6 +1344,7 @@ MainWindow::ViewRenderState MainWindow::captureViewRenderState() const
 
 void MainWindow::restoreViewRenderState(const ViewRenderState &state, const QString &overlayMessage)
 {
+    m_imageRenderPending = false;
     switch (state.zoomMode) {
     case core::ZoomMode::FitToWindow:
         m_controller.setFitToWindow();
@@ -1369,6 +1378,7 @@ bool MainWindow::handleZoomRenderError(const DecodeJobResult &job)
         return false;
     }
 
+    m_activeHoldZoom.reset();
     restoreViewRenderState(m_pendingZoomRenderFallback->state, tr("Too large to render"));
     m_pendingZoomRenderFallback.reset();
     return true;
@@ -1377,6 +1387,7 @@ bool MainWindow::handleZoomRenderError(const DecodeJobResult &job)
 void MainWindow::showError(const QString &message)
 {
     m_imageRenderPending = false;
+    m_activeHoldZoom.reset();
     m_currentDecoded = {};
     const QString fallback = message.isEmpty() ? tr("Operation failed.") : message;
     m_imageView->setMessage(fallback);
@@ -1456,7 +1467,7 @@ void MainWindow::updateActionState()
     const bool hasNextInFolder = hasImage && m_controller.currentIndex() + 1 < m_controller.count();
     const bool hasPrevious = hasPreviousInFolder || hasAdjacentFolder(false);
     const bool hasNext = hasNextInFolder || hasAdjacentFolder(true);
-    const bool canChangeView = hasImage && !m_imageRenderPending;
+    const bool canChangeView = hasImage && !m_imageRenderPending && !m_activeHoldZoom.has_value();
 
     m_previousAction->setEnabled(hasPrevious || hasImage);
     m_nextAction->setEnabled(hasNext || hasImage);
@@ -1583,7 +1594,7 @@ void MainWindow::applyWheelAction(core::WheelAction action, int angleDeltaY, QPo
         }
         break;
     case core::WheelAction::Zoom:
-        if (m_imageRenderPending) {
+        if (m_imageRenderPending || m_activeHoldZoom.has_value()) {
             break;
         }
         if (angleDeltaY > 0) {
@@ -1600,15 +1611,105 @@ void MainWindow::applyWheelAction(core::WheelAction action, int angleDeltaY, QPo
 void MainWindow::applyCustomZoomWithFallback(double zoomFactor, QPointF panOffset)
 {
     const ViewRenderState fallback = captureViewRenderState();
+    applyCustomZoomWithFallback(zoomFactor, panOffset, fallback);
+}
+
+void MainWindow::applyCustomZoomWithFallback(double zoomFactor, QPointF panOffset, const ViewRenderState &fallback)
+{
     m_controller.setCustomZoom(zoomFactor);
     m_controller.setPanOffset(panOffset);
     updateInteractionState();
     loadCurrentImage(false, fallback);
 }
 
+bool MainWindow::customZoomForAnchor(QPointF anchorPosition, double multiplier, double *zoomFactor, QPointF *panOffset) const
+{
+    if (zoomFactor == nullptr || panOffset == nullptr || !m_currentDecoded.ok() || m_currentDecoded.effectiveScale <= 0.0) {
+        return false;
+    }
+
+    const QRectF imageRect = m_imageView->imageRect();
+    if (imageRect.isEmpty()) {
+        return false;
+    }
+
+    const double currentScale = m_currentDecoded.effectiveScale;
+    const double newScale = std::clamp(
+        currentScale * multiplier,
+        core::MinimumZoomFactor,
+        core::MaximumZoomFactor);
+    if (qFuzzyCompare(currentScale, newScale)) {
+        return false;
+    }
+
+    const QPointF anchor = clampedPointToRect(anchorPosition, imageRect);
+    const QPointF imagePoint = anchor - imageRect.topLeft();
+    const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
+    const QSizeF newDisplaySize(
+        m_currentDecoded.image.width() * newScale / currentScale,
+        m_currentDecoded.image.height() * newScale / currentScale);
+    const QPointF centeredTopLeft(
+        (m_imageView->width() - newDisplaySize.width()) / 2.0,
+        (m_imageView->height() - newDisplaySize.height()) / 2.0);
+    const QPointF pointAtNewScale(sourcePoint.x() * newScale, sourcePoint.y() * newScale);
+
+    *zoomFactor = newScale;
+    *panOffset = anchor - centeredTopLeft - pointAtNewScale;
+    return true;
+}
+
+void MainWindow::handleHoldZoomStarted(QPoint position)
+{
+    if (m_clickZoomBehavior != core::ClickZoomBehavior::HoldToZoomPan
+        || m_imageRenderPending
+        || m_activeHoldZoom.has_value()
+        || !m_controller.hasCollection()) {
+        return;
+    }
+
+    const ViewRenderState returnState = captureViewRenderState();
+    double newScale = 1.0;
+    QPointF newPanOffset;
+    if (!customZoomForAnchor(QPointF(position), m_clickZoomMultiplier, &newScale, &newPanOffset)) {
+        return;
+    }
+
+    m_temporaryZoomReturnMode.reset();
+    m_activeHoldZoom = ActiveHoldZoom { returnState };
+    applyCustomZoomWithFallback(newScale, newPanOffset, returnState);
+}
+
+void MainWindow::handleHoldZoomMoved(QPoint delta)
+{
+    if (!m_activeHoldZoom.has_value() || delta.isNull()) {
+        return;
+    }
+
+    const QPointF panOffset = m_controller.panOffset() + QPointF(delta);
+    m_controller.setPanOffset(panOffset);
+    if (!m_imageRenderPending) {
+        m_imageView->setPanOffset(panOffset);
+    }
+}
+
+void MainWindow::handleHoldZoomEnded()
+{
+    if (!m_activeHoldZoom.has_value()) {
+        return;
+    }
+
+    const ViewRenderState returnState = m_activeHoldZoom->returnState;
+    m_activeHoldZoom.reset();
+    if (m_imageRenderPending) {
+        ++m_decodeGeneration;
+        m_pendingZoomRenderFallback.reset();
+    }
+    restoreViewRenderState(returnState, QString());
+}
+
 void MainWindow::zoomByMultiplier(double multiplier, QPointF anchorPosition)
 {
-    if (m_imageRenderPending || !m_controller.hasCollection()) {
+    if (m_imageRenderPending || m_activeHoldZoom.has_value() || !m_controller.hasCollection()) {
         return;
     }
 
@@ -1624,33 +1725,11 @@ void MainWindow::zoomByMultiplier(double multiplier, QPointF anchorPosition)
         return;
     }
 
-    const QRectF imageRect = m_imageView->imageRect();
-    if (imageRect.isEmpty()) {
-        return;
+    double newScale = 1.0;
+    QPointF newPanOffset;
+    if (customZoomForAnchor(anchorPosition, multiplier, &newScale, &newPanOffset)) {
+        applyCustomZoomWithFallback(newScale, newPanOffset);
     }
-
-    const double currentScale = m_currentDecoded.effectiveScale;
-    const double newScale = std::clamp(
-        currentScale * multiplier,
-        core::MinimumZoomFactor,
-        core::MaximumZoomFactor);
-    if (qFuzzyCompare(currentScale, newScale)) {
-        return;
-    }
-
-    const QPointF anchor = clampedPointToRect(anchorPosition, imageRect);
-    const QPointF imagePoint = anchor - imageRect.topLeft();
-    const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
-    const QSizeF newDisplaySize(
-        m_currentDecoded.image.width() * newScale / currentScale,
-        m_currentDecoded.image.height() * newScale / currentScale);
-    const QPointF centeredTopLeft(
-        (m_imageView->width() - newDisplaySize.width()) / 2.0,
-        (m_imageView->height() - newDisplaySize.height()) / 2.0);
-    const QPointF pointAtNewScale(sourcePoint.x() * newScale, sourcePoint.y() * newScale);
-    const QPointF newPanOffset = anchor - centeredTopLeft - pointAtNewScale;
-
-    applyCustomZoomWithFallback(newScale, newPanOffset);
 }
 
 void MainWindow::zoomInAt(QPointF anchorPosition)

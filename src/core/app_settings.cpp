@@ -45,6 +45,9 @@ AppSettings AppSettings::read(QSettings &settings)
     result.viewer.imageSwitchPolicy = imageSwitchPolicyFromSettingsString(
         settings.value(QStringLiteral("imageSwitchPolicy"), imageSwitchPolicyToSettingsString(defaults.viewer.imageSwitchPolicy)).toString(),
         defaults.viewer.imageSwitchPolicy);
+    result.viewer.clickZoomBehavior = clickZoomBehaviorFromSettingsString(
+        settings.value(QStringLiteral("clickZoomBehavior"), clickZoomBehaviorToSettingsString(defaults.viewer.clickZoomBehavior)).toString(),
+        defaults.viewer.clickZoomBehavior);
     result.viewer.clickZoomMultiplier = clampedDouble(
         settings.value(QStringLiteral("clickZoomMultiplier"), defaults.viewer.clickZoomMultiplier),
         defaults.viewer.clickZoomMultiplier,
@@ -99,6 +102,7 @@ void AppSettings::write(QSettings &settings) const
     settings.beginGroup(QStringLiteral("viewer"));
     settings.setValue(QStringLiteral("defaultZoomMode"), zoomModeToSettingsString(viewer.defaultZoomMode));
     settings.setValue(QStringLiteral("imageSwitchPolicy"), imageSwitchPolicyToSettingsString(viewer.imageSwitchPolicy));
+    settings.setValue(QStringLiteral("clickZoomBehavior"), clickZoomBehaviorToSettingsString(viewer.clickZoomBehavior));
     settings.setValue(QStringLiteral("clickZoomMultiplier"), std::clamp(viewer.clickZoomMultiplier, MinClickZoomMultiplier, MaxClickZoomMultiplier));
     settings.setValue(QStringLiteral("wheelAction"), wheelActionToSettingsString(viewer.wheelAction));
     settings.setValue(QStringLiteral("ctrlWheelAction"), wheelActionToSettingsString(viewer.ctrlWheelAction));
@@ -187,6 +191,29 @@ ImageSwitchPolicy imageSwitchPolicyFromSettingsString(const QString &value, Imag
     }
     if (normalized == QLatin1String("preserve")) {
         return ImageSwitchPolicy::PreserveView;
+    }
+    return fallback;
+}
+
+QString clickZoomBehaviorToSettingsString(ClickZoomBehavior behavior)
+{
+    switch (behavior) {
+    case ClickZoomBehavior::ToggleOnClick:
+        return QStringLiteral("toggle");
+    case ClickZoomBehavior::HoldToZoomPan:
+        return QStringLiteral("hold-pan");
+    }
+    return QStringLiteral("toggle");
+}
+
+ClickZoomBehavior clickZoomBehaviorFromSettingsString(const QString &value, ClickZoomBehavior fallback)
+{
+    const QString normalized = value.toCaseFolded();
+    if (normalized == QLatin1String("toggle")) {
+        return ClickZoomBehavior::ToggleOnClick;
+    }
+    if (normalized == QLatin1String("hold-pan")) {
+        return ClickZoomBehavior::HoldToZoomPan;
     }
     return fallback;
 }

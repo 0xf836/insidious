@@ -129,7 +129,7 @@ Trigger zones:
 
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
-- `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
+- `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
 - `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей.
 - `Interface` — запоминание layout окна, dock-панелей и splitter sizes.
 
@@ -145,9 +145,10 @@ Trigger zones:
 - действия wheel / `Ctrl+wheel` / `Shift+wheel` можно настроить как navigation, zoom или no action;
 - toolbar, shortcuts и wheel zoom используют общий настраиваемый zoom step, по умолчанию 25%; toolbar и shortcuts масштабируют вокруг центра viewport;
 - next/previous через toolbar, shortcuts или wheel по умолчанию сбрасывает zoom и pan в установленный базовый режим `fit` или `actual size`; в настройках можно переключить это на сохранение текущего view. Если в активной папке достигнута граница, но дальше по дереву есть подходящая папка, viewer переходит к ней; если переходить некуда, текущий entry перерендеривается с тем же сбросом;
-- простой клик левой кнопкой: временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика; multiplier настраивается;
-- простой клик левой кнопкой после click/rectangle zoom: возврат в исходный режим `fit` или `actual size`;
-- зажатая левая кнопка: pan/hand mode только вне базового `fit`; простой клик ЛКМ продолжает работать как zoom/restore;
+- ЛКМ по умолчанию: простой клик включает временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика; multiplier настраивается;
+- ЛКМ по умолчанию после click/rectangle zoom: простой клик возвращает исходный режим `fit` или `actual size`;
+- ЛКМ по умолчанию при удержании: pan/hand mode только вне базового `fit`;
+- альтернативный режим ЛКМ в настройках: зажатие сразу включает временный zoom всего изображения, движение сдвигает увеличенный raster, отпускание возвращает исходный view;
 - зажатая правая кнопка: прямоугольник zoom-to-selection;
 - drag'n'drop в окно: открыть соответствующий источник.
 - double click - переход в Fullscreen/выход из него; временный zoom по простому клику при double click не срабатывает

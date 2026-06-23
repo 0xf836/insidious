@@ -48,7 +48,7 @@
 
 Fullscreen показывает только область изображения по умолчанию. Панели появляются как overlay поверх изображения при приближении мыши к краю: слева `Files`, справа `Info`, сверху основные actions, снизу status text. Hover-панели не меняют размер viewer и не запускают перерендер изображения; зоны срабатывания по умолчанию — 7% ширины для боковых краёв и 5% высоты для верхнего/нижнего.
 
-`Edit -> Preferences` открывает базовый диалог настроек. Сейчас он сохраняет default zoom mode, поведение zoom/pan при переключении изображений, click zoom multiplier, wheel actions, zoom step, fullscreen edge trigger zones и запоминание layout. Настройки пишутся через `QSettings` в стандартное пользовательское config-хранилище Qt и не содержат историю открытых файлов, путей, паролей архивов, thumbnails или decoded cache.
+`Edit -> Preferences` открывает базовый диалог настроек. Сейчас он сохраняет default zoom mode, поведение zoom/pan при переключении изображений, режим ЛКМ zoom, click zoom multiplier, wheel actions, zoom step, fullscreen edge trigger zones и запоминание layout. Настройки пишутся через `QSettings` в стандартное пользовательское config-хранилище Qt и не содержат историю открытых файлов, путей, паролей архивов, thumbnails или decoded cache.
 
 Если текущий файл удалён, стал нечитаемым или не декодируется, viewer показывает ошибку для этого entry, но сохраняет коллекцию и навигацию. Ошибки загрузки не попадают в memory cache.
 
@@ -62,9 +62,8 @@ Fullscreen показывает только область изображени
 - `Ctrl+wheel` — zoom in/out относительно текущего отображаемого масштаба по умолчанию, с опорой на позицию курсора.
 - `Shift+wheel` — no action по умолчанию.
 - Next/Previous по кнопкам, shortcuts или wheel по умолчанию сбрасывают масштаб и pan в установленный базовый режим `fit` или `actual size`; это можно переключить на сохранение текущего view в Preferences. На границе активной папки переходят к соседней подходящей папке по дереву, а если листать некуда, текущий image перерендеривается с тем же сбросом.
-- Простой клик ЛКМ — временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика; multiplier настраивается в Preferences.
-- Простой клик ЛКМ после click/rectangle zoom — возврат в исходный режим `fit` или `actual size`.
-- Зажатая левая кнопка мыши — pan/hand mode только вне базового `fit`; простой клик ЛКМ работает как zoom/restore.
+- ЛКМ по умолчанию работает как click zoom: простой клик включает временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика, следующий клик после click/rectangle zoom возвращает исходный режим `fit` или `actual size`.
+- В Preferences можно переключить ЛКМ в hold zoom: зажатие сразу включает временный zoom всего изображения, движение сдвигает увеличенный raster, отпускание возвращает исходный view.
 - Зажатая правая кнопка мыши — прямоугольник zoom-to-selection.
 - Double click — fullscreen; temporary click zoom is suppressed for double clicks.
 - In fullscreen, edge hover shows overlay panels without leaving fullscreen; `Esc` exits fullscreen.

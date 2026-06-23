@@ -116,6 +116,10 @@ private:
         ViewRenderState state;
     };
 
+    struct ActiveHoldZoom {
+        ViewRenderState returnState;
+    };
+
     void setupActions();
     void setupConnections();
     void setupFileListPanel();
@@ -154,6 +158,11 @@ private:
     void applyImageSwitchViewPolicy();
     void applyWheelAction(core::WheelAction action, int angleDeltaY, QPoint position);
     void applyCustomZoomWithFallback(double zoomFactor, QPointF panOffset);
+    void applyCustomZoomWithFallback(double zoomFactor, QPointF panOffset, const ViewRenderState &fallback);
+    bool customZoomForAnchor(QPointF anchorPosition, double multiplier, double *zoomFactor, QPointF *panOffset) const;
+    void handleHoldZoomStarted(QPoint position);
+    void handleHoldZoomMoved(QPoint delta);
+    void handleHoldZoomEnded();
     void zoomByMultiplier(double multiplier, QPointF anchorPosition);
     void zoomInAt(QPointF anchorPosition);
     void zoomOutAt(QPointF anchorPosition);
@@ -222,6 +231,7 @@ private:
     core::DecodedImage m_currentDecoded;
     core::ZoomMode m_baseZoomMode = core::ZoomMode::FitToWindow;
     core::ImageSwitchPolicy m_imageSwitchPolicy = core::ImageSwitchPolicy::ResetToBaseMode;
+    core::ClickZoomBehavior m_clickZoomBehavior = core::ClickZoomBehavior::ToggleOnClick;
     std::optional<core::ZoomMode> m_temporaryZoomReturnMode;
     core::AppSettings m_settings;
     double m_clickZoomMultiplier = 2.0;
@@ -234,6 +244,7 @@ private:
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
     std::optional<PendingZoomRenderFallback> m_pendingZoomRenderFallback;
+    std::optional<ActiveHoldZoom> m_activeHoldZoom;
     bool m_imageRenderPending = false;
     bool m_syncingFileListSelection = false;
     bool m_syncingFolderTreeSelection = false;
