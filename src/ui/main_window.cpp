@@ -696,7 +696,17 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenLeftPanel->setObjectName(QStringLiteral("fullscreenLeftPanel"));
     configureOverlayWidget(m_fullscreenLeftPanel);
     m_fullscreenLeftPanel->setStyleSheet(QStringLiteral(
-        "#fullscreenLeftPanel { background-color: rgba(24, 24, 24, 224); border-right: 1px solid rgba(255, 255, 255, 48); }"));
+        "#fullscreenLeftPanel { background-color: rgba(24, 24, 24, 224); border-right: 1px solid rgba(255, 255, 255, 48); }"
+        "#fullscreenLeftPanel QLabel { color: rgba(245, 245, 245, 230); }"
+        "#fullscreenLeftPanel QListView { background: transparent; border: none; outline: 0; color: rgba(245, 245, 245, 230); padding: 2px; }"
+        "#fullscreenLeftPanel QListView::item { padding: 6px 8px; margin: 1px 0; border-radius: 4px; }"
+        "#fullscreenLeftPanel QListView::item:hover { background-color: rgba(255, 255, 255, 28); }"
+        "#fullscreenLeftPanel QListView::item:selected { background-color: rgba(80, 150, 255, 96); color: rgba(255, 255, 255, 245); }"
+        "#fullscreenLeftPanel QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }"
+        "#fullscreenLeftPanel QScrollBar::handle:vertical { background: rgba(255, 255, 255, 70); border-radius: 4px; min-height: 24px; }"
+        "#fullscreenLeftPanel QScrollBar::handle:vertical:hover { background: rgba(255, 255, 255, 105); }"
+        "#fullscreenLeftPanel QScrollBar::add-line:vertical, #fullscreenLeftPanel QScrollBar::sub-line:vertical { height: 0; }"
+        "#fullscreenLeftPanel QScrollBar::add-page:vertical, #fullscreenLeftPanel QScrollBar::sub-page:vertical { background: transparent; }"));
 
     auto *leftLayout = new QVBoxLayout(m_fullscreenLeftPanel);
     leftLayout->setContentsMargins(8, 8, 8, 8);
@@ -706,18 +716,21 @@ void MainWindow::setupFullscreenOverlayPanels()
     QFont filesHeaderFont = filesHeader->font();
     filesHeaderFont.setBold(true);
     filesHeader->setFont(filesHeaderFont);
-    filesHeader->setStyleSheet(QStringLiteral("color: rgba(245, 245, 245, 230);"));
     leftLayout->addWidget(filesHeader);
 
     m_fullscreenFileListView = new QListView(m_fullscreenLeftPanel);
     m_fullscreenFileListView->setModel(m_fileListModel);
+    m_fullscreenFileListView->setFrameShape(QFrame::NoFrame);
     m_fullscreenFileListView->setSelectionMode(QAbstractItemView::SingleSelection);
     m_fullscreenFileListView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_fullscreenFileListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_fullscreenFileListView->setAlternatingRowColors(true);
+    m_fullscreenFileListView->setAlternatingRowColors(false);
     m_fullscreenFileListView->setUniformItemSizes(true);
+    m_fullscreenFileListView->setSpacing(1);
+    m_fullscreenFileListView->setAutoFillBackground(false);
     m_fullscreenFileListView->setMouseTracking(true);
     m_fullscreenFileListView->installEventFilter(this);
+    m_fullscreenFileListView->viewport()->setAutoFillBackground(false);
     m_fullscreenFileListView->viewport()->setMouseTracking(true);
     m_fullscreenFileListView->viewport()->installEventFilter(this);
     leftLayout->addWidget(m_fullscreenFileListView, 1);
