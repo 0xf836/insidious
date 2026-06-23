@@ -68,7 +68,7 @@ private slots:
     void toggleFullscreen();
     void showQuickJumpDialog();
     void showSettingsDialog();
-    void handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY);
+    void handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY, QPoint position);
 
 private:
     struct DecodeJobResult {
@@ -135,7 +135,10 @@ private:
     void prefetchNeighbors(const core::DecodeRequest &request);
     void reloadAfterImageSwitch();
     void applyImageSwitchViewPolicy();
-    void applyWheelAction(core::WheelAction action, int angleDeltaY);
+    void applyWheelAction(core::WheelAction action, int angleDeltaY, QPoint position);
+    void zoomByMultiplier(double multiplier, QPointF anchorPosition);
+    void zoomInAt(QPointF anchorPosition);
+    void zoomOutAt(QPointF anchorPosition);
     [[nodiscard]] core::WheelAction wheelActionForModifiers(Qt::KeyboardModifiers modifiers) const;
     void clearSourceTree();
     void activateFolder(const QString &folderRelativePath, int selectedImageIndex = 0, bool loadCurrent = true);

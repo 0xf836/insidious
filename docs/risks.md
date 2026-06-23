@@ -45,7 +45,7 @@ AVIF и JPEG XL зависят от поддержки в выбранном ima
 Зафиксированная схема по умолчанию:
 
 - wheel = next/previous;
-- Ctrl + wheel = zoom;
+- Ctrl + wheel = zoom with cursor anchor;
 - Shift + wheel = no action;
 - пользователь может изменить wheel actions в Preferences;
 - left click = temporary default zoom centered on the click point, or restore fit/actual size after temporary zoom;

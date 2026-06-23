@@ -145,8 +145,8 @@ Navigation:
 Mouse input:
 
 - Wheel navigates previous/next image.
-- `ImageViewWidget` emits wheel delta and modifiers to `MainWindow`; `MainWindow` maps them through settings to navigate, zoom, or no action. Defaults are wheel=navigate, `Ctrl+wheel`=zoom, `Shift+wheel`=no action.
-- Wheel zoom, toolbar zoom, and shortcut zoom use the same configurable step percent. `Ctrl+wheel` zooms relative to the current decoded `effectiveScale`, so zooming from `FitToWindow` starts from the actual fit scale rather than from 100%.
+- `ImageViewWidget` emits wheel delta, modifiers, and cursor position to `MainWindow`; `MainWindow` maps them through settings to navigate, zoom, or no action. Defaults are wheel=navigate, `Ctrl+wheel`=zoom, `Shift+wheel`=no action.
+- Wheel zoom, toolbar zoom, and shortcut zoom use the same configurable step percent. Wheel zoom anchors on the cursor position; toolbar and shortcut zoom anchor on the viewport center. Zooming from `FitToWindow` starts from the current decoded `effectiveScale`, not from 100%.
 - Simple left click calls `MainWindow::handleImageClick()`: it enters temporary 2x zoom relative to the current decoded `effectiveScale`, centered on the clicked point, or restores the saved `fit`/`actual size` base mode after click/rectangle zoom.
 - Left-button drag pans the current raster and stores the pan offset in `ViewerController` only outside base `FitToWindow`.
 - Right-button drag draws a rectangle in `ImageViewWidget`; `MainWindow::zoomToRect()` converts that widget rectangle into a custom zoom factor and pan offset.

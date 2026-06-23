@@ -41,6 +41,7 @@ private slots:
     void archiveSourceTreeGroupsImagesByFolder();
     void archivePasswordIsRequiredAndAccepted();
     void viewerNavigationStopsAtBounds();
+    void viewerCustomZoomClampsToSupportedRange();
     void memoryCacheEvictsByBudget();
     void decoderLoadsTemporaryPng();
     void decoderLoadsPngFromArchive();
@@ -381,6 +382,19 @@ void CoreTests::viewerNavigationStopsAtBounds()
     QCOMPARE(controller.currentIndex(), 0);
     QVERIFY(controller.goLast());
     QCOMPARE(controller.currentIndex(), 1);
+}
+
+void CoreTests::viewerCustomZoomClampsToSupportedRange()
+{
+    ViewerController controller;
+
+    controller.setCustomZoom(MinimumZoomFactor / 10.0);
+    QCOMPARE(controller.zoomMode(), ZoomMode::Custom);
+    QCOMPARE(controller.zoomFactor(), MinimumZoomFactor);
+
+    controller.setCustomZoom(MaximumZoomFactor * 10.0);
+    QCOMPARE(controller.zoomMode(), ZoomMode::Custom);
+    QCOMPARE(controller.zoomFactor(), MaximumZoomFactor);
 }
 
 void CoreTests::memoryCacheEvictsByBudget()

@@ -158,7 +158,7 @@ void ImageViewWidget::paintEvent(QPaintEvent *event)
 
 void ImageViewWidget::wheelEvent(QWheelEvent *event)
 {
-    emit wheelActionRequested(event->modifiers(), event->angleDelta().y());
+    emit wheelActionRequested(event->modifiers(), event->angleDelta().y(), event->position().toPoint());
     event->accept();
 }
 

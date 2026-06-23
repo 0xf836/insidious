@@ -7,7 +7,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Документация проекта, build skeleton, C++20 / Qt6 Widgets приложение.
 - Базовый viewer: открыть изображение, открыть папку, использовать родительскую папку как контекст при открытии одного файла.
 - Viewer controls: `fit to window`, `actual size`, zoom in/out, pan, view-only rotate left/right, fullscreen.
-- Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
+- Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom around cursor, toolbar/shortcut zoom around viewport center, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
 - Async decode pipeline через libvips: display-sized rasters, stale-result guards, neighbor prefetch, memory-only decoded image cache.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
 - Source tree `Files`: дерево папок/архива над списком изображений активной папки, lazy filesystem folder loading, cross-folder next/previous.
@@ -21,8 +21,7 @@ Roadmap — живой backlog реализации, а не обещание р
 
 - Zoom UX polish:
   - У основного зума (по лкм) сделать две вариации: 1. zoom-in и возврат. 2. при зажатой лкм изображение зуммируется и ведется вслед за курсором, после отжатия возврат к исходному состоянию. Добавить выбор в настройки.
-  - zoom от wheel/buttons вокруг курсора или релевантной точки viewport, где это применимо, а не всегда вокруг центра изображения;
-  - проверить maximum zoom limits и сообщения об ошибках;
+  - проверить, нужно ли поднимать maximum zoom выше текущих 1600%, и уточнить сообщения об ошибках при слишком большом render request; при невозможном запросе zoom не выводить ошибку, закрывая изображение, а вывести аккуратное небольшое сообщение поверх изображения вверху, само изображение оставить как было на том же зуме, в том же положении.
   - показывать magnifier cursor только когда click-zoom доступен.
 - Settings polish:
   - добавить on/off для EXIF autorotate;

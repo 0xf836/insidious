@@ -47,9 +47,6 @@
 namespace insidious::ui {
 namespace {
 
-constexpr double MinZoomFactor = 0.05;
-constexpr double MaxZoomFactor = 16.0;
-
 QString formattedFileSize(qint64 bytes)
 {
     return QLocale::system().formattedDataSize(bytes);
@@ -343,26 +340,12 @@ void MainWindow::showLastImage()
 
 void MainWindow::zoomIn()
 {
-    if (m_currentDecoded.ok() && m_currentDecoded.effectiveScale > 0.0) {
-        m_controller.setCustomZoom(m_currentDecoded.effectiveScale * m_zoomStepMultiplier);
-    } else {
-        m_controller.zoomIn();
-    }
-    m_controller.resetPan();
-    updateInteractionState();
-    loadCurrentImage(false);
+    zoomInAt(QPointF(m_imageView->width() / 2.0, m_imageView->height() / 2.0));
 }
 
 void MainWindow::zoomOut()
 {
-    if (m_currentDecoded.ok() && m_currentDecoded.effectiveScale > 0.0) {
-        m_controller.setCustomZoom(m_currentDecoded.effectiveScale / m_zoomStepMultiplier);
-    } else {
-        m_controller.zoomOut();
-    }
-    m_controller.resetPan();
-    updateInteractionState();
-    loadCurrentImage(false);
+    zoomOutAt(QPointF(m_imageView->width() / 2.0, m_imageView->height() / 2.0));
 }
 
 void MainWindow::setFitToWindow()
@@ -403,7 +386,7 @@ void MainWindow::handleImageClick(const QPoint &position)
     const double currentScale = m_currentDecoded.effectiveScale;
     const QPointF imagePoint = clampedPointToRect(QPointF(position), imageRect) - imageRect.topLeft();
     const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
-    const double newScale = std::clamp(currentScale * m_clickZoomMultiplier, MinZoomFactor, MaxZoomFactor);
+    const double newScale = std::clamp(currentScale * m_clickZoomMultiplier, core::MinimumZoomFactor, core::MaximumZoomFactor);
     const QSizeF newDisplaySize(
         m_currentDecoded.image.width() * newScale / currentScale,
         m_currentDecoded.image.height() * newScale / currentScale);
@@ -438,7 +421,7 @@ void MainWindow::zoomToRect(const QRect &selectionRect)
     const double scaleMultiplier = std::min(
         static_cast<double>(m_imageView->width()) / selected.width(),
         static_cast<double>(m_imageView->height()) / selected.height());
-    const double newScale = std::clamp(currentScale * scaleMultiplier, MinZoomFactor, MaxZoomFactor);
+    const double newScale = std::clamp(currentScale * scaleMultiplier, core::MinimumZoomFactor, core::MaximumZoomFactor);
 
     const QPointF selectedCenterInImage = selected.center() - imageRect.topLeft();
     const QPointF sourceCenter(selectedCenterInImage.x() / currentScale, selectedCenterInImage.y() / currentScale);
@@ -558,9 +541,9 @@ void MainWindow::showSettingsDialog()
     dialog.exec();
 }
 
-void MainWindow::handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY)
+void MainWindow::handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY, QPoint position)
 {
-    applyWheelAction(wheelActionForModifiers(modifiers), angleDeltaY);
+    applyWheelAction(wheelActionForModifiers(modifiers), angleDeltaY, position);
 }
 
 void MainWindow::setupActions()
@@ -1500,7 +1483,7 @@ void MainWindow::applyImageSwitchViewPolicy()
     updateInteractionState();
 }
 
-void MainWindow::applyWheelAction(core::WheelAction action, int angleDeltaY)
+void MainWindow::applyWheelAction(core::WheelAction action, int angleDeltaY, QPoint position)
 {
     if (angleDeltaY == 0) {
         return;
@@ -1516,14 +1499,74 @@ void MainWindow::applyWheelAction(core::WheelAction action, int angleDeltaY)
         break;
     case core::WheelAction::Zoom:
         if (angleDeltaY > 0) {
-            zoomIn();
+            zoomInAt(position);
         } else {
-            zoomOut();
+            zoomOutAt(position);
         }
         break;
     case core::WheelAction::NoAction:
         break;
     }
+}
+
+void MainWindow::zoomByMultiplier(double multiplier, QPointF anchorPosition)
+{
+    if (!m_controller.hasCollection()) {
+        return;
+    }
+
+    if (!m_currentDecoded.ok() || m_currentDecoded.effectiveScale <= 0.0) {
+        const double fallbackScale = std::clamp(
+            m_controller.zoomFactor() * multiplier,
+            core::MinimumZoomFactor,
+            core::MaximumZoomFactor);
+        m_controller.setCustomZoom(fallbackScale);
+        m_controller.resetPan();
+        updateInteractionState();
+        loadCurrentImage(false);
+        return;
+    }
+
+    const QRectF imageRect = m_imageView->imageRect();
+    if (imageRect.isEmpty()) {
+        return;
+    }
+
+    const double currentScale = m_currentDecoded.effectiveScale;
+    const double newScale = std::clamp(
+        currentScale * multiplier,
+        core::MinimumZoomFactor,
+        core::MaximumZoomFactor);
+    if (qFuzzyCompare(currentScale, newScale)) {
+        return;
+    }
+
+    const QPointF anchor = clampedPointToRect(anchorPosition, imageRect);
+    const QPointF imagePoint = anchor - imageRect.topLeft();
+    const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
+    const QSizeF newDisplaySize(
+        m_currentDecoded.image.width() * newScale / currentScale,
+        m_currentDecoded.image.height() * newScale / currentScale);
+    const QPointF centeredTopLeft(
+        (m_imageView->width() - newDisplaySize.width()) / 2.0,
+        (m_imageView->height() - newDisplaySize.height()) / 2.0);
+    const QPointF pointAtNewScale(sourcePoint.x() * newScale, sourcePoint.y() * newScale);
+    const QPointF newPanOffset = anchor - centeredTopLeft - pointAtNewScale;
+
+    m_controller.setCustomZoom(newScale);
+    m_controller.setPanOffset(newPanOffset);
+    updateInteractionState();
+    loadCurrentImage(false);
+}
+
+void MainWindow::zoomInAt(QPointF anchorPosition)
+{
+    zoomByMultiplier(m_zoomStepMultiplier, anchorPosition);
+}
+
+void MainWindow::zoomOutAt(QPointF anchorPosition)
+{
+    zoomByMultiplier(1.0 / m_zoomStepMultiplier, anchorPosition);
 }
 
 core::WheelAction MainWindow::wheelActionForModifiers(Qt::KeyboardModifiers modifiers) const

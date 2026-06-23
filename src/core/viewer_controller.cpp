@@ -109,19 +109,19 @@ void ViewerController::setActualSize()
 void ViewerController::setCustomZoom(double zoomFactor)
 {
     m_zoomMode = ZoomMode::Custom;
-    m_zoomFactor = std::clamp(zoomFactor, 0.05, 16.0);
+    m_zoomFactor = std::clamp(zoomFactor, MinimumZoomFactor, MaximumZoomFactor);
 }
 
 void ViewerController::zoomIn()
 {
     m_zoomMode = ZoomMode::Custom;
-    m_zoomFactor = std::min(m_zoomFactor * 1.25, 16.0);
+    m_zoomFactor = std::min(m_zoomFactor * 1.25, MaximumZoomFactor);
 }
 
 void ViewerController::zoomOut()
 {
     m_zoomMode = ZoomMode::Custom;
-    m_zoomFactor = std::max(m_zoomFactor / 1.25, 0.05);
+    m_zoomFactor = std::max(m_zoomFactor / 1.25, MinimumZoomFactor);
 }
 
 void ViewerController::resetPan()

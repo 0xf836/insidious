@@ -33,7 +33,7 @@ signals:
     void navigateNextRequested();
     void zoomInRequested();
     void zoomOutRequested();
-    void wheelActionRequested(Qt::KeyboardModifiers modifiers, int angleDeltaY);
+    void wheelActionRequested(Qt::KeyboardModifiers modifiers, int angleDeltaY, QPoint position);
     void imageClicked(QPoint position);
     void zoomToRectRequested(QRect rect);
     void toggleFullscreenRequested();
