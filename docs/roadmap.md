@@ -22,7 +22,6 @@ Roadmap — живой backlog реализации, а не обещание р
 ## Ближайшее / small stabilization
 
 - Zoom UX polish:
-  - проверить, нужно ли поднимать maximum zoom выше текущих 1600%.
   - показывать magnifier cursor только когда click-zoom доступен.
 - Settings polish:
   - добавить on/off для EXIF autorotate;
@@ -62,6 +61,7 @@ Roadmap — живой backlog реализации, а не обещание р
 ## Позже / larger milestones
 
 - Zoom UX polish:
+  - заменить full-raster zoom rendering на region-based rendering: декодировать и масштабировать только видимую область изображения плюс небольшой запас, чтобы убрать ранний упор в render budget на больших исходниках.
   - добавить будущий отдельный режим temporary view: при удержании ЛКМ zoom следует за курсором (размеры области настраиваются), после отпускания возврат к исходному состоянию.
 - Advanced rendering:
   - ICC/color management;

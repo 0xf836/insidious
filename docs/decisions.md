@@ -54,6 +54,8 @@
 
 Причина: это снижает расход памяти на больших изображениях и лучше соответствует цели быстрого viewer. `actual size` ограничивается бюджетом decoded bytes.
 
+Ограничение: текущая реализация все еще рендерит полный zoomed raster для выбранного масштаба. Поэтому практический потолок zoom сейчас задается render budget, а не только `MaximumZoomFactor`. Следующий шаг для больших изображений - перейти к region-based rendering для видимой области плюс небольшой запас.
+
 ## ADR-010: MVP избегает recent-file integration
 
 Решение: приложение не использует recent files и persistent cache в MVP; file dialogs открываются в non-native режиме, чтобы не включать toolkit/desktop recent-file integration без явного решения. `QSettings` разрешён только для non-history preferences: viewer defaults, fullscreen trigger zones и layout state.

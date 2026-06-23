@@ -59,6 +59,7 @@ Transient loading display:
 - Cache misses during zoom keep the previous raster and decoded state visible without showing a loading label and without moving the old raster before the new decode is ready.
 - While a stale raster is displayed, image-specific interactions such as pan, click zoom, rectangle zoom, wheel zoom, toolbar zoom, fit/actual size, and rotate are disabled; image navigation and fullscreen remain available.
 - If a zoom-triggered decode exceeds the render budget, `VipsImageDecoder` reports `DecodeErrorReason::RenderTooLarge`; `MainWindow` restores the previous zoom/pan/raster and shows a compact `Too large to render` overlay instead of replacing the image with a full error message.
+- This budget is currently applied to the entire zoomed raster, not the visible viewport region. Large source images can therefore hit the limit earlier than the on-screen zoom percentage suggests, even when more visual zoom would still be acceptable.
 - Full messages still clear the image for initial loading, scanning, empty states, and current-entry errors.
 
 Current image failures:
