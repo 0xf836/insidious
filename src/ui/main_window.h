@@ -23,6 +23,7 @@ class QAction;
 class QDockWidget;
 class QListView;
 class QModelIndex;
+class QToolBar;
 
 namespace insidious::ui {
 
@@ -37,6 +38,7 @@ public:
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
@@ -78,10 +80,24 @@ private:
         core::ScanResult result;
     };
 
+    struct FullscreenOverlaySettings {
+        double sideTriggerRatio = 0.07;
+        double verticalTriggerRatio = 0.05;
+    };
+
+    struct FullscreenUiState {
+        bool menuBarVisible = true;
+        bool toolBarVisible = true;
+        bool statusBarVisible = true;
+        bool fileDockVisible = true;
+        bool infoDockVisible = false;
+    };
+
     void setupActions();
     void setupConnections();
     void setupFileListPanel();
     void setupInfoPanel();
+    void setupFullscreenOverlayPanels();
     void openFile(const QString &filePath);
     void openFolder(const QString &folderPath);
     void openArchive(const QString &archivePath);
@@ -107,6 +123,13 @@ private:
     void selectImageFromFileList(const QModelIndex &index);
     void rememberTemporaryZoomReturnMode();
     bool restoreTemporaryZoomReturnMode();
+    void enterFullscreenMode();
+    void exitFullscreenMode();
+    void hideFullscreenOverlayPanels();
+    void updateFullscreenOverlayGeometry();
+    void updateFullscreenOverlayVisibility();
+    void syncFullscreenFileListSelection();
+    void updateFullscreenStatusText();
     [[nodiscard]] core::DecodeRequest currentDecodeRequest() const;
     [[nodiscard]] QString currentCacheKey(const core::DecodeRequest &request) const;
     [[nodiscard]] QString imageDialogFilter() const;
@@ -118,6 +141,14 @@ private:
     QDockWidget *m_infoDock = nullptr;
     ImageInfoPanel *m_infoPanel = nullptr;
     QLabel *m_statusLabel = nullptr;
+    QToolBar *m_mainToolBar = nullptr;
+    QWidget *m_fullscreenLeftPanel = nullptr;
+    QWidget *m_fullscreenRightPanel = nullptr;
+    QToolBar *m_fullscreenTopPanel = nullptr;
+    QWidget *m_fullscreenBottomPanel = nullptr;
+    QListView *m_fullscreenFileListView = nullptr;
+    ImageInfoPanel *m_fullscreenInfoPanel = nullptr;
+    QLabel *m_fullscreenStatusLabel = nullptr;
 
     QAction *m_openFileAction = nullptr;
     QAction *m_openFolderAction = nullptr;
@@ -149,6 +180,9 @@ private:
     bool m_quickJumpDialogOpen = false;
     QString m_currentArchivePath;
     QString m_currentArchivePassword;
+    FullscreenOverlaySettings m_fullscreenOverlaySettings;
+    FullscreenUiState m_preFullscreenUiState;
+    bool m_fullscreenUiActive = false;
 };
 
 } // namespace insidious::ui

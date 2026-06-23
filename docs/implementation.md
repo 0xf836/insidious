@@ -93,6 +93,18 @@ Quick filename jump:
 - In fullscreen, `MainWindow` keeps the viewer fullscreen and shows the same dialog inside an in-window overlay, avoiding a separate top-level dialog that can make the window manager leave fullscreen.
 - Accepted selection maps the proxy row back to the collection row and switches through `MainWindow::reloadAfterImageSwitch()`.
 
+Fullscreen overlay UI:
+
+- Entering fullscreen stores the normal visibility of the menu bar, main toolbar, statusbar, `Files` dock, and `Info` dock, hides them, and makes the central image viewer occupy the window.
+- Fullscreen edge UI is implemented as child overlay widgets of `MainWindow`, not as dock widgets and not as layout participants. Showing or hiding these overlays must not resize `ImageViewWidget`, alter zoom/pan, or trigger image reload.
+- The left overlay owns a second `QListView` backed by the same `ImageListModel` as the normal `Files` dock. The two views have separate selection models and are synchronized from `ViewerController::currentIndex()`.
+- The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.
+- The top overlay is a `QToolBar` using the same `QAction` objects as the normal menu/toolbar flow, so shortcuts, enabled state, and command routing remain centralized.
+- The bottom overlay mirrors the normal statusbar text.
+- Hover detection uses in-memory `FullscreenOverlaySettings`: side triggers are 7% of window width by default, top/bottom triggers are 5% of window height by default. Side overlays have priority in corners.
+- `Ctrl+F` quick jump suppresses fullscreen edge overlays while its in-window modal overlay is open.
+- Exiting fullscreen hides all edge overlays, returns to normal window mode, and restores the stored normal UI visibility.
+
 Right info panel:
 
 - `MainWindow` owns a right `QDockWidget` named `Info`, hidden by default and toggled from the `View` menu.

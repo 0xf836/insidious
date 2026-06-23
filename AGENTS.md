@@ -97,6 +97,14 @@ Current MVP mouse behavior:
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
 - Double click toggles fullscreen and must not also trigger temporary click zoom.
 
+Current MVP fullscreen behavior:
+
+- Fullscreen hides the normal menu bar, toolbar, statusbar, `Files` dock, and `Info` dock by default, leaving only the image area visible.
+- Edge panels appear as overlays over the image: left `Files`, right `Info`, top actions toolbar, bottom status text.
+- Default fullscreen trigger zones are 7% of window width for side panels and 5% of window height for top/bottom panels. Keep these values in settings-shaped code so they can move to a settings UI later.
+- Side panels have priority in fullscreen corners.
+- Showing or hiding fullscreen overlays must not resize the image viewport, alter zoom/pan, call image reload/decode, or cause visible image flicker.
+
 ## Implementation constraints
 
 - Keep `src/core` free of `QWidget`/GUI dependencies. QtCore/QtGui value types such as `QString`, `QImage`, `QSize`, and `QDateTime` are currently accepted there.

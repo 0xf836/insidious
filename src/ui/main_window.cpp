@@ -9,12 +9,17 @@
 #include <QAction>
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QCursor>
 #include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QEvent>
 #include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFrame>
+#include <QFont>
+#include <QHBoxLayout>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QInputDialog>
@@ -28,6 +33,7 @@
 #include <QToolBar>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QWidget>
 #include <QtConcurrent>
 
 #include <algorithm>
@@ -72,6 +78,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupFileListPanel();
     setupInfoPanel();
     setupActions();
+    setupFullscreenOverlayPanels();
     setupConnections();
     refreshFileList();
     updateInfoPanelForCurrentImage();
@@ -125,16 +132,32 @@ void MainWindow::dropEvent(QDropEvent *event)
     event->acceptProposedAction();
 }
 
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    Q_UNUSED(watched)
+
+    const bool relevantEvent = event->type() == QEvent::MouseMove
+        || event->type() == QEvent::Enter
+        || event->type() == QEvent::Leave;
+    if (m_fullscreenUiActive && relevantEvent) {
+        updateFullscreenOverlayVisibility();
+    }
+
+    return QMainWindow::eventFilter(watched, event);
+}
+
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
+    updateFullscreenOverlayGeometry();
+    updateFullscreenOverlayVisibility();
     scheduleFitReload();
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Escape && isFullScreen()) {
-        showNormal();
+        exitFullscreenMode();
         event->accept();
         return;
     }
@@ -405,9 +428,9 @@ void MainWindow::rotateRight()
 void MainWindow::toggleFullscreen()
 {
     if (isFullScreen()) {
-        showNormal();
+        exitFullscreenMode();
     } else {
-        showFullScreen();
+        enterFullscreenMode();
     }
 }
 
@@ -418,6 +441,7 @@ void MainWindow::showQuickJumpDialog()
     }
 
     const QScopedValueRollback<bool> guard(m_quickJumpDialogOpen, true);
+    hideFullscreenOverlayPanels();
     int selectedRow = -1;
 
     if (!isFullScreen()) {
@@ -481,20 +505,20 @@ void MainWindow::setupActions()
     auto *fileMenu = menuBar()->addMenu(tr("&File"));
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     auto *navigateMenu = menuBar()->addMenu(tr("&Navigate"));
-    auto *toolbar = addToolBar(tr("Main"));
-    toolbar->setMovable(false);
+    m_mainToolBar = addToolBar(tr("Main"));
+    m_mainToolBar->setMovable(false);
 
     m_openFileAction = new QAction(tr("Open File"), this);
     m_openFileAction->setShortcut(QKeySequence::Open);
     connect(m_openFileAction, &QAction::triggered, this, &MainWindow::openFileDialog);
     fileMenu->addAction(m_openFileAction);
-    toolbar->addAction(m_openFileAction);
+    m_mainToolBar->addAction(m_openFileAction);
 
     m_openFolderAction = new QAction(tr("Open Folder"), this);
     m_openFolderAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
     connect(m_openFolderAction, &QAction::triggered, this, &MainWindow::openFolderDialog);
     fileMenu->addAction(m_openFolderAction);
-    toolbar->addAction(m_openFolderAction);
+    m_mainToolBar->addAction(m_openFolderAction);
 
     fileMenu->addSeparator();
     auto *quitAction = new QAction(tr("Quit"), this);
@@ -502,19 +526,19 @@ void MainWindow::setupActions()
     connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
     fileMenu->addAction(quitAction);
 
-    toolbar->addSeparator();
+    m_mainToolBar->addSeparator();
 
     m_previousAction = new QAction(tr("Previous"), this);
     m_previousAction->setShortcuts(QList<QKeySequence> { QKeySequence(Qt::Key_Left), QKeySequence(Qt::Key_PageUp) });
     connect(m_previousAction, &QAction::triggered, this, &MainWindow::showPreviousImage);
     navigateMenu->addAction(m_previousAction);
-    toolbar->addAction(m_previousAction);
+    m_mainToolBar->addAction(m_previousAction);
 
     m_nextAction = new QAction(tr("Next"), this);
     m_nextAction->setShortcuts(QList<QKeySequence> { QKeySequence(Qt::Key_Right), QKeySequence(Qt::Key_PageDown) });
     connect(m_nextAction, &QAction::triggered, this, &MainWindow::showNextImage);
     navigateMenu->addAction(m_nextAction);
-    toolbar->addAction(m_nextAction);
+    m_mainToolBar->addAction(m_nextAction);
 
     m_firstAction = new QAction(tr("First"), this);
     m_firstAction->setShortcut(QKeySequence(Qt::Key_Home));
@@ -532,31 +556,31 @@ void MainWindow::setupActions()
     connect(m_quickJumpAction, &QAction::triggered, this, &MainWindow::showQuickJumpDialog);
     navigateMenu->addAction(m_quickJumpAction);
 
-    toolbar->addSeparator();
+    m_mainToolBar->addSeparator();
 
     m_zoomInAction = new QAction(tr("Zoom In"), this);
     m_zoomInAction->setShortcut(QKeySequence::ZoomIn);
     connect(m_zoomInAction, &QAction::triggered, this, &MainWindow::zoomIn);
     viewMenu->addAction(m_zoomInAction);
-    toolbar->addAction(m_zoomInAction);
+    m_mainToolBar->addAction(m_zoomInAction);
 
     m_zoomOutAction = new QAction(tr("Zoom Out"), this);
     m_zoomOutAction->setShortcut(QKeySequence::ZoomOut);
     connect(m_zoomOutAction, &QAction::triggered, this, &MainWindow::zoomOut);
     viewMenu->addAction(m_zoomOutAction);
-    toolbar->addAction(m_zoomOutAction);
+    m_mainToolBar->addAction(m_zoomOutAction);
 
     m_fitAction = new QAction(tr("Fit"), this);
     m_fitAction->setShortcut(QKeySequence(Qt::Key_0));
     connect(m_fitAction, &QAction::triggered, this, &MainWindow::setFitToWindow);
     viewMenu->addAction(m_fitAction);
-    toolbar->addAction(m_fitAction);
+    m_mainToolBar->addAction(m_fitAction);
 
     m_actualSizeAction = new QAction(tr("Actual Size"), this);
     m_actualSizeAction->setShortcut(QKeySequence(Qt::Key_1));
     connect(m_actualSizeAction, &QAction::triggered, this, &MainWindow::setActualSize);
     viewMenu->addAction(m_actualSizeAction);
-    toolbar->addAction(m_actualSizeAction);
+    m_mainToolBar->addAction(m_actualSizeAction);
 
     m_rotateLeftAction = new QAction(tr("Rotate Left"), this);
     m_rotateLeftAction->setShortcut(QKeySequence(Qt::Key_BracketLeft));
@@ -572,7 +596,7 @@ void MainWindow::setupActions()
     m_fullscreenAction->setShortcut(QKeySequence(Qt::Key_F11));
     connect(m_fullscreenAction, &QAction::triggered, this, &MainWindow::toggleFullscreen);
     viewMenu->addAction(m_fullscreenAction);
-    toolbar->addAction(m_fullscreenAction);
+    m_mainToolBar->addAction(m_fullscreenAction);
 
     viewMenu->addSeparator();
     QAction *fileListAction = m_fileListDock->toggleViewAction();
@@ -654,6 +678,120 @@ void MainWindow::setupInfoPanel()
     m_infoDock->hide();
 }
 
+void MainWindow::setupFullscreenOverlayPanels()
+{
+    setMouseTracking(true);
+    installEventFilter(this);
+    m_imageView->setMouseTracking(true);
+    m_imageView->installEventFilter(this);
+
+    auto configureOverlayWidget = [this](QWidget *widget) {
+        widget->setAttribute(Qt::WA_StyledBackground);
+        widget->setMouseTracking(true);
+        widget->installEventFilter(this);
+        widget->hide();
+    };
+
+    m_fullscreenLeftPanel = new QFrame(this);
+    m_fullscreenLeftPanel->setObjectName(QStringLiteral("fullscreenLeftPanel"));
+    configureOverlayWidget(m_fullscreenLeftPanel);
+    m_fullscreenLeftPanel->setStyleSheet(QStringLiteral(
+        "#fullscreenLeftPanel { background-color: rgba(24, 24, 24, 224); border-right: 1px solid rgba(255, 255, 255, 48); }"));
+
+    auto *leftLayout = new QVBoxLayout(m_fullscreenLeftPanel);
+    leftLayout->setContentsMargins(8, 8, 8, 8);
+    leftLayout->setSpacing(6);
+
+    auto *filesHeader = new QLabel(tr("Files"), m_fullscreenLeftPanel);
+    QFont filesHeaderFont = filesHeader->font();
+    filesHeaderFont.setBold(true);
+    filesHeader->setFont(filesHeaderFont);
+    filesHeader->setStyleSheet(QStringLiteral("color: rgba(245, 245, 245, 230);"));
+    leftLayout->addWidget(filesHeader);
+
+    m_fullscreenFileListView = new QListView(m_fullscreenLeftPanel);
+    m_fullscreenFileListView->setModel(m_fileListModel);
+    m_fullscreenFileListView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_fullscreenFileListView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_fullscreenFileListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_fullscreenFileListView->setAlternatingRowColors(true);
+    m_fullscreenFileListView->setUniformItemSizes(true);
+    m_fullscreenFileListView->setMouseTracking(true);
+    m_fullscreenFileListView->installEventFilter(this);
+    m_fullscreenFileListView->viewport()->setMouseTracking(true);
+    m_fullscreenFileListView->viewport()->installEventFilter(this);
+    leftLayout->addWidget(m_fullscreenFileListView, 1);
+
+    connect(m_fullscreenFileListView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
+        if (m_syncingFileListSelection) {
+            return;
+        }
+        selectImageFromFileList(current);
+    });
+    connect(m_fullscreenFileListView, &QListView::activated, this, &MainWindow::selectImageFromFileList);
+
+    m_fullscreenRightPanel = new QFrame(this);
+    m_fullscreenRightPanel->setObjectName(QStringLiteral("fullscreenRightPanel"));
+    configureOverlayWidget(m_fullscreenRightPanel);
+    m_fullscreenRightPanel->setStyleSheet(QStringLiteral(
+        "#fullscreenRightPanel { background-color: rgba(24, 24, 24, 224); border-left: 1px solid rgba(255, 255, 255, 48); }"
+        "#fullscreenRightPanel QLabel { color: rgba(245, 245, 245, 230); }"));
+
+    auto *rightLayout = new QVBoxLayout(m_fullscreenRightPanel);
+    rightLayout->setContentsMargins(8, 8, 8, 8);
+    rightLayout->setSpacing(0);
+    m_fullscreenInfoPanel = new ImageInfoPanel(m_fullscreenRightPanel);
+    m_fullscreenInfoPanel->setMouseTracking(true);
+    m_fullscreenInfoPanel->installEventFilter(this);
+    rightLayout->addWidget(m_fullscreenInfoPanel, 1);
+
+    m_fullscreenTopPanel = new QToolBar(tr("Fullscreen controls"), this);
+    m_fullscreenTopPanel->setObjectName(QStringLiteral("fullscreenTopPanel"));
+    m_fullscreenTopPanel->setMovable(false);
+    m_fullscreenTopPanel->setFloatable(false);
+    m_fullscreenTopPanel->setMouseTracking(true);
+    m_fullscreenTopPanel->installEventFilter(this);
+    m_fullscreenTopPanel->setStyleSheet(QStringLiteral(
+        "#fullscreenTopPanel { background-color: rgba(24, 24, 24, 224); border-bottom: 1px solid rgba(255, 255, 255, 48); spacing: 4px; }"));
+    m_fullscreenTopPanel->addAction(m_openFileAction);
+    m_fullscreenTopPanel->addAction(m_openFolderAction);
+    m_fullscreenTopPanel->addSeparator();
+    m_fullscreenTopPanel->addAction(m_previousAction);
+    m_fullscreenTopPanel->addAction(m_nextAction);
+    m_fullscreenTopPanel->addAction(m_firstAction);
+    m_fullscreenTopPanel->addAction(m_lastAction);
+    m_fullscreenTopPanel->addAction(m_quickJumpAction);
+    m_fullscreenTopPanel->addSeparator();
+    m_fullscreenTopPanel->addAction(m_zoomInAction);
+    m_fullscreenTopPanel->addAction(m_zoomOutAction);
+    m_fullscreenTopPanel->addAction(m_fitAction);
+    m_fullscreenTopPanel->addAction(m_actualSizeAction);
+    m_fullscreenTopPanel->addAction(m_rotateLeftAction);
+    m_fullscreenTopPanel->addAction(m_rotateRightAction);
+    m_fullscreenTopPanel->addAction(m_fullscreenAction);
+    m_fullscreenTopPanel->hide();
+
+    m_fullscreenBottomPanel = new QFrame(this);
+    m_fullscreenBottomPanel->setObjectName(QStringLiteral("fullscreenBottomPanel"));
+    configureOverlayWidget(m_fullscreenBottomPanel);
+    m_fullscreenBottomPanel->setStyleSheet(QStringLiteral(
+        "#fullscreenBottomPanel { background-color: rgba(24, 24, 24, 224); border-top: 1px solid rgba(255, 255, 255, 48); }"
+        "#fullscreenBottomPanel QLabel { color: rgba(245, 245, 245, 230); }"));
+
+    auto *bottomLayout = new QHBoxLayout(m_fullscreenBottomPanel);
+    bottomLayout->setContentsMargins(12, 6, 12, 6);
+    bottomLayout->setSpacing(0);
+    m_fullscreenStatusLabel = new QLabel(m_fullscreenBottomPanel);
+    m_fullscreenStatusLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_fullscreenStatusLabel->setMouseTracking(true);
+    m_fullscreenStatusLabel->installEventFilter(this);
+    bottomLayout->addWidget(m_fullscreenStatusLabel, 1);
+
+    refreshFileList();
+    updateInfoPanelForCurrentImage();
+    updateFullscreenStatusText();
+}
+
 void MainWindow::openFile(const QString &filePath)
 {
     clearArchivePassword();
@@ -690,6 +828,7 @@ void MainWindow::openFolder(const QString &folderPath)
     m_controller.clearCollection();
     refreshFileList();
     m_infoPanel->showMessage(tr("Scanning folder..."));
+    m_fullscreenInfoPanel->showMessage(tr("Scanning folder..."));
     m_imageView->setMessage(tr("Scanning folder..."));
     updateStatus(tr("Scanning folder..."));
     updateInteractionState();
@@ -708,6 +847,7 @@ void MainWindow::openArchive(const QString &archivePath)
     m_controller.clearCollection();
     refreshFileList();
     m_infoPanel->showMessage(tr("Scanning archive..."));
+    m_fullscreenInfoPanel->showMessage(tr("Scanning archive..."));
     m_imageView->setMessage(tr("Scanning archive..."));
     updateStatus(tr("Scanning archive..."));
     updateInteractionState();
@@ -759,6 +899,7 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
             const bool retry = job.result.errorReason == core::ScanErrorReason::InvalidPassword;
             if (promptArchivePassword(job.selectedPath, retry)) {
                 m_infoPanel->showMessage(tr("Scanning archive..."));
+                m_fullscreenInfoPanel->showMessage(tr("Scanning archive..."));
                 m_imageView->setMessage(tr("Scanning archive..."));
                 updateStatus(tr("Scanning archive..."));
                 startArchiveScan(job.selectedPath, m_currentArchivePassword);
@@ -837,6 +978,9 @@ void MainWindow::showError(const QString &message)
     const QString fallback = message.isEmpty() ? tr("Operation failed.") : message;
     m_imageView->setMessage(fallback);
     m_infoPanel->showMessage(fallback);
+    if (m_fullscreenInfoPanel != nullptr) {
+        m_fullscreenInfoPanel->showMessage(fallback);
+    }
     updateStatus(fallback);
     updateActionState();
     updateInteractionState();
@@ -850,49 +994,53 @@ void MainWindow::showImageLoadError(const core::ImageEntry &entry, const QString
         : tr("%1: %2 (%3)").arg(displayName, reason, details);
     showError(message);
     m_infoPanel->showError(entry, details.isEmpty() ? reason : tr("%1 (%2)").arg(reason, details));
+    if (m_fullscreenInfoPanel != nullptr) {
+        m_fullscreenInfoPanel->showError(entry, details.isEmpty() ? reason : tr("%1 (%2)").arg(reason, details));
+    }
 }
 
 void MainWindow::updateStatus(const QString &message)
 {
+    QString statusText;
     if (!message.isEmpty()) {
-        m_statusLabel->setText(message);
-        return;
+        statusText = message;
+    } else {
+        const core::ImageEntry *entry = m_controller.currentEntry();
+        if (entry == nullptr) {
+            statusText = tr("No image loaded.");
+        } else {
+            const QString zoomText = m_controller.zoomMode() == core::ZoomMode::FitToWindow
+                ? tr("fit")
+                : tr("%1%").arg(std::lround(m_controller.zoomFactor() * 100.0));
+
+            const QString indexText = tr("%1 / %2").arg(m_controller.currentIndex() + 1).arg(m_controller.count());
+            if (m_currentDecoded.ok() && !m_currentDecoded.sourceSize.isEmpty()) {
+                const QSize sourceSize = m_currentDecoded.sourceSize;
+                const double megapixels = static_cast<double>(sourceSize.width()) * static_cast<double>(sourceSize.height()) / 1'000'000.0;
+                const QString dimensionsText = tr("%1 x %2 · %3 MP")
+                                                   .arg(sourceSize.width())
+                                                   .arg(sourceSize.height())
+                                                   .arg(QLocale::system().toString(megapixels, 'f', 2));
+                statusText = tr("%1 · %2 · %3 · %4 · %5 · %6")
+                                 .arg(entry->displayName,
+                                      entry->formatHint,
+                                      formattedFileSize(entry->fileSize),
+                                      dimensionsText,
+                                      zoomText,
+                                      indexText);
+            } else {
+                statusText = tr("%1 · %2 · %3 · %4 · %5")
+                                 .arg(entry->displayName,
+                                      entry->formatHint,
+                                      formattedFileSize(entry->fileSize),
+                                      zoomText,
+                                      indexText);
+            }
+        }
     }
 
-    const core::ImageEntry *entry = m_controller.currentEntry();
-    if (entry == nullptr) {
-        m_statusLabel->setText(tr("No image loaded."));
-        return;
-    }
-
-    const QString zoomText = m_controller.zoomMode() == core::ZoomMode::FitToWindow
-        ? tr("fit")
-        : tr("%1%").arg(std::lround(m_controller.zoomFactor() * 100.0));
-
-    const QString indexText = tr("%1 / %2").arg(m_controller.currentIndex() + 1).arg(m_controller.count());
-    if (m_currentDecoded.ok() && !m_currentDecoded.sourceSize.isEmpty()) {
-        const QSize sourceSize = m_currentDecoded.sourceSize;
-        const double megapixels = static_cast<double>(sourceSize.width()) * static_cast<double>(sourceSize.height()) / 1'000'000.0;
-        const QString dimensionsText = tr("%1 x %2 · %3 MP")
-                                           .arg(sourceSize.width())
-                                           .arg(sourceSize.height())
-                                           .arg(QLocale::system().toString(megapixels, 'f', 2));
-        m_statusLabel->setText(tr("%1 · %2 · %3 · %4 · %5 · %6")
-                                   .arg(entry->displayName,
-                                        entry->formatHint,
-                                        formattedFileSize(entry->fileSize),
-                                        dimensionsText,
-                                        zoomText,
-                                        indexText));
-        return;
-    }
-
-    m_statusLabel->setText(tr("%1 · %2 · %3 · %4 · %5")
-                               .arg(entry->displayName,
-                                    entry->formatHint,
-                                    formattedFileSize(entry->fileSize),
-                                    zoomText,
-                                    indexText));
+    m_statusLabel->setText(statusText);
+    updateFullscreenStatusText();
 }
 
 void MainWindow::updateActionState()
@@ -927,15 +1075,24 @@ void MainWindow::updateInfoPanelForCurrentImage(const QString &state)
     const core::ImageEntry *entry = m_controller.currentEntry();
     if (entry == nullptr) {
         m_infoPanel->showMessage(tr("No image loaded."));
+        if (m_fullscreenInfoPanel != nullptr) {
+            m_fullscreenInfoPanel->showMessage(tr("No image loaded."));
+        }
         return;
     }
 
     if (state.isEmpty() && m_currentDecoded.ok()) {
         m_infoPanel->showDecodedImage(*entry, m_currentDecoded);
+        if (m_fullscreenInfoPanel != nullptr) {
+            m_fullscreenInfoPanel->showDecodedImage(*entry, m_currentDecoded);
+        }
         return;
     }
 
     m_infoPanel->showEntry(*entry, state);
+    if (m_fullscreenInfoPanel != nullptr) {
+        m_fullscreenInfoPanel->showEntry(*entry, state);
+    }
 }
 
 void MainWindow::scheduleFitReload()
@@ -1006,6 +1163,9 @@ void MainWindow::refreshFileList()
 {
     m_fileListModel->setEntries(m_controller.entries());
     m_fileListView->setEnabled(m_controller.hasCollection());
+    if (m_fullscreenFileListView != nullptr) {
+        m_fullscreenFileListView->setEnabled(m_controller.hasCollection());
+    }
     syncFileListSelection();
 }
 
@@ -1021,6 +1181,7 @@ void MainWindow::syncFileListSelection()
     if (currentIndex < 0 || currentIndex >= m_fileListModel->rowCount()) {
         selectionModel->clear();
         m_fileListView->setCurrentIndex(QModelIndex());
+        syncFullscreenFileListSelection();
         return;
     }
 
@@ -1029,6 +1190,7 @@ void MainWindow::syncFileListSelection()
         modelIndex,
         QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current | QItemSelectionModel::Rows);
     m_fileListView->scrollTo(modelIndex, QAbstractItemView::EnsureVisible);
+    syncFullscreenFileListSelection();
 }
 
 void MainWindow::selectImageFromFileList(const QModelIndex &index)
@@ -1070,6 +1232,193 @@ bool MainWindow::restoreTemporaryZoomReturnMode()
     m_imageView->resetPan();
     loadCurrentImage();
     return true;
+}
+
+void MainWindow::enterFullscreenMode()
+{
+    if (m_fullscreenUiActive) {
+        return;
+    }
+
+    m_preFullscreenUiState.menuBarVisible = menuBar()->isVisible();
+    m_preFullscreenUiState.toolBarVisible = m_mainToolBar != nullptr && m_mainToolBar->isVisible();
+    m_preFullscreenUiState.statusBarVisible = statusBar()->isVisible();
+    m_preFullscreenUiState.fileDockVisible = m_fileListDock != nullptr && m_fileListDock->isVisible();
+    m_preFullscreenUiState.infoDockVisible = m_infoDock != nullptr && m_infoDock->isVisible();
+
+    m_fullscreenUiActive = true;
+    hideFullscreenOverlayPanels();
+
+    menuBar()->hide();
+    if (m_mainToolBar != nullptr) {
+        m_mainToolBar->hide();
+    }
+    statusBar()->hide();
+    if (m_fileListDock != nullptr) {
+        m_fileListDock->hide();
+    }
+    if (m_infoDock != nullptr) {
+        m_infoDock->hide();
+    }
+
+    showFullScreen();
+    updateFullscreenOverlayGeometry();
+    syncFullscreenFileListSelection();
+    updateFullscreenStatusText();
+    updateFullscreenOverlayVisibility();
+}
+
+void MainWindow::exitFullscreenMode()
+{
+    hideFullscreenOverlayPanels();
+
+    const bool shouldRestoreUi = m_fullscreenUiActive;
+    m_fullscreenUiActive = false;
+    showNormal();
+
+    if (!shouldRestoreUi) {
+        return;
+    }
+
+    menuBar()->setVisible(m_preFullscreenUiState.menuBarVisible);
+    if (m_mainToolBar != nullptr) {
+        m_mainToolBar->setVisible(m_preFullscreenUiState.toolBarVisible);
+    }
+    statusBar()->setVisible(m_preFullscreenUiState.statusBarVisible);
+    if (m_fileListDock != nullptr) {
+        m_fileListDock->setVisible(m_preFullscreenUiState.fileDockVisible);
+    }
+    if (m_infoDock != nullptr) {
+        m_infoDock->setVisible(m_preFullscreenUiState.infoDockVisible);
+    }
+}
+
+void MainWindow::hideFullscreenOverlayPanels()
+{
+    if (m_fullscreenLeftPanel != nullptr) {
+        m_fullscreenLeftPanel->hide();
+    }
+    if (m_fullscreenRightPanel != nullptr) {
+        m_fullscreenRightPanel->hide();
+    }
+    if (m_fullscreenTopPanel != nullptr) {
+        m_fullscreenTopPanel->hide();
+    }
+    if (m_fullscreenBottomPanel != nullptr) {
+        m_fullscreenBottomPanel->hide();
+    }
+}
+
+void MainWindow::updateFullscreenOverlayGeometry()
+{
+    if (m_fullscreenLeftPanel == nullptr
+        || m_fullscreenRightPanel == nullptr
+        || m_fullscreenTopPanel == nullptr
+        || m_fullscreenBottomPanel == nullptr) {
+        return;
+    }
+
+    const QRect windowRect = rect();
+    if (windowRect.isEmpty()) {
+        return;
+    }
+
+    const int sideMaximum = std::max(240, windowRect.width() * 45 / 100);
+    const int sidePanelWidth = std::min(std::max(260, windowRect.width() / 4), sideMaximum);
+    const int topPanelHeight = std::max(40, m_fullscreenTopPanel->sizeHint().height());
+    const int bottomPanelHeight = std::max(34, m_fullscreenBottomPanel->sizeHint().height());
+
+    m_fullscreenLeftPanel->setGeometry(0, 0, sidePanelWidth, windowRect.height());
+    m_fullscreenRightPanel->setGeometry(windowRect.width() - sidePanelWidth, 0, sidePanelWidth, windowRect.height());
+    m_fullscreenTopPanel->setGeometry(0, 0, windowRect.width(), topPanelHeight);
+    m_fullscreenBottomPanel->setGeometry(0, windowRect.height() - bottomPanelHeight, windowRect.width(), bottomPanelHeight);
+}
+
+void MainWindow::updateFullscreenOverlayVisibility()
+{
+    if (!m_fullscreenUiActive || !isFullScreen() || m_quickJumpDialogOpen) {
+        hideFullscreenOverlayPanels();
+        return;
+    }
+
+    updateFullscreenOverlayGeometry();
+
+    const QPoint cursorPosition = mapFromGlobal(QCursor::pos());
+    if (!rect().contains(cursorPosition)) {
+        hideFullscreenOverlayPanels();
+        return;
+    }
+
+    const int sideTriggerWidth = std::max(1, static_cast<int>(std::lround(width() * m_fullscreenOverlaySettings.sideTriggerRatio)));
+    const int verticalTriggerHeight = std::max(1, static_cast<int>(std::lround(height() * m_fullscreenOverlaySettings.verticalTriggerRatio)));
+    QWidget *targetPanel = nullptr;
+
+    if (cursorPosition.x() <= sideTriggerWidth) {
+        targetPanel = m_fullscreenLeftPanel;
+    } else if (cursorPosition.x() >= width() - sideTriggerWidth) {
+        targetPanel = m_fullscreenRightPanel;
+    } else if (m_fullscreenLeftPanel->isVisible() && m_fullscreenLeftPanel->geometry().contains(cursorPosition)) {
+        targetPanel = m_fullscreenLeftPanel;
+    } else if (m_fullscreenRightPanel->isVisible() && m_fullscreenRightPanel->geometry().contains(cursorPosition)) {
+        targetPanel = m_fullscreenRightPanel;
+    } else if (cursorPosition.y() <= verticalTriggerHeight) {
+        targetPanel = m_fullscreenTopPanel;
+    } else if (cursorPosition.y() >= height() - verticalTriggerHeight) {
+        targetPanel = m_fullscreenBottomPanel;
+    } else if (m_fullscreenTopPanel->isVisible() && m_fullscreenTopPanel->geometry().contains(cursorPosition)) {
+        targetPanel = m_fullscreenTopPanel;
+    } else if (m_fullscreenBottomPanel->isVisible() && m_fullscreenBottomPanel->geometry().contains(cursorPosition)) {
+        targetPanel = m_fullscreenBottomPanel;
+    }
+
+    const QList<QWidget *> panels {
+        m_fullscreenLeftPanel,
+        m_fullscreenRightPanel,
+        m_fullscreenTopPanel,
+        m_fullscreenBottomPanel,
+    };
+    for (QWidget *panel : panels) {
+        const bool shouldShow = panel == targetPanel;
+        if (panel->isVisible() != shouldShow) {
+            panel->setVisible(shouldShow);
+        }
+        if (shouldShow) {
+            panel->raise();
+        }
+    }
+}
+
+void MainWindow::syncFullscreenFileListSelection()
+{
+    if (m_fullscreenFileListView == nullptr) {
+        return;
+    }
+
+    QItemSelectionModel *selectionModel = m_fullscreenFileListView->selectionModel();
+    if (selectionModel == nullptr) {
+        return;
+    }
+
+    const QScopedValueRollback<bool> guard(m_syncingFileListSelection, true);
+    const int currentIndex = m_controller.currentIndex();
+    if (currentIndex < 0 || currentIndex >= m_fileListModel->rowCount()) {
+        selectionModel->clear();
+        m_fullscreenFileListView->setCurrentIndex(QModelIndex());
+        return;
+    }
+
+    const QModelIndex modelIndex = m_fileListModel->index(currentIndex, 0);
+    selectionModel->setCurrentIndex(
+        modelIndex,
+        QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current | QItemSelectionModel::Rows);
+    m_fullscreenFileListView->scrollTo(modelIndex, QAbstractItemView::EnsureVisible);
+}
+
+void MainWindow::updateFullscreenStatusText()
+{
+    if (m_fullscreenStatusLabel != nullptr && m_statusLabel != nullptr) {
+        m_fullscreenStatusLabel->setText(m_statusLabel->text());
+    }
 }
 
 core::DecodeRequest MainWindow::currentDecodeRequest() const
