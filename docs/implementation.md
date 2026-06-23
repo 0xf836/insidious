@@ -8,6 +8,7 @@ This document describes the current codebase shape for future coding agents. Pro
 - GUI: Qt6 Widgets.
 - Async work: `QtConcurrent::run` with `QFutureWatcher` in the UI layer.
 - Image backend: libvips/vips-cpp.
+- Archive backend: libarchive.
 - Tests: Qt Test.
 - Build: CMake + Ninja.
 
@@ -24,16 +25,17 @@ The build creates:
 - `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, and EXIF metadata fields collected by the decoder; it does not read files.
 - `src/ui/image_list_model.*` exposes the current collection to a `QListView` in the left `Files` dock. It is UI-only and does not scan sources, decode images, or build thumbnails.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
-- `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys.
-- `src/core/image_entry_validation.*` validates that a filesystem entry is still loadable before decode.
-- `src/core/image_formats.*` contains the MVP extension allowlist: JPEG, PNG, WebP, BMP, DIB.
+- `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys, including filesystem and archive-backed entries.
+- `src/core/image_entry_validation.*` validates that a filesystem image or owning archive is still loadable before decode.
+- `src/core/image_formats.*` contains the MVP image extension allowlist: JPEG, PNG, WebP, BMP, DIB, plus archive extension detection for ZIP, 7z, and RAR.
 - `src/core/natural_sort.*` contains case-folded natural ordering for folder entries.
 - `src/core/folder_collection_source.*` scans non-recursive filesystem folders and creates `ImageEntry` vectors.
+- `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, filters supported image entries, and reads selected archive members into memory without extracting them to disk.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions and metadata fields.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
-- `src/core/vips_image_decoder.*` uses libvips to read a curated set of useful string EXIF metadata, autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
-- `tests/core_tests.cpp` covers natural sort, extension filtering, folder scanning, viewer navigation, cache eviction, and a libvips PNG decode smoke test.
+- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
+- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, viewer navigation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
 ## Data flow
 
@@ -66,6 +68,15 @@ Opening a folder:
 1. `MainWindow::openFolder()` clears the current collection and starts an async `scanFolder()`.
 2. `scanFolder()` returns naturally sorted, non-recursive supported image entries.
 3. `MainWindow::applyScanResult()` installs the collection, refreshes the left file list, and loads the selected image.
+
+Opening an archive:
+
+1. `MainWindow::openPath()` detects ZIP/7z/RAR files and calls `openArchive()`.
+2. `openArchive()` clears the current collection and starts async `scanArchive()`.
+3. `scanArchive()` uses libarchive to list regular archive entries, filters supported image extensions, and sorts virtual paths naturally.
+4. Archive-backed `ImageEntry` values keep both the archive path and internal entry path; the left file list and quick jump treat them as the current collection.
+5. During decode, `VipsImageDecoder` reads the selected archive entry into a bounded `QByteArray` and passes it to `vips::VImage::new_from_buffer()`.
+6. Password-protected/encrypted archives are not prompted for yet; libarchive read failures are surfaced as normal current-entry/archive errors.
 
 Left file list:
 
@@ -111,7 +122,7 @@ Mouse input:
 ## Threading and stale results
 
 - UI widgets must only be touched on the UI thread.
-- Folder scans and libvips decoding run through `QtConcurrent::run`.
+- Folder scans, archive scans, and libvips decoding run through `QtConcurrent::run`.
 - `MainWindow` uses `m_sourceGeneration` and `m_decodeGeneration` to ignore old async results after the user opens another source or starts another decode.
 - Current prefetch jobs are fire-and-forget and only write successful decoded images into the shared memory cache.
 
@@ -125,12 +136,13 @@ The MVP intentionally avoids:
 - Persistent decoded image caches.
 - File logs in normal usage.
 - Archive extraction.
+- Archive passwords.
 
 File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit desktop recent-file integration until there is an explicit decision to change this.
 
 ## Out of scope for current MVP
 
-- Archives and archive passwords.
+- Archive passwords.
 - Recursive folders.
 - Multiple selected files as a temporary collection.
 - GIF animation.

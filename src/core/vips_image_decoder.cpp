@@ -1,5 +1,7 @@
 #include "core/vips_image_decoder.h"
 
+#include "core/archive_collection_source.h"
+
 #include <QByteArray>
 #include <QObject>
 #include <QtGlobal>
@@ -155,10 +157,26 @@ DecodedImage VipsImageDecoder::decode(const ImageEntry &entry, const DecodeReque
     DecodedImage result;
 
     try {
-        const QByteArray path = entry.absolutePath.toUtf8();
-        vips::VImage image = vips::VImage::new_from_file(
-            path.constData(),
-            vips::VImage::option()->set("access", "sequential"));
+        QByteArray archiveEntryData;
+        vips::VImage image;
+        if (entry.source == ImageEntrySource::Archive) {
+            const ArchiveEntryReadResult archiveRead = readArchiveEntry(entry);
+            if (!archiveRead.ok()) {
+                result.errorMessage = archiveRead.errorMessage;
+                return result;
+            }
+            archiveEntryData = archiveRead.data;
+            image = vips::VImage::new_from_buffer(
+                archiveEntryData.constData(),
+                archiveEntryData.size(),
+                "",
+                vips::VImage::option()->set("access", "sequential"));
+        } else {
+            const QByteArray path = entry.absolutePath.toUtf8();
+            image = vips::VImage::new_from_file(
+                path.constData(),
+                vips::VImage::option()->set("access", "sequential"));
+        }
 
         result.metadataFields = extractExifFields(image);
 

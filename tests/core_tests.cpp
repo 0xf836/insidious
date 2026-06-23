@@ -1,3 +1,4 @@
+#include "core/archive_collection_source.h"
 #include "core/folder_collection_source.h"
 #include "core/image_entry_validation.h"
 #include "core/image_formats.h"
@@ -7,10 +8,14 @@
 #include "core/viewer_controller.h"
 
 #include <QDir>
+#include <QBuffer>
+#include <QColor>
 #include <QImage>
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <archive.h>
+#include <archive_entry.h>
 #include <vips/vips8>
 
 using namespace insidious::core;
@@ -23,13 +28,68 @@ private slots:
     void cleanupTestCase();
     void naturalSortOrdersNumbers();
     void supportedExtensionsAreMvpOnly();
+    void archiveExtensionsAreSupportedSeparately();
     void entryLoadValidationReportsMissingAndDirectory();
     void folderScanIsNonRecursiveAndSorted();
+    void archiveScanFiltersImagesAndSorts();
     void viewerNavigationStopsAtBounds();
     void memoryCacheEvictsByBudget();
     void decoderLoadsTemporaryPng();
+    void decoderLoadsPngFromArchive();
     void decoderRejectsBrokenSupportedFile();
+    void archiveScanRejectsBrokenArchive();
 };
+
+namespace {
+
+QByteArray pngBytes(QSize size = QSize(4, 4), QColor color = Qt::green)
+{
+    QImage image(size, QImage::Format_RGB32);
+    image.fill(color);
+
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer, "PNG");
+    return bytes;
+}
+
+bool writeZipArchive(const QString &path, const QVector<QPair<QString, QByteArray>> &files)
+{
+    archive *writer = archive_write_new();
+    archive_write_add_filter_none(writer);
+    archive_write_set_format_zip(writer);
+
+    const QByteArray archivePath = path.toUtf8();
+    if (archive_write_open_filename(writer, archivePath.constData()) != ARCHIVE_OK) {
+        archive_write_free(writer);
+        return false;
+    }
+
+    for (const auto &file : files) {
+        archive_entry *entry = archive_entry_new();
+        const QByteArray entryPath = file.first.toUtf8();
+        archive_entry_set_pathname_utf8(entry, entryPath.constData());
+        archive_entry_set_filetype(entry, AE_IFREG);
+        archive_entry_set_perm(entry, 0644);
+        archive_entry_set_size(entry, file.second.size());
+
+        if (archive_write_header(writer, entry) != ARCHIVE_OK) {
+            archive_entry_free(entry);
+            archive_write_close(writer);
+            archive_write_free(writer);
+            return false;
+        }
+        archive_write_data(writer, file.second.constData(), file.second.size());
+        archive_entry_free(entry);
+    }
+
+    archive_write_close(writer);
+    archive_write_free(writer);
+    return true;
+}
+
+} // namespace
 
 void CoreTests::initTestCase()
 {
@@ -77,6 +137,16 @@ void CoreTests::supportedExtensionsAreMvpOnly()
     QVERIFY(!isSupportedImageExtension(QStringLiteral("raw")));
 }
 
+void CoreTests::archiveExtensionsAreSupportedSeparately()
+{
+    QVERIFY(isSupportedArchiveExtension(QStringLiteral("zip")));
+    QVERIFY(isSupportedArchiveExtension(QStringLiteral(".7Z")));
+    QVERIFY(isSupportedArchiveExtension(QStringLiteral("rar")));
+
+    QVERIFY(!isSupportedImageExtension(QStringLiteral("zip")));
+    QVERIFY(!isSupportedArchiveExtension(QStringLiteral("png")));
+}
+
 void CoreTests::entryLoadValidationReportsMissingAndDirectory()
 {
     QTemporaryDir tempDir;
@@ -122,12 +192,44 @@ void CoreTests::folderScanIsNonRecursiveAndSorted()
     QCOMPARE(result.entries.at(1).displayName, QStringLiteral("10.png"));
 }
 
+void CoreTests::archiveScanFiltersImagesAndSorts()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.zip"));
+
+    QVERIFY(writeZipArchive(path, {
+        { QStringLiteral("images/10.png"), pngBytes() },
+        { QStringLiteral("images/2.png"), pngBytes() },
+        { QStringLiteral("notes/readme.txt"), QByteArray("not an image") },
+    }));
+
+    const ScanResult result = scanArchive(path);
+
+    QVERIFY2(result.ok(), qPrintable(result.errorMessage));
+    QCOMPARE(result.entries.size(), 2);
+    QCOMPARE(result.entries.at(0).displayName, QStringLiteral("images/2.png"));
+    QCOMPARE(result.entries.at(1).displayName, QStringLiteral("images/10.png"));
+    QCOMPARE(result.entries.at(0).source, ImageEntrySource::Archive);
+}
+
 void CoreTests::viewerNavigationStopsAtBounds()
 {
     ViewerController controller;
     QVector<ImageEntry> entries;
-    entries.append(ImageEntry { QStringLiteral("1.png"), QStringLiteral("/tmp/1.png"), 1, QDateTime(), QStringLiteral("PNG") });
-    entries.append(ImageEntry { QStringLiteral("2.png"), QStringLiteral("/tmp/2.png"), 1, QDateTime(), QStringLiteral("PNG") });
+    ImageEntry first;
+    first.displayName = QStringLiteral("1.png");
+    first.absolutePath = QStringLiteral("/tmp/1.png");
+    first.fileSize = 1;
+    first.formatHint = QStringLiteral("PNG");
+    entries.append(first);
+
+    ImageEntry second;
+    second.displayName = QStringLiteral("2.png");
+    second.absolutePath = QStringLiteral("/tmp/2.png");
+    second.fileSize = 1;
+    second.formatHint = QStringLiteral("PNG");
+    entries.append(second);
 
     controller.setCollection(entries, 0);
     QCOMPARE(controller.currentIndex(), 0);
@@ -187,6 +289,31 @@ void CoreTests::decoderLoadsTemporaryPng()
     QVERIFY(decoded.displaySize.height() <= 8);
 }
 
+void CoreTests::decoderLoadsPngFromArchive()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.zip"));
+    QVERIFY(writeZipArchive(path, {
+        { QStringLiteral("sample.png"), pngBytes(QSize(12, 6), Qt::blue) },
+    }));
+
+    const ScanResult scan = scanArchive(path);
+    QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+    QCOMPARE(scan.entries.size(), 1);
+
+    DecodeRequest request;
+    request.viewportSize = QSize(6, 6);
+    request.fitToWindow = true;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(scan.entries.first(), request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.sourceSize, QSize(12, 6));
+    QVERIFY(decoded.displaySize.width() <= 6);
+    QVERIFY(decoded.displaySize.height() <= 6);
+}
+
 void CoreTests::decoderRejectsBrokenSupportedFile()
 {
     QTemporaryDir tempDir;
@@ -207,6 +334,22 @@ void CoreTests::decoderRejectsBrokenSupportedFile()
     const DecodedImage decoded = decoder.decode(entry, request);
     QVERIFY(!decoded.ok());
     QVERIFY(!decoded.errorMessage.isEmpty());
+}
+
+void CoreTests::archiveScanRejectsBrokenArchive()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("broken.zip"));
+
+    QFile broken(path);
+    QVERIFY(broken.open(QIODevice::WriteOnly));
+    broken.write("not an archive");
+    broken.close();
+
+    const ScanResult result = scanArchive(path);
+    QVERIFY(!result.ok());
+    QVERIFY(!result.errorMessage.isEmpty());
 }
 
 QTEST_MAIN(CoreTests)

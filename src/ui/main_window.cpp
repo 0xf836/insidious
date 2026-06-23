@@ -1,5 +1,6 @@
 #include "ui/main_window.h"
 
+#include "core/archive_collection_source.h"
 #include "core/image_entry_validation.h"
 #include "core/image_formats.h"
 #include "core/vips_image_decoder.h"
@@ -90,6 +91,8 @@ void MainWindow::openPath(const QString &path)
     const QFileInfo info(path);
     if (info.isDir()) {
         openFolder(info.absoluteFilePath());
+    } else if (core::isSupportedArchiveFile(info)) {
+        openArchive(info.absoluteFilePath());
     } else {
         openFile(info.absoluteFilePath());
     }
@@ -103,7 +106,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event)
     }
 
     const QFileInfo info(mimeData->urls().first().toLocalFile());
-    if (info.isDir() || core::isSupportedImageFile(info)) {
+    if (info.isDir() || core::isSupportedImageFile(info) || core::isSupportedArchiveFile(info)) {
         event->acceptProposedAction();
     }
 }
@@ -141,13 +144,13 @@ void MainWindow::openFileDialog()
 {
     const QString filePath = QFileDialog::getOpenFileName(
         this,
-        tr("Open image"),
+        tr("Open image or archive"),
         QString(),
         imageDialogFilter(),
         nullptr,
         QFileDialog::DontUseNativeDialog);
     if (!filePath.isEmpty()) {
-        openFile(filePath);
+        openPath(filePath);
     }
 }
 
@@ -683,6 +686,21 @@ void MainWindow::openFolder(const QString &folderPath)
     startFolderScan(folderPath, QString());
 }
 
+void MainWindow::openArchive(const QString &archivePath)
+{
+    ++m_sourceGeneration;
+    m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = core::ZoomMode::FitToWindow;
+    m_cache->clear();
+    m_controller.clearCollection();
+    refreshFileList();
+    m_infoPanel->showMessage(tr("Scanning archive..."));
+    m_imageView->setMessage(tr("Scanning archive..."));
+    updateStatus(tr("Scanning archive..."));
+    updateInteractionState();
+    startArchiveScan(archivePath);
+}
+
 void MainWindow::startFolderScan(const QString &folderPath, const QString &selectedPath)
 {
     const quint64 generation = m_sourceGeneration;
@@ -695,6 +713,22 @@ void MainWindow::startFolderScan(const QString &folderPath, const QString &selec
         job.generation = generation;
         job.selectedPath = selectedPath;
         job.result = core::scanFolder(folderPath, selectedPath);
+        return job;
+    }));
+}
+
+void MainWindow::startArchiveScan(const QString &archivePath)
+{
+    const quint64 generation = m_sourceGeneration;
+    if (m_scanWatcher.isRunning()) {
+        m_scanWatcher.cancel();
+    }
+
+    m_scanWatcher.setFuture(QtConcurrent::run([archivePath, generation]() {
+        ScanJobResult job;
+        job.generation = generation;
+        job.selectedPath = archivePath;
+        job.result = core::scanArchive(archivePath);
         return job;
     }));
 }
@@ -990,7 +1024,7 @@ QString MainWindow::currentCacheKey(const core::DecodeRequest &request) const
 
 QString MainWindow::imageDialogFilter() const
 {
-    return core::supportedImageNameFilters().join(QStringLiteral(";;"));
+    return core::supportedOpenNameFilters().join(QStringLiteral(";;"));
 }
 
 } // namespace insidious::ui

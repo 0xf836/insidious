@@ -84,7 +84,9 @@ private:
     void setupInfoPanel();
     void openFile(const QString &filePath);
     void openFolder(const QString &folderPath);
+    void openArchive(const QString &archivePath);
     void startFolderScan(const QString &folderPath, const QString &selectedPath);
+    void startArchiveScan(const QString &archivePath);
     void applyScanResult(const ScanJobResult &job);
     void displayDecodedImage(const core::DecodedImage &decoded);
     void loadCurrentImage(bool showTransientLoading);

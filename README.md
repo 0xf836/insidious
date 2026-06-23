@@ -25,18 +25,20 @@
 
 ## Начальный принцип разработки
 
-Сначала делается маленькая, стабильная версия: открыть изображение, открыть папку, навигация, масштабирование, fullscreen, базовый drag'n'drop. Архивы, RAW, JPEG XL, глубокая настройка UI и сложные панели добавляются после стабилизации базового viewer pipeline.
+Сначала делается маленькая, стабильная версия: открыть изображение, открыть папку или обычный архив, навигация, масштабирование, fullscreen, базовый drag'n'drop. Password-protected archives, RAW, JPEG XL, глубокая настройка UI и сложные панели добавляются после стабилизации базового viewer pipeline.
 
 ## Текущая реализация
 
-Проект сейчас реализован как C++20 / Qt6 Widgets приложение с libvips/vips-cpp для декодирования изображений.
+Проект сейчас реализован как C++20 / Qt6 Widgets приложение с libvips/vips-cpp для декодирования изображений и libarchive для чтения архивов.
 
 - `src/app/` — запуск процесса, инициализация libvips, создание `QApplication`, обработка optional path argument.
 - `src/ui/` — Qt Widgets слой: главное окно, actions/shortcuts, drag'n'drop, statusbar, fullscreen, левая панель списка файлов, правая панель базовой информации, widget отрисовки изображения.
-- `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки, состояние viewer, memory-only cache, libvips decoder.
+- `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки/архива, состояние viewer, memory-only cache, libarchive reader, libvips decoder.
 - `tests/` — Qt Test тесты для core-логики.
 
-Главный поток открытия изображения: UI принимает путь, core создаёт одиночную коллекцию или сканирует папку, `ViewerController` выбирает текущий entry, `VipsImageDecoder` асинхронно строит display-sized `QImage`, `MainWindow` обновляет `ImageViewWidget` и statusbar.
+Главный поток открытия изображения: UI принимает путь, core создаёт одиночную коллекцию, сканирует папку или читает список изображений из архива, `ViewerController` выбирает текущий entry, `VipsImageDecoder` асинхронно строит display-sized `QImage`, `MainWindow` обновляет `ImageViewWidget` и statusbar.
+
+Архивы ZIP/7z/RAR открываются через libarchive как обычная коллекция изображений. Entries читаются в память при decode и не распаковываются на диск. Password-protected archives пока не поддерживаются.
 
 Левая панель `Files` показывает текущую коллекцию без thumbnails. Список синхронизируется с `ViewerController`: next/previous/first/last обновляют выделение, а выбор строки мышью или клавиатурой переключает текущее изображение через существующий viewer pipeline.
 
@@ -63,18 +65,18 @@
 
 ## Build
 
-MVP implementation uses C++20, Qt6 Widgets and libvips/vips-cpp.
+MVP implementation uses C++20, Qt6 Widgets, libvips/vips-cpp and libarchive.
 
 Arch-like systems:
 
 ```sh
-sudo pacman -S qt6-base libvips cmake ninja pkgconf
+sudo pacman -S qt6-base libvips libarchive cmake ninja pkgconf
 ```
 
 Debian/Ubuntu-like systems:
 
 ```sh
-sudo apt install qt6-base-dev libvips-dev cmake ninja-build pkg-config
+sudo apt install qt6-base-dev libvips-dev libarchive-dev cmake ninja-build pkg-config
 ```
 
 Configure, build and test:
@@ -89,7 +91,7 @@ Run:
 
 ```sh
 ./build/insidious
-./build/insidious /path/to/image-or-folder
+./build/insidious /path/to/image-folder-or-archive
 ```
 
 The app intentionally does not use recent-file history, persistent thumbnail caches, archive extraction or file logging in the MVP.

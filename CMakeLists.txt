@@ -13,8 +13,11 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Concurrent Test)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VIPSCPP REQUIRED IMPORTED_TARGET vips-cpp)
+pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 
 set(CORE_SOURCES
+    src/core/archive_collection_source.cpp
+    src/core/archive_collection_source.h
     src/core/decoded_image.h
     src/core/folder_collection_source.cpp
     src/core/folder_collection_source.h
@@ -42,6 +45,7 @@ target_link_libraries(insidious_core
         Qt6::Gui
         Qt6::Concurrent
         PkgConfig::VIPSCPP
+        PkgConfig::LIBARCHIVE
 )
 
 add_executable(insidious

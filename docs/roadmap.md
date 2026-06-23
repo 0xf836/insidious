@@ -65,9 +65,7 @@
 
 ## Phase 7 — Archives
 
-- ZIP.
-- 7Z.
-- RAR.
+- Basic ZIP/7z/RAR archive collections through libarchive.
 - Password prompt.
 - Archive as collection source.
 - No disk extraction.
@@ -90,3 +88,7 @@
 - Statusbar customization.
 - Default sort/zoom modes.
 - Packaging for Linux.
+
+## Phase 10 - Fixes
+- Сделать модальное окно поиска в fullscreen меньше
+- В модальном окне поиска в fullscreen-режиме при фокусе ввода текста кнопки вверх-вниз должны изменять выбранное в результатах поиска

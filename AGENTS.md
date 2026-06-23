@@ -28,7 +28,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 ## Current implementation quick map
 
-The current MVP implementation is C++20 with Qt6 Widgets and libvips/vips-cpp.
+The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp, and libarchive.
 
 - `CMakeLists.txt` defines the build, `insidious_core`, the `insidious` GUI executable, and `insidious_core_tests`.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
@@ -38,7 +38,7 @@ The current MVP implementation is C++20 with Qt6 Widgets and libvips/vips-cpp.
 - `src/ui/image_list_model.*` is a UI-only list model for the current collection. Keep it source-agnostic and free of thumbnail/decode work.
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
-- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder scanning, viewer state, decode request/result types, memory cache, and libvips decoding.
+- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive scanning, viewer state, decode request/result types, memory cache, libarchive entry reading, and libvips decoding.
 - `tests/core_tests.cpp` covers core behavior with Qt Test. Add tests here for non-trivial core changes.
 - `docs/implementation.md` is the longer orientation document for current code structure and data flow.
 
@@ -82,9 +82,9 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 ## MVP boundaries
 
-The first implementation should focus on regular filesystem images and folders. Archive support, RAW support, advanced metadata, configurable hotkeys, and thumbnail panels are later milestones unless explicitly requested.
+The first implementation should focus on regular filesystem images, folders, and basic unencrypted archives. RAW support, advanced metadata, configurable hotkeys, password-protected archives, and thumbnail panels are later milestones unless explicitly requested.
 
-Current MVP supports only regular filesystem images and non-recursive folders. The enabled extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, archives, thumbnails, advanced metadata backends, settings UI, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
+Current MVP supports regular filesystem images, non-recursive folders, and unencrypted ZIP/7z/RAR archives through libarchive without disk extraction. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password-protected archives, thumbnails, advanced metadata backends, settings UI, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
 
 Current MVP mouse behavior:
 

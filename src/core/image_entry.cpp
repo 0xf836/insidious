@@ -9,7 +9,16 @@ bool ImageEntry::isValid() const
 
 QString ImageEntry::identityKey() const
 {
-    return QStringLiteral("%1|%2|%3")
+    if (source == ImageEntrySource::Archive) {
+        return QStringLiteral("archive|%1|%2|%3|%4|%5")
+            .arg(archivePath,
+                 absolutePath,
+                 QString::number(fileSize),
+                 QString::number(modifiedTime.toMSecsSinceEpoch()),
+                 archiveEntryPath);
+    }
+
+    return QStringLiteral("file|%1|%2|%3")
         .arg(absolutePath,
              QString::number(fileSize),
              QString::number(modifiedTime.toMSecsSinceEpoch()));

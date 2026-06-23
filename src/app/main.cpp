@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
     QCommandLineParser parser;
     parser.setApplicationDescription(QApplication::translate("main", "Native Linux image viewer."));
     parser.addHelpOption();
-    parser.addPositionalArgument(QStringLiteral("path"), QApplication::translate("main", "Image file or folder to open."));
+    parser.addPositionalArgument(QStringLiteral("path"), QApplication::translate("main", "Image file, folder, or archive to open."));
     parser.process(app);
 
     insidious::ui::MainWindow window;

@@ -6,11 +6,11 @@
 
 Исключение: `AGENTS.md`, `PLANS.md` и prompts для Codex пишутся на английском, чтобы инструкции для coding agent были максимально однозначными в инженерном контексте.
 
-## ADR-002: Архивы не входят в MVP
+## ADR-002: Архивы добавляются отдельным ограниченным этапом
 
-Решение: архивы важны для продукта, но не входят в первую рабочую версию.
+Решение: базовая поддержка ZIP/7z/RAR реализуется через libarchive как отдельный этап после стабилизации viewer pipeline. Первый slice открывает обычные архивы без пароля, показывает их как collection source и не распаковывает entries на диск.
 
-Причина: archive support требует отдельной архитектуры, особенно из-за no-disk-extraction, password support, ошибок, streaming и поддержки ZIP/RAR/7Z.
+Причина: archive support требует отдельной архитектуры, особенно из-за no-disk-extraction, password support, ошибок, streaming и поддержки ZIP/RAR/7Z. Libarchive даёт единый backend для этих форматов; password prompt и расширенная обработка encrypted archives остаются отдельным следующим шагом.
 
 ## ADR-003: Источники изображений абстрагируются как collection source
 
