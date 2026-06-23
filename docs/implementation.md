@@ -88,6 +88,7 @@ Left file list:
 - The list uses `ImageListModel` and is reset from `ViewerController::entries()` whenever the active folder changes.
 - Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
 - Programmatic navigation syncs the selected file row and the selected/expanded folder in both normal and fullscreen panels.
+- `next/previous` first navigate inside the active folder collection. At folder boundaries, `MainWindow` walks the source tree in preorder to activate the next/previous loaded folder with images or unloaded filesystem folder; true source boundaries keep the existing reset-and-rerender behavior.
 
 Quick filename jump:
 
@@ -121,11 +122,12 @@ Right info panel:
 Navigation:
 
 1. Actions, shortcuts, wheel events, or mouse gestures call `ViewerController` commands through `MainWindow`.
-2. Next/previous image switching goes through `MainWindow::reloadAfterImageSwitch()`. The current default `ImageSwitchViewPolicy` is `ResetToBaseMode`, which resets temporary zoom state, pan, and zoom to the selected base mode (`FitToWindow` or `ActualSize`) before loading.
-3. If next/previous cannot change the index, `MainWindow` still reloads the current entry after applying the switch policy. This clears transient render errors, including errors caused by an excessive custom zoom request.
-4. `ImageSwitchViewPolicy::PreserveView` is reserved for a future setting where image switches keep the current zoom/pan instead of resetting them.
-5. On a changed index or view transform, `MainWindow` builds a new `DecodeRequest`.
-6. Cache keys include file identity and render request details, so fit/zoom/rotation variants do not collide.
+2. Next/previous image switching first tries `ViewerController` inside the active folder, then activates the next/previous suitable folder in source-tree preorder when the folder boundary is reached.
+3. The current default `ImageSwitchViewPolicy` is `ResetToBaseMode`, which resets temporary zoom state, pan, and zoom to the selected base mode (`FitToWindow` or `ActualSize`) before loading.
+4. If next/previous cannot change the index or folder, `MainWindow` still reloads the current entry after applying the switch policy. This clears transient render errors, including errors caused by an excessive custom zoom request.
+5. `ImageSwitchViewPolicy::PreserveView` is reserved for a future setting where image switches keep the current zoom/pan instead of resetting them.
+6. On a changed index or view transform, `MainWindow` builds a new `DecodeRequest`.
+7. Cache keys include file identity and render request details, so fit/zoom/rotation variants do not collide.
 
 Mouse input:
 

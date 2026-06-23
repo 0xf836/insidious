@@ -61,6 +61,24 @@ QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
         std::clamp(point.y(), rect.top(), rect.bottom()));
 }
 
+void appendFoldersInPreorder(const core::CollectionFolderNode *node, QVector<const core::CollectionFolderNode *> *folders)
+{
+    if (node == nullptr || folders == nullptr) {
+        return;
+    }
+
+    folders->append(node);
+    for (const auto &child : node->children) {
+        appendFoldersInPreorder(child.get(), folders);
+    }
+}
+
+bool isNavigableFolder(const core::CollectionFolderNode *node)
+{
+    return node != nullptr
+        && (!node->images.isEmpty() || (node->canLoadChildren && !node->loaded));
+}
+
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent)
@@ -262,21 +280,41 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
 
 void MainWindow::showNextImage()
 {
-    if (!m_controller.hasCollection()) {
+    if (!m_controller.hasCollection() && m_sourceRoot == nullptr) {
         return;
     }
 
-    m_controller.goNext();
+    if (m_controller.goNext()) {
+        reloadAfterImageSwitch();
+        return;
+    }
+    if (navigateToAdjacentFolder(true)) {
+        return;
+    }
+    if (!m_controller.hasCollection()) {
+        updateActionState();
+        return;
+    }
     reloadAfterImageSwitch();
 }
 
 void MainWindow::showPreviousImage()
 {
-    if (!m_controller.hasCollection()) {
+    if (!m_controller.hasCollection() && m_sourceRoot == nullptr) {
         return;
     }
 
-    m_controller.goPrevious();
+    if (m_controller.goPrevious()) {
+        reloadAfterImageSwitch();
+        return;
+    }
+    if (navigateToAdjacentFolder(false)) {
+        return;
+    }
+    if (!m_controller.hasCollection()) {
+        updateActionState();
+        return;
+    }
     reloadAfterImageSwitch();
 }
 
@@ -979,7 +1017,7 @@ void MainWindow::startArchiveScan(const QString &archivePath, const QString &pas
     }));
 }
 
-void MainWindow::startFolderLoad(const QString &folderRelativePath)
+void MainWindow::startFolderLoad(const QString &folderRelativePath, int selectedImageIndex)
 {
     if (m_sourceRootPath.isEmpty()) {
         return;
@@ -1000,6 +1038,7 @@ void MainWindow::startFolderLoad(const QString &folderRelativePath)
 
     const QString rootPath = m_sourceRootPath;
     m_loadingFolderPath = folderRelativePath;
+    m_loadingFolderSelectedIndex = selectedImageIndex;
     m_folderLoadWatcher.setFuture(QtConcurrent::run([rootPath, folderRelativePath, generation]() {
         FolderLoadJobResult job;
         job.generation = generation;
@@ -1089,7 +1128,8 @@ void MainWindow::applyFolderLoadResult(const FolderLoadJobResult &job)
     }
 
     if (m_activeFolderPath == job.folderRelativePath) {
-        activateFolder(job.folderRelativePath, 0, true);
+        const int selectedImageIndex = m_loadingFolderPath.isEmpty() ? m_loadingFolderSelectedIndex : 0;
+        activateFolder(job.folderRelativePath, selectedImageIndex, true);
     } else {
         syncFolderTreeSelection();
     }
@@ -1215,13 +1255,15 @@ void MainWindow::updateStatus(const QString &message)
 void MainWindow::updateActionState()
 {
     const bool hasImage = m_controller.hasCollection();
-    const bool hasPrevious = hasImage && m_controller.currentIndex() > 0;
-    const bool hasNext = hasImage && m_controller.currentIndex() + 1 < m_controller.count();
+    const bool hasPreviousInFolder = hasImage && m_controller.currentIndex() > 0;
+    const bool hasNextInFolder = hasImage && m_controller.currentIndex() + 1 < m_controller.count();
+    const bool hasPrevious = hasPreviousInFolder || hasAdjacentFolder(false);
+    const bool hasNext = hasNextInFolder || hasAdjacentFolder(true);
 
-    m_previousAction->setEnabled(hasImage);
-    m_nextAction->setEnabled(hasImage);
-    m_firstAction->setEnabled(hasPrevious);
-    m_lastAction->setEnabled(hasNext);
+    m_previousAction->setEnabled(hasPrevious || hasImage);
+    m_nextAction->setEnabled(hasNext || hasImage);
+    m_firstAction->setEnabled(hasPreviousInFolder);
+    m_lastAction->setEnabled(hasNextInFolder);
     m_quickJumpAction->setEnabled(hasImage);
     m_zoomInAction->setEnabled(hasImage);
     m_zoomOutAction->setEnabled(hasImage);
@@ -1334,6 +1376,7 @@ void MainWindow::clearSourceTree()
     m_sourceRootPath.clear();
     m_activeFolderPath.clear();
     m_loadingFolderPath.clear();
+    m_loadingFolderSelectedIndex = 0;
     if (m_fileTreeModel != nullptr) {
         m_fileTreeModel->clear();
     }
@@ -1367,8 +1410,12 @@ void MainWindow::activateFolder(const QString &folderRelativePath, int selectedI
         updateStatus(tr("Loading folder..."));
         updateActionState();
         updateInteractionState();
-        startFolderLoad(folder->relativePath);
+        startFolderLoad(folder->relativePath, selectedImageIndex);
         return;
+    }
+
+    if (selectedImageIndex < 0 && !folder->images.isEmpty()) {
+        selectedImageIndex = folder->images.size() - 1;
     }
 
     m_temporaryZoomReturnMode.reset();
@@ -1398,6 +1445,80 @@ void MainWindow::activateFolder(const QString &folderRelativePath, int selectedI
         updateStatus();
         updateActionState();
     }
+}
+
+bool MainWindow::navigateToAdjacentFolder(bool forward)
+{
+    if (!hasAdjacentFolder(forward)) {
+        return false;
+    }
+
+    QVector<const core::CollectionFolderNode *> folders;
+    appendFoldersInPreorder(m_sourceRoot.get(), &folders);
+    int activeIndex = -1;
+    for (qsizetype index = 0; index < folders.size(); ++index) {
+        if (folders.at(index)->relativePath == m_activeFolderPath) {
+            activeIndex = static_cast<int>(index);
+            break;
+        }
+    }
+    if (activeIndex < 0) {
+        return false;
+    }
+
+    if (forward) {
+        for (int index = activeIndex + 1; index < folders.size(); ++index) {
+            if (isNavigableFolder(folders.at(index))) {
+                activateFolder(folders.at(index)->relativePath, 0, true);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    for (int index = activeIndex - 1; index >= 0; --index) {
+        if (isNavigableFolder(folders.at(index))) {
+            activateFolder(folders.at(index)->relativePath, -1, true);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool MainWindow::hasAdjacentFolder(bool forward) const
+{
+    if (m_sourceRoot == nullptr) {
+        return false;
+    }
+
+    QVector<const core::CollectionFolderNode *> folders;
+    appendFoldersInPreorder(m_sourceRoot.get(), &folders);
+    int activeIndex = -1;
+    for (qsizetype index = 0; index < folders.size(); ++index) {
+        if (folders.at(index)->relativePath == m_activeFolderPath) {
+            activeIndex = static_cast<int>(index);
+            break;
+        }
+    }
+    if (activeIndex < 0) {
+        return false;
+    }
+
+    if (forward) {
+        for (int index = activeIndex + 1; index < folders.size(); ++index) {
+            if (isNavigableFolder(folders.at(index))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    for (int index = activeIndex - 1; index >= 0; --index) {
+        if (isNavigableFolder(folders.at(index))) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void MainWindow::refreshFileList()

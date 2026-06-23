@@ -112,7 +112,7 @@ private:
     void openArchive(const QString &archivePath);
     void startFolderScan(const QString &folderPath, const QString &selectedPath);
     void startArchiveScan(const QString &archivePath, const QString &password);
-    void startFolderLoad(const QString &folderRelativePath);
+    void startFolderLoad(const QString &folderRelativePath, int selectedImageIndex = 0);
     void applyScanResult(const ScanJobResult &job);
     void applyFolderLoadResult(const FolderLoadJobResult &job);
     bool promptArchivePassword(const QString &archivePath, bool retry);
@@ -131,6 +131,8 @@ private:
     void applyImageSwitchViewPolicy();
     void clearSourceTree();
     void activateFolder(const QString &folderRelativePath, int selectedImageIndex = 0, bool loadCurrent = true);
+    bool navigateToAdjacentFolder(bool forward);
+    [[nodiscard]] bool hasAdjacentFolder(bool forward) const;
     void refreshFileList();
     void syncFileListSelection();
     void syncFolderTreeSelection();
@@ -207,6 +209,7 @@ private:
     QString m_sourceRootPath;
     QString m_activeFolderPath;
     QString m_loadingFolderPath;
+    int m_loadingFolderSelectedIndex = 0;
     FullscreenOverlaySettings m_fullscreenOverlaySettings;
     FullscreenUiState m_preFullscreenUiState;
     bool m_fullscreenUiActive = false;

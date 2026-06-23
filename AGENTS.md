@@ -91,7 +91,7 @@ Current MVP mouse behavior:
 
 - Wheel navigates previous/next image.
 - `Ctrl+wheel` zooms in/out relative to the current displayed scale, including the current fit scale.
-- Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. Keep this behavior configurable in code as reset-vs-preserve when image-switch settings are added.
+- Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. At an active-folder boundary, they continue to the next/previous suitable source-tree folder before treating the source as exhausted. Keep reset-vs-preserve behavior configurable in code when image-switch settings are added.
 - Simple left click enters temporary 2x zoom relative to the current displayed scale, centered on the clicked image point.
 - Simple left click while in temporary click/rectangle zoom returns to the saved base mode: fit or actual size.
 - Hold left mouse button and drag to pan the image only outside base `fit to window`.
@@ -117,6 +117,7 @@ Current MVP fullscreen behavior:
 - Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.
 - If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
 - The left `Files` panel is split into a folder tree and an active-folder image list. Selecting a folder changes the active viewer collection to direct images in that folder only.
+- Next/previous navigation should traverse source-tree folders at active-folder boundaries; first/last remain scoped to the active folder.
 - Filesystem folder nodes should be loaded lazily on selection/expansion. Do not reintroduce full recursive filesystem scans for normal folder opening.
 - Archive folder trees are built from async header enumeration; do not extract archives to disk or read image data before decode.
 - The left file list should mirror the active folder collection only. Do not put source scanning, archive access, decoding, thumbnails, or persistence there.
