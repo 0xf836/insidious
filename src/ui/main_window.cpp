@@ -11,6 +11,7 @@
 #include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QItemSelectionModel>
@@ -23,6 +24,7 @@
 #include <QStatusBar>
 #include <QToolBar>
 #include <QUrl>
+#include <QVBoxLayout>
 #include <QtConcurrent>
 
 #include <algorithm>
@@ -402,16 +404,64 @@ void MainWindow::toggleFullscreen()
 
 void MainWindow::showQuickJumpDialog()
 {
-    if (!m_controller.hasCollection()) {
+    if (!m_controller.hasCollection() || m_quickJumpDialogOpen) {
         return;
     }
 
-    QuickJumpDialog dialog(m_controller.entries(), this);
-    if (dialog.exec() != QDialog::Accepted) {
+    const QScopedValueRollback<bool> guard(m_quickJumpDialogOpen, true);
+    int selectedRow = -1;
+
+    if (!isFullScreen()) {
+        QuickJumpDialog dialog(m_controller.entries(), this);
+        if (dialog.exec() == QDialog::Accepted) {
+            selectedRow = dialog.selectedSourceRow();
+        }
+    } else {
+        auto *overlay = new QWidget(this);
+        overlay->setObjectName(QStringLiteral("quickJumpOverlay"));
+        overlay->setAttribute(Qt::WA_DeleteOnClose);
+        overlay->setAttribute(Qt::WA_StyledBackground);
+        overlay->setStyleSheet(QStringLiteral("#quickJumpOverlay { background-color: rgba(0, 0, 0, 96); }"));
+        overlay->setGeometry(rect());
+
+        auto *layout = new QVBoxLayout(overlay);
+        layout->setContentsMargins(24, 24, 24, 24);
+        layout->setAlignment(Qt::AlignCenter);
+
+        auto *dialog = new QuickJumpDialog(m_controller.entries(), overlay);
+        dialog->setWindowFlags(Qt::Widget);
+        dialog->setStyleSheet(QStringLiteral("QuickJumpDialog { background: palette(window); border: 1px solid palette(mid); }"));
+        dialog->setMinimumSize(360, 260);
+        dialog->resize(520, 360);
+        layout->addWidget(dialog);
+
+        QEventLoop loop;
+        int dialogResult = QDialog::Rejected;
+        connect(dialog, &QDialog::accepted, &loop, [&]() {
+            dialogResult = QDialog::Accepted;
+            loop.quit();
+        });
+        connect(dialog, &QDialog::rejected, &loop, [&]() {
+            dialogResult = QDialog::Rejected;
+            loop.quit();
+        });
+
+        overlay->show();
+        overlay->raise();
+        dialog->show();
+        dialog->focusSearch();
+        loop.exec(QEventLoop::DialogExec);
+
+        if (dialogResult == QDialog::Accepted) {
+            selectedRow = dialog->selectedSourceRow();
+        }
+        overlay->close();
+    }
+
+    if (selectedRow < 0) {
         return;
     }
 
-    const int selectedRow = dialog.selectedSourceRow();
     if (m_controller.setCurrentIndex(selectedRow)) {
         reloadAfterImageSwitch();
     }
@@ -469,6 +519,7 @@ void MainWindow::setupActions()
 
     m_quickJumpAction = new QAction(tr("Quick Jump"), this);
     m_quickJumpAction->setShortcut(QKeySequence::Find);
+    m_quickJumpAction->setShortcutContext(Qt::WindowShortcut);
     connect(m_quickJumpAction, &QAction::triggered, this, &MainWindow::showQuickJumpDialog);
     navigateMenu->addAction(m_quickJumpAction);
 

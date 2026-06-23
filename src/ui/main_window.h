@@ -142,6 +142,7 @@ private:
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
     bool m_syncingFileListSelection = false;
+    bool m_quickJumpDialogOpen = false;
 };
 
 } // namespace insidious::ui

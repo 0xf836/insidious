@@ -21,6 +21,7 @@ public:
     explicit QuickJumpDialog(const QVector<core::ImageEntry> &entries, QWidget *parent = nullptr);
 
     [[nodiscard]] int selectedSourceRow() const;
+    void focusSearch();
 
 private:
     void updateSelection();

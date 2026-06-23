@@ -78,6 +78,7 @@ Quick filename jump:
 
 - `Navigate -> Quick Jump` / `Ctrl+F` opens a UI-only dialog backed by `ImageListModel` and a case-insensitive `QSortFilterProxyModel`.
 - Matching is contains-based against the display name only; no filesystem scan or metadata lookup happens in the dialog.
+- In fullscreen, `MainWindow` keeps the viewer fullscreen and shows the same dialog inside an in-window overlay, avoiding a separate top-level dialog that can make the window manager leave fullscreen.
 - Accepted selection maps the proxy row back to the collection row and switches through `MainWindow::reloadAfterImageSwitch()`.
 
 Right info panel:

@@ -56,7 +56,7 @@ QuickJumpDialog::QuickJumpDialog(const QVector<core::ImageEntry> &entries, QWidg
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     updateSelection();
-    m_searchEdit->setFocus(Qt::OtherFocusReason);
+    focusSearch();
 }
 
 int QuickJumpDialog::selectedSourceRow() const
@@ -68,6 +68,11 @@ int QuickJumpDialog::selectedSourceRow() const
 
     const QModelIndex sourceIndex = m_proxy->mapToSource(proxyIndex);
     return sourceIndex.isValid() ? sourceIndex.row() : -1;
+}
+
+void QuickJumpDialog::focusSearch()
+{
+    m_searchEdit->setFocus(Qt::OtherFocusReason);
 }
 
 void QuickJumpDialog::updateSelection()
