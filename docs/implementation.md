@@ -78,6 +78,7 @@ Right info panel:
 
 - `MainWindow` owns a right `QDockWidget` named `Info`, hidden by default and toggled from the `View` menu.
 - The panel shows `ImageEntry` metadata immediately when the current entry changes.
+- The widget groups rows into compact `Info` and `EXIF` sections; empty values are rendered as `N/A`.
 - Decoded dimensions are filled from `DecodedImage::sourceSize` after successful decode.
 - EXIF is displayed from `DecodedImage::metadataFields`; only a compact set of useful libvips `exif-*` string fields is collected during decode.
 - Current-entry errors keep entry metadata visible and mark dimensions unavailable.

@@ -22,20 +22,19 @@ public:
     void showError(const core::ImageEntry &entry, const QString &error);
 
 private:
-    void setEntryFields(const core::ImageEntry &entry);
-    void setDimensions(const QSize &sourceSize);
+    void setInfoMessage(const QString &message);
+    void setEntryInfoFields(const core::ImageEntry &entry, const QString &state, const QString &dimensions);
+    void setInfoFields(const QVector<core::ImageMetadataField> &fields);
     void setExifFields(const QVector<core::ImageMetadataField> &fields);
     void setExifMessage(const QString &message);
+    void addFieldRow(QFormLayout *form, QVector<QWidget *> &rows, const QString &name, const QString &value);
+    void clearRows(QFormLayout *form, QVector<QWidget *> &rows);
+    void clearInfoRows();
     void clearExifRows();
-    void setLabel(QLabel *label, const QString &value);
 
-    QLabel *m_stateValue = nullptr;
-    QLabel *m_nameValue = nullptr;
-    QLabel *m_pathValue = nullptr;
-    QLabel *m_formatValue = nullptr;
-    QLabel *m_fileSizeValue = nullptr;
-    QLabel *m_dimensionsValue = nullptr;
-    QLabel *m_modifiedValue = nullptr;
+    QLabel *m_infoHeader = nullptr;
+    QFormLayout *m_infoForm = nullptr;
+    QVector<QWidget *> m_infoRows;
     QLabel *m_exifHeader = nullptr;
     QFormLayout *m_exifForm = nullptr;
     QVector<QWidget *> m_exifRows;

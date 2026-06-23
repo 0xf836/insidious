@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QFormLayout>
+#include <QFont>
 #include <QFrame>
 #include <QLabel>
 #include <QLocale>
@@ -16,6 +17,24 @@ QLabel *createValueLabel()
     label->setWordWrap(true);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     return label;
+}
+
+QLabel *createSectionHeader(const QString &title, QWidget *parent)
+{
+    auto *label = new QLabel(title, parent);
+    QFont headerFont = label->font();
+    headerFont.setBold(true);
+    label->setFont(headerFont);
+    return label;
+}
+
+QFormLayout *createSectionForm()
+{
+    auto *form = new QFormLayout;
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    form->setLabelAlignment(Qt::AlignRight | Qt::AlignTop);
+    form->setVerticalSpacing(6);
+    return form;
 }
 
 QString formattedFileSize(qint64 bytes)
@@ -51,43 +70,23 @@ ImageInfoPanel::ImageInfoPanel(QWidget *parent)
 {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(8);
 
-    auto *form = new QFormLayout;
-    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    form->setLabelAlignment(Qt::AlignRight | Qt::AlignTop);
+    m_infoHeader = createSectionHeader(tr("Info"), this);
+    layout->addWidget(m_infoHeader);
 
-    m_stateValue = createValueLabel();
-    m_nameValue = createValueLabel();
-    m_pathValue = createValueLabel();
-    m_formatValue = createValueLabel();
-    m_fileSizeValue = createValueLabel();
-    m_dimensionsValue = createValueLabel();
-    m_modifiedValue = createValueLabel();
-
-    form->addRow(tr("State"), m_stateValue);
-    form->addRow(tr("Name"), m_nameValue);
-    form->addRow(tr("Path"), m_pathValue);
-    form->addRow(tr("Format"), m_formatValue);
-    form->addRow(tr("File size"), m_fileSizeValue);
-    form->addRow(tr("Dimensions"), m_dimensionsValue);
-    form->addRow(tr("Modified"), m_modifiedValue);
-
-    layout->addLayout(form);
+    m_infoForm = createSectionForm();
+    layout->addLayout(m_infoForm);
 
     auto *separator = new QFrame(this);
     separator->setFrameShape(QFrame::HLine);
     separator->setFrameShadow(QFrame::Sunken);
     layout->addWidget(separator);
 
-    m_exifHeader = new QLabel(tr("EXIF"), this);
-    QFont headerFont = m_exifHeader->font();
-    headerFont.setBold(true);
-    m_exifHeader->setFont(headerFont);
+    m_exifHeader = createSectionHeader(tr("EXIF"), this);
     layout->addWidget(m_exifHeader);
 
-    m_exifForm = new QFormLayout;
-    m_exifForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    m_exifForm->setLabelAlignment(Qt::AlignRight | Qt::AlignTop);
+    m_exifForm = createSectionForm();
     layout->addLayout(m_exifForm);
     layout->addStretch(1);
 
@@ -96,52 +95,53 @@ ImageInfoPanel::ImageInfoPanel(QWidget *parent)
 
 void ImageInfoPanel::showMessage(const QString &message)
 {
-    setLabel(m_stateValue, message.isEmpty() ? tr("No image loaded.") : message);
-    setLabel(m_nameValue, {});
-    setLabel(m_pathValue, {});
-    setLabel(m_formatValue, {});
-    setLabel(m_fileSizeValue, {});
-    setLabel(m_dimensionsValue, {});
-    setLabel(m_modifiedValue, {});
+    setInfoMessage(message.isEmpty() ? tr("No image loaded.") : message);
     setExifMessage({});
 }
 
 void ImageInfoPanel::showEntry(const core::ImageEntry &entry, const QString &state)
 {
-    setLabel(m_stateValue, state.isEmpty() ? tr("Ready") : state);
-    setEntryFields(entry);
-    setLabel(m_dimensionsValue, tr("Loading..."));
+    setEntryInfoFields(entry, state.isEmpty() ? tr("Ready") : state, tr("Loading..."));
+    setExifMessage(tr("Loading..."));
 }
 
 void ImageInfoPanel::showDecodedImage(const core::ImageEntry &entry, const core::DecodedImage &decoded)
 {
-    setLabel(m_stateValue, tr("Ready"));
-    setEntryFields(entry);
-    setDimensions(decoded.sourceSize);
+    setEntryInfoFields(entry, tr("Ready"), formattedDimensions(decoded.sourceSize));
     setExifFields(decoded.metadataFields);
 }
 
 void ImageInfoPanel::showError(const core::ImageEntry &entry, const QString &error)
 {
-    setLabel(m_stateValue, error.isEmpty() ? tr("Error") : error);
-    setEntryFields(entry);
-    setLabel(m_dimensionsValue, tr("Unavailable"));
+    setEntryInfoFields(entry, error.isEmpty() ? tr("Error") : error, tr("Unavailable"));
     setExifMessage(tr("Unavailable"));
 }
 
-void ImageInfoPanel::setEntryFields(const core::ImageEntry &entry)
+void ImageInfoPanel::setInfoMessage(const QString &message)
 {
-    setLabel(m_nameValue, entry.displayName.isEmpty() ? entry.absolutePath : entry.displayName);
-    setLabel(m_pathValue, entry.absolutePath);
-    setLabel(m_formatValue, entry.formatHint);
-    setLabel(m_fileSizeValue, formattedFileSize(entry.fileSize));
-    setLabel(m_modifiedValue, formattedDateTime(entry.modifiedTime));
-    setExifMessage(tr("Loading..."));
+    clearInfoRows();
+    addFieldRow(m_infoForm, m_infoRows, tr("State"), message);
 }
 
-void ImageInfoPanel::setDimensions(const QSize &sourceSize)
+void ImageInfoPanel::setEntryInfoFields(const core::ImageEntry &entry, const QString &state, const QString &dimensions)
 {
-    setLabel(m_dimensionsValue, formattedDimensions(sourceSize));
+    QVector<core::ImageMetadataField> fields;
+    fields.append({tr("State"), state});
+    fields.append({tr("Name"), entry.displayName.isEmpty() ? entry.absolutePath : entry.displayName});
+    fields.append({tr("Path"), entry.absolutePath});
+    fields.append({tr("Format"), entry.formatHint});
+    fields.append({tr("File size"), formattedFileSize(entry.fileSize)});
+    fields.append({tr("Dimensions"), dimensions});
+    fields.append({tr("Modified"), formattedDateTime(entry.modifiedTime)});
+    setInfoFields(fields);
+}
+
+void ImageInfoPanel::setInfoFields(const QVector<core::ImageMetadataField> &fields)
+{
+    clearInfoRows();
+    for (const core::ImageMetadataField &field : fields) {
+        addFieldRow(m_infoForm, m_infoRows, field.name, field.value);
+    }
 }
 
 void ImageInfoPanel::setExifFields(const QVector<core::ImageMetadataField> &fields)
@@ -153,18 +153,7 @@ void ImageInfoPanel::setExifFields(const QVector<core::ImageMetadataField> &fiel
 
     clearExifRows();
     for (const core::ImageMetadataField &field : fields) {
-        if (field.name.isEmpty() || field.value.isEmpty()) {
-            continue;
-        }
-
-        auto *nameLabel = new QLabel(field.name, this);
-        nameLabel->setAlignment(Qt::AlignRight | Qt::AlignTop);
-        auto *valueLabel = createValueLabel();
-        valueLabel->setText(field.value);
-        valueLabel->setToolTip(field.value);
-        m_exifForm->addRow(nameLabel, valueLabel);
-        m_exifRows.append(nameLabel);
-        m_exifRows.append(valueLabel);
+        addFieldRow(m_exifForm, m_exifRows, field.name, field.value);
     }
 
     if (m_exifRows.isEmpty()) {
@@ -175,30 +164,48 @@ void ImageInfoPanel::setExifFields(const QVector<core::ImageMetadataField> &fiel
 void ImageInfoPanel::setExifMessage(const QString &message)
 {
     clearExifRows();
+    addFieldRow(m_exifForm, m_exifRows, {}, message);
+}
+
+void ImageInfoPanel::addFieldRow(QFormLayout *form, QVector<QWidget *> &rows, const QString &name, const QString &value)
+{
     auto *valueLabel = createValueLabel();
-    const QString displayValue = message.isEmpty() ? tr("N/A") : message;
+    const QString displayValue = value.isEmpty() ? tr("N/A") : value;
     valueLabel->setText(displayValue);
     valueLabel->setToolTip(displayValue);
-    m_exifForm->addRow(QString(), valueLabel);
-    m_exifRows.append(valueLabel);
+
+    if (name.isEmpty()) {
+        form->addRow(QString(), valueLabel);
+        rows.append(valueLabel);
+        return;
+    }
+
+    auto *nameLabel = new QLabel(name, this);
+    nameLabel->setAlignment(Qt::AlignRight | Qt::AlignTop);
+    form->addRow(nameLabel, valueLabel);
+    rows.append(nameLabel);
+    rows.append(valueLabel);
+}
+
+void ImageInfoPanel::clearRows(QFormLayout *form, QVector<QWidget *> &rows)
+{
+    while (QLayoutItem *item = form->takeAt(0)) {
+        delete item;
+    }
+    for (QWidget *widget : rows) {
+        delete widget;
+    }
+    rows.clear();
+}
+
+void ImageInfoPanel::clearInfoRows()
+{
+    clearRows(m_infoForm, m_infoRows);
 }
 
 void ImageInfoPanel::clearExifRows()
 {
-    while (QLayoutItem *item = m_exifForm->takeAt(0)) {
-        delete item;
-    }
-    for (QWidget *widget : m_exifRows) {
-        delete widget;
-    }
-    m_exifRows.clear();
-}
-
-void ImageInfoPanel::setLabel(QLabel *label, const QString &value)
-{
-    const QString displayValue = value.isEmpty() ? tr("N/A") : value;
-    label->setText(displayValue);
-    label->setToolTip(displayValue);
+    clearRows(m_exifForm, m_exifRows);
 }
 
 } // namespace insidious::ui
