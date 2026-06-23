@@ -19,7 +19,7 @@ The build creates:
 
 ## Directory structure
 
-- `src/app/main.cpp` initializes libvips, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
+- `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
 - `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, and EXIF metadata fields collected by the decoder; it does not read files.
 - `src/ui/image_list_model.*` exposes the current collection to a `QListView` in the left `Files` dock. It is UI-only and does not scan sources, decode images, or build thumbnails.
@@ -73,6 +73,12 @@ Left file list:
 - The model is reset from `ViewerController::entries()` whenever the collection changes.
 - Programmatic navigation syncs the selected row from `ViewerController::currentIndex()`.
 - Selecting a row by mouse or keyboard calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
+
+Quick filename jump:
+
+- `Navigate -> Quick Jump` / `Ctrl+F` opens a UI-only dialog backed by `ImageListModel` and a case-insensitive `QSortFilterProxyModel`.
+- Matching is contains-based against the display name only; no filesystem scan or metadata lookup happens in the dialog.
+- Accepted selection maps the proxy row back to the collection row and switches through `MainWindow::reloadAfterImageSwitch()`.
 
 Right info panel:
 
@@ -130,7 +136,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - TIFF, AVIF, JPEG XL, RAW.
 - Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.
 - Thumbnail panel.
-- Quick filename jump.
+- Configurable or fuzzy quick filename jump.
 - Settings UI and configurable hotkeys.
 
 ## Change guidance

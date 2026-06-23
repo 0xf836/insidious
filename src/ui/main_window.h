@@ -57,6 +57,7 @@ private slots:
     void rotateLeft();
     void rotateRight();
     void toggleFullscreen();
+    void showQuickJumpDialog();
 
 private:
     enum class ImageSwitchViewPolicy {
@@ -120,6 +121,7 @@ private:
     QAction *m_nextAction = nullptr;
     QAction *m_firstAction = nullptr;
     QAction *m_lastAction = nullptr;
+    QAction *m_quickJumpAction = nullptr;
     QAction *m_zoomInAction = nullptr;
     QAction *m_zoomOutAction = nullptr;
     QAction *m_fitAction = nullptr;

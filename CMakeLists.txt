@@ -54,6 +54,8 @@ add_executable(insidious
     src/ui/image_view_widget.h
     src/ui/main_window.cpp
     src/ui/main_window.h
+    src/ui/quick_jump_dialog.cpp
+    src/ui/quick_jump_dialog.h
 )
 target_link_libraries(insidious
     PRIVATE

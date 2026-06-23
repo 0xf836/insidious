@@ -3,6 +3,7 @@
 #include "core/image_entry_validation.h"
 #include "core/image_formats.h"
 #include "core/vips_image_decoder.h"
+#include "ui/quick_jump_dialog.h"
 
 #include <QAction>
 #include <QAbstractItemView>
@@ -399,6 +400,23 @@ void MainWindow::toggleFullscreen()
     }
 }
 
+void MainWindow::showQuickJumpDialog()
+{
+    if (!m_controller.hasCollection()) {
+        return;
+    }
+
+    QuickJumpDialog dialog(m_controller.entries(), this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    const int selectedRow = dialog.selectedSourceRow();
+    if (m_controller.setCurrentIndex(selectedRow)) {
+        reloadAfterImageSwitch();
+    }
+}
+
 void MainWindow::setupActions()
 {
     auto *fileMenu = menuBar()->addMenu(tr("&File"));
@@ -448,6 +466,11 @@ void MainWindow::setupActions()
     m_lastAction->setShortcut(QKeySequence(Qt::Key_End));
     connect(m_lastAction, &QAction::triggered, this, &MainWindow::showLastImage);
     navigateMenu->addAction(m_lastAction);
+
+    m_quickJumpAction = new QAction(tr("Quick Jump"), this);
+    m_quickJumpAction->setShortcut(QKeySequence::Find);
+    connect(m_quickJumpAction, &QAction::triggered, this, &MainWindow::showQuickJumpDialog);
+    navigateMenu->addAction(m_quickJumpAction);
 
     toolbar->addSeparator();
 
@@ -737,6 +760,7 @@ void MainWindow::updateActionState()
     m_nextAction->setEnabled(hasImage);
     m_firstAction->setEnabled(hasPrevious);
     m_lastAction->setEnabled(hasNext);
+    m_quickJumpAction->setEnabled(hasImage);
     m_zoomInAction->setEnabled(hasImage);
     m_zoomOutAction->setEnabled(hasImage);
     m_fitAction->setEnabled(hasImage);

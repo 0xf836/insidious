@@ -31,11 +31,12 @@ This is a native Linux GUI image viewer. The application should quickly open and
 The current MVP implementation is C++20 with Qt6 Widgets and libvips/vips-cpp.
 
 - `CMakeLists.txt` defines the build, `insidious_core`, the `insidious` GUI executable, and `insidious_core_tests`.
-- `src/app/main.cpp` owns process bootstrap: initializes libvips, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
+- `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
 - `src/ui/main_window.*` coordinates UI commands, async folder scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
 - `src/ui/image_info_panel.*` is a UI-only metadata panel for the current entry, decoded dimensions, and EXIF fields supplied by the decoder. Keep EXIF parsing and metadata backends out of this widget.
 - `src/ui/image_list_model.*` is a UI-only list model for the current collection. Keep it source-agnostic and free of thumbnail/decode work.
+- `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
 - `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder scanning, viewer state, decode request/result types, memory cache, and libvips decoding.
 - `tests/core_tests.cpp` covers core behavior with Qt Test. Add tests here for non-trivial core changes.
@@ -83,7 +84,7 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 The first implementation should focus on regular filesystem images and folders. Archive support, RAW support, advanced metadata, configurable hotkeys, and thumbnail panels are later milestones unless explicitly requested.
 
-Current MVP supports only regular filesystem images and non-recursive folders. The enabled extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, archives, thumbnails, advanced metadata backends, settings UI, configurable quick jump, and recent-file history are intentionally out of scope.
+Current MVP supports only regular filesystem images and non-recursive folders. The enabled extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, archives, thumbnails, advanced metadata backends, settings UI, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
 
 Current MVP mouse behavior:
 
