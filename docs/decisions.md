@@ -56,9 +56,9 @@
 
 ## ADR-010: MVP избегает recent-file integration
 
-Решение: приложение не использует `QSettings`, recent files и persistent cache в MVP; file dialogs открываются в non-native режиме, чтобы не включать toolkit/desktop recent-file integration без явного решения.
+Решение: приложение не использует recent files и persistent cache в MVP; file dialogs открываются в non-native режиме, чтобы не включать toolkit/desktop recent-file integration без явного решения. `QSettings` разрешён только для non-history preferences: viewer defaults, fullscreen trigger zones и layout state.
 
-Причина: это поддерживает требование privacy/no-traces.
+Причина: это поддерживает требование privacy/no-traces, но не запрещает обычный settings file без истории просмотра.
 
 ## ADR-011: Схема мыши в MVP
 
@@ -82,10 +82,16 @@
 
 Решение: в fullscreen обычные menu bar, toolbar, statusbar и dock-панели скрываются, а `Files`, `Info`, actions и status text показываются отдельными child overlay widgets поверх изображения при наведении курсора на край окна. Overlay-панели не участвуют в layout главного окна.
 
-Причина: появление fullscreen chrome не должно менять размер области изображения, zoom/pan state или запускать повторный decode/render. Такой подход сохраняет fullscreen визуально стабильным и оставляет edge trigger ratios готовыми к будущему settings UI.
+Причина: появление fullscreen chrome не должно менять размер области изображения, zoom/pan state или запускать повторный decode/render. Такой подход сохраняет fullscreen визуально стабильным, а edge trigger ratios применяются из настроек без участия layout.
 
 ## ADR-015: Панель Files работает через source tree и активную папку
 
 Решение: папка filesystem, архив и будущие source types представляются как дерево папок. Выбранная папка становится активной коллекцией `ViewerController`, а список файлов показывает только direct images этой папки. Filesystem-подпапки загружаются лениво при выборе или раскрытии, архивы строят дерево из асинхронного header scan без распаковки на диск.
 
 Причина: плоский список плохо работает для больших и вложенных структур. Активная папка сохраняет текущий viewer pipeline простым, снижает лишний filesystem scan и готовит UI к большим архивам без чтения image data до decode.
+
+## ADR-016: Настройки разделены на core schema и UI dialog
+
+Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, click zoom multiplier, fullscreen edge trigger ratios и layout state.
+
+Причина: настройки должны быть расширяемыми и тестируемыми без GUI. Core-слой валидирует enum/string conversion и clamp числовых значений, а UI остаётся тонким слоем отображения. Privacy boundary остаётся явным: не сохранять recent files, viewed paths, archive paths, passwords, thumbnails, decoded cache или file logs.

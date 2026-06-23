@@ -82,11 +82,12 @@
 
 ## Phase 9 — Settings and polish
 
-- Settings dialog.
+- Basic settings dialog for viewer defaults, fullscreen trigger zones, image-switch policy and layout persistence. Done.
 - Hotkey customization.
 - Fullscreen info line customization.
 - Statusbar customization.
-- Default sort/zoom modes.
+- Default sort mode.
+- Advanced rendering and status presentation settings.
 - Packaging for Linux.
 
 ## Phase 10 - Fixes

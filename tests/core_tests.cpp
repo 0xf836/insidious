@@ -1,4 +1,5 @@
 #include "core/archive_collection_source.h"
+#include "core/app_settings.h"
 #include "core/folder_collection_source.h"
 #include "core/image_entry_validation.h"
 #include "core/image_formats.h"
@@ -13,6 +14,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QProcess>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -44,6 +46,8 @@ private slots:
     void decoderLoadsPngFromArchive();
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
+    void appSettingsRoundTripsThroughQSettings();
+    void appSettingsFallbacksAndClampsInvalidValues();
 };
 
 namespace {
@@ -483,6 +487,71 @@ void CoreTests::archiveScanRejectsBrokenArchive()
     const ScanResult result = scanArchive(path);
     QVERIFY(!result.ok());
     QVERIFY(!result.errorMessage.isEmpty());
+}
+
+void CoreTests::appSettingsRoundTripsThroughQSettings()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString settingsPath = QDir(tempDir.path()).filePath(QStringLiteral("settings.ini"));
+
+    AppSettings values = AppSettings::defaults();
+    values.viewer.defaultZoomMode = ZoomMode::ActualSize;
+    values.viewer.imageSwitchPolicy = ImageSwitchPolicy::PreserveView;
+    values.viewer.clickZoomMultiplier = 3.5;
+    values.fullscreen.sideTriggerRatio = 0.12;
+    values.fullscreen.verticalTriggerRatio = 0.08;
+    values.interface.rememberLayout = true;
+    values.interface.mainWindowGeometry = QByteArray("geometry");
+    values.interface.mainWindowState = QByteArray("state");
+    values.interface.fileSplitterState = QByteArray("files");
+    values.interface.fullscreenFileSplitterState = QByteArray("fullscreen-files");
+
+    QSettings writeSettings(settingsPath, QSettings::IniFormat);
+    values.write(writeSettings);
+    writeSettings.sync();
+
+    QSettings readSettings(settingsPath, QSettings::IniFormat);
+    const AppSettings loaded = AppSettings::read(readSettings);
+
+    QCOMPARE(loaded.viewer.defaultZoomMode, ZoomMode::ActualSize);
+    QCOMPARE(loaded.viewer.imageSwitchPolicy, ImageSwitchPolicy::PreserveView);
+    QCOMPARE(loaded.viewer.clickZoomMultiplier, 3.5);
+    QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.12);
+    QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.08);
+    QVERIFY(loaded.interface.rememberLayout);
+    QCOMPARE(loaded.interface.mainWindowGeometry, QByteArray("geometry"));
+    QCOMPARE(loaded.interface.mainWindowState, QByteArray("state"));
+    QCOMPARE(loaded.interface.fileSplitterState, QByteArray("files"));
+    QCOMPARE(loaded.interface.fullscreenFileSplitterState, QByteArray("fullscreen-files"));
+}
+
+void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString settingsPath = QDir(tempDir.path()).filePath(QStringLiteral("settings.ini"));
+
+    QSettings writeSettings(settingsPath, QSettings::IniFormat);
+    writeSettings.beginGroup(QStringLiteral("viewer"));
+    writeSettings.setValue(QStringLiteral("defaultZoomMode"), QStringLiteral("invalid"));
+    writeSettings.setValue(QStringLiteral("imageSwitchPolicy"), QStringLiteral("invalid"));
+    writeSettings.setValue(QStringLiteral("clickZoomMultiplier"), 100.0);
+    writeSettings.endGroup();
+    writeSettings.beginGroup(QStringLiteral("fullscreen"));
+    writeSettings.setValue(QStringLiteral("sideTriggerRatio"), -1.0);
+    writeSettings.setValue(QStringLiteral("verticalTriggerRatio"), 99.0);
+    writeSettings.endGroup();
+    writeSettings.sync();
+
+    QSettings readSettings(settingsPath, QSettings::IniFormat);
+    const AppSettings loaded = AppSettings::read(readSettings);
+
+    QCOMPARE(loaded.viewer.defaultZoomMode, ZoomMode::FitToWindow);
+    QCOMPARE(loaded.viewer.imageSwitchPolicy, ImageSwitchPolicy::ResetToBaseMode);
+    QCOMPARE(loaded.viewer.clickZoomMultiplier, 8.0);
+    QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.01);
+    QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.30);
 }
 
 QTEST_MAIN(CoreTests)

@@ -16,6 +16,8 @@ pkg_check_modules(VIPSCPP REQUIRED IMPORTED_TARGET vips-cpp)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 
 set(CORE_SOURCES
+    src/core/app_settings.cpp
+    src/core/app_settings.h
     src/core/archive_collection_source.cpp
     src/core/archive_collection_source.h
     src/core/decoded_image.h
@@ -62,6 +64,8 @@ add_executable(insidious
     src/ui/main_window.h
     src/ui/quick_jump_dialog.cpp
     src/ui/quick_jump_dialog.h
+    src/ui/settings_dialog.cpp
+    src/ui/settings_dialog.h
 )
 target_link_libraries(insidious
     PRIVATE

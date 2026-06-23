@@ -34,12 +34,13 @@ The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp, and 
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
 - `src/ui/main_window.*` coordinates UI commands, async folder scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
+- `src/ui/settings_dialog.*` is a UI-only Preferences dialog. Keep validation, persistence schema, and defaults in `src/core/app_settings.*`.
 - `src/ui/image_info_panel.*` is a UI-only metadata panel for the current entry, decoded dimensions, and EXIF fields supplied by the decoder. Keep EXIF parsing and metadata backends out of this widget.
 - `src/ui/collection_tree_model.*` is a UI-only tree model for folders in the current collection source.
 - `src/ui/image_list_model.*` is a UI-only list model for images in the active folder. Keep it source-agnostic and free of thumbnail/decode work.
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
-- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive scanning, viewer state, decode request/result types, memory cache, libarchive entry reading, and libvips decoding.
+- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive scanning, viewer state, settings schema, decode request/result types, memory cache, libarchive entry reading, and libvips decoding.
 - `tests/core_tests.cpp` covers core behavior with Qt Test. Add tests here for non-trivial core changes.
 - `docs/implementation.md` is the longer orientation document for current code structure and data flow.
 
@@ -80,19 +81,20 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 - Do not store archive passwords.
 - Do not write file logs in normal mode.
 - Settings are allowed, but they must not include recently opened paths or viewed items unless explicitly requested later.
+- Settings must not include archive paths, default image paths, passwords, thumbnails, decoded image data, or log destinations unless explicitly requested later and documented as a privacy change.
 
 ## MVP boundaries
 
 The first implementation should focus on regular filesystem images, folders, and archives. RAW support, advanced metadata, configurable hotkeys, password persistence, and thumbnail panels are later milestones unless explicitly requested.
 
-Current MVP supports regular filesystem images, filesystem folder trees with lazy per-folder loading, and ZIP/7z/RAR archive trees through libarchive without disk extraction. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, settings UI, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
+Current MVP supports regular filesystem images, filesystem folder trees with lazy per-folder loading, ZIP/7z/RAR archive trees through libarchive without disk extraction, and a basic Preferences dialog. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, configurable hotkeys, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
 
 Current MVP mouse behavior:
 
 - Wheel navigates previous/next image.
 - `Ctrl+wheel` zooms in/out relative to the current displayed scale, including the current fit scale.
-- Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. At an active-folder boundary, they continue to the next/previous suitable source-tree folder before treating the source as exhausted. Keep reset-vs-preserve behavior configurable in code when image-switch settings are added.
-- Simple left click enters temporary 2x zoom relative to the current displayed scale, centered on the clicked image point.
+- Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. At an active-folder boundary, they continue to the next/previous suitable source-tree folder before treating the source as exhausted. The basic settings UI can switch image navigation to preserve the current view instead.
+- Simple left click enters temporary zoom relative to the current displayed scale, centered on the clicked image point. The default multiplier is 2x and is configurable in Preferences.
 - Simple left click while in temporary click/rectangle zoom returns to the saved base mode: fit or actual size.
 - Hold left mouse button and drag to pan the image only outside base `fit to window`.
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
@@ -102,7 +104,7 @@ Current MVP fullscreen behavior:
 
 - Fullscreen hides the normal menu bar, toolbar, statusbar, `Files` dock, and `Info` dock by default, leaving only the image area visible.
 - Edge panels appear as overlays over the image: left `Files`, right `Info`, top actions toolbar, bottom status text.
-- Default fullscreen trigger zones are 7% of window width for side panels and 5% of window height for top/bottom panels. Keep these values in settings-shaped code so they can move to a settings UI later.
+- Default fullscreen trigger zones are 7% of window width for side panels and 5% of window height for top/bottom panels. They are stored in app settings.
 - Side panels have priority in fullscreen corners.
 - Showing or hiding fullscreen overlays must not resize the image viewport, alter zoom/pan, call image reload/decode, or cause visible image flicker.
 
@@ -112,6 +114,7 @@ Current MVP fullscreen behavior:
 - Do not run folder scanning or libvips decoding on the UI thread.
 - Guard async UI updates against stale results when the current source or decode request changes.
 - Keep cache state memory-only. Do not introduce persistent cache files, recent-file lists, or viewed-path settings.
+- When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, `docs/`, `README.md`, and this file together.
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
 - Transient loading during image navigation should preserve the currently displayed raster and use a subtle overlay. Zoom-triggered loading should preserve the displayed raster without showing a loading label or moving the old image. Error, empty, and scanning states may clear the image and show a full message.
 - Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.

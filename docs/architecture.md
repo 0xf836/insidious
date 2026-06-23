@@ -95,12 +95,21 @@ Persistent cache запрещён текущими privacy requirements.
 
 Хранит настройки приложения, но не хранит историю открытых файлов/папок/архивов.
 
+Текущая реализация:
+
+- `src/core/app_settings.*` — schema/defaults/read/write/validation для `QSettings`;
+- `src/ui/settings_dialog.*` — Qt dialog для редактирования настроек;
+- `MainWindow` применяет настройки viewer/fullscreen/layout и сохраняет их при Apply/OK и закрытии.
+
+Сейчас сохраняются:
+
 - default zoom mode;
-- default sort mode;
-- UI visibility preferences;
-- fullscreen info line configuration;
-- hotkeys;
-- rendering preferences.
+- reset/preserve view при переключении изображений;
+- click zoom multiplier;
+- fullscreen edge trigger ratios;
+- window/dock/splitter layout, если включено.
+
+Позже сюда можно добавить default sort mode, hotkeys, rendering preferences и настройку status/fullscreen info line. Даже будущие настройки не должны хранить историю просмотра, recent paths, archive passwords, thumbnails или decoded cache.
 
 ## Поток открытия файла
 

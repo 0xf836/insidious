@@ -32,8 +32,8 @@
 Проект сейчас реализован как C++20 / Qt6 Widgets приложение с libvips/vips-cpp для декодирования изображений и libarchive для чтения архивов.
 
 - `src/app/` — запуск процесса, инициализация libvips, создание `QApplication`, обработка optional path argument.
-- `src/ui/` — Qt Widgets слой: главное окно, actions/shortcuts, drag'n'drop, statusbar, fullscreen, левая панель дерева/списка файлов, правая панель базовой информации, widget отрисовки изображения.
-- `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки/архива, source tree для папок/архивов, состояние viewer, memory-only cache, libarchive reader, libvips decoder.
+- `src/ui/` — Qt Widgets слой: главное окно, actions/shortcuts, drag'n'drop, statusbar, fullscreen, левая панель дерева/списка файлов, правая панель базовой информации, диалог настроек, widget отрисовки изображения.
+- `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки/архива, source tree для папок/архивов, состояние viewer, настройки, memory-only cache, libarchive reader, libvips decoder.
 - `tests/` — Qt Test тесты для core-логики.
 
 Главный поток открытия изображения: UI принимает путь, core создаёт одиночную коллекцию, сканирует папку или читает список изображений из архива, `ViewerController` выбирает текущий entry, `VipsImageDecoder` асинхронно строит display-sized `QImage`, `MainWindow` обновляет `ImageViewWidget` и statusbar.
@@ -48,6 +48,8 @@
 
 Fullscreen показывает только область изображения по умолчанию. Панели появляются как overlay поверх изображения при приближении мыши к краю: слева `Files`, справа `Info`, сверху основные actions, снизу status text. Hover-панели не меняют размер viewer и не запускают перерендер изображения; зоны срабатывания по умолчанию — 7% ширины для боковых краёв и 5% высоты для верхнего/нижнего.
 
+`Edit -> Preferences` открывает базовый диалог настроек. Сейчас он сохраняет default zoom mode, поведение zoom/pan при переключении изображений, click zoom multiplier, fullscreen edge trigger zones и запоминание layout. Настройки пишутся через `QSettings` в стандартное пользовательское config-хранилище Qt и не содержат историю открытых файлов, путей, паролей архивов, thumbnails или decoded cache.
+
 Если текущий файл удалён, стал нечитаемым или не декодируется, viewer показывает ошибку для этого entry, но сохраняет коллекцию и навигацию. Ошибки загрузки не попадают в memory cache.
 
 При переключении heavy images текущий raster остаётся на экране до готовности нового decode result; transient `Loading image...` показывается полупрозрачным overlay поверх изображения. При zoom старый raster тоже остаётся на месте, но loading-надпись не показывается, чтобы изображение не дёргалось визуально. Ошибки и пустые состояния по-прежнему очищают изображение и показывают полноценное сообщение.
@@ -58,8 +60,8 @@ Fullscreen показывает только область изображени
 
 - Wheel — предыдущее/следующее изображение.
 - `Ctrl+wheel` — zoom in/out относительно текущего отображаемого масштаба.
-- Next/Previous по кнопкам, shortcuts или wheel по умолчанию сбрасывают масштаб и pan в установленный базовый режим `fit` или `actual size`; на границе активной папки переходят к соседней подходящей папке по дереву, а если листать некуда, текущий image перерендеривается с тем же сбросом.
-- Простой клик ЛКМ — временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика.
+- Next/Previous по кнопкам, shortcuts или wheel по умолчанию сбрасывают масштаб и pan в установленный базовый режим `fit` или `actual size`; это можно переключить на сохранение текущего view в Preferences. На границе активной папки переходят к соседней подходящей папке по дереву, а если листать некуда, текущий image перерендеривается с тем же сбросом.
+- Простой клик ЛКМ — временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика; multiplier настраивается в Preferences.
 - Простой клик ЛКМ после click/rectangle zoom — возврат в исходный режим `fit` или `actual size`.
 - Зажатая левая кнопка мыши — pan/hand mode только вне базового `fit`; простой клик ЛКМ работает как zoom/restore.
 - Зажатая правая кнопка мыши — прямоугольник zoom-to-selection.
@@ -97,4 +99,4 @@ Run:
 ./build/insidious /path/to/image-folder-or-archive
 ```
 
-The app intentionally does not use recent-file history, persistent thumbnail caches, archive extraction or file logging in the MVP.
+The app intentionally does not use recent-file history, persistent thumbnail caches, archive extraction, archive password persistence or file logging in the MVP. The settings file stores only non-history preferences.

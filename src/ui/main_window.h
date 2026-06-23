@@ -3,6 +3,7 @@
 #include "core/decoded_image.h"
 #include "core/folder_collection_source.h"
 #include "core/memory_image_cache.h"
+#include "core/app_settings.h"
 #include "core/viewer_controller.h"
 #include "ui/collection_tree_model.h"
 #include "ui/image_info_panel.h"
@@ -21,6 +22,7 @@
 #include <optional>
 
 class QAction;
+class QCloseEvent;
 class QDockWidget;
 class QListView;
 class QModelIndex;
@@ -43,6 +45,7 @@ protected:
     void dropEvent(QDropEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
@@ -63,13 +66,9 @@ private slots:
     void rotateRight();
     void toggleFullscreen();
     void showQuickJumpDialog();
+    void showSettingsDialog();
 
 private:
-    enum class ImageSwitchViewPolicy {
-        ResetToBaseMode,
-        PreserveView,
-    };
-
     struct DecodeJobResult {
         quint64 generation = 0;
         QString cacheKey;
@@ -107,6 +106,11 @@ private:
     void setupFileListPanel();
     void setupInfoPanel();
     void setupFullscreenOverlayPanels();
+    void loadSettings();
+    void saveSettings();
+    void applySettings(const core::AppSettings &settings, bool reloadCurrentImage);
+    void captureLayoutSettings();
+    void restoreLayoutSettings();
     void openFile(const QString &filePath);
     void openFolder(const QString &folderPath);
     void openArchive(const QString &archivePath);
@@ -180,6 +184,7 @@ private:
     QAction *m_firstAction = nullptr;
     QAction *m_lastAction = nullptr;
     QAction *m_quickJumpAction = nullptr;
+    QAction *m_preferencesAction = nullptr;
     QAction *m_zoomInAction = nullptr;
     QAction *m_zoomOutAction = nullptr;
     QAction *m_fitAction = nullptr;
@@ -191,8 +196,10 @@ private:
     core::ViewerController m_controller;
     core::DecodedImage m_currentDecoded;
     core::ZoomMode m_baseZoomMode = core::ZoomMode::FitToWindow;
-    ImageSwitchViewPolicy m_imageSwitchViewPolicy = ImageSwitchViewPolicy::ResetToBaseMode;
+    core::ImageSwitchPolicy m_imageSwitchPolicy = core::ImageSwitchPolicy::ResetToBaseMode;
     std::optional<core::ZoomMode> m_temporaryZoomReturnMode;
+    core::AppSettings m_settings;
+    double m_clickZoomMultiplier = 2.0;
     std::shared_ptr<core::MemoryImageCache> m_cache;
     QFutureWatcher<DecodeJobResult> m_decodeWatcher;
     QFutureWatcher<ScanJobResult> m_scanWatcher;

@@ -9,6 +9,7 @@ This document describes the current codebase shape for future coding agents. Pro
 - Async work: `QtConcurrent::run` with `QFutureWatcher` in the UI layer.
 - Image backend: libvips/vips-cpp.
 - Archive backend: libarchive.
+- Persistent preferences: Qt `QSettings` for non-history settings only.
 - Tests: Qt Test.
 - Build: CMake + Ninja.
 
@@ -22,6 +23,7 @@ The build creates:
 
 - `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
+- `src/ui/settings_dialog.*` implements the Preferences dialog. It edits an `AppSettings` value and leaves persistence/schema/defaults to core.
 - `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, and EXIF metadata fields collected by the decoder; it does not read files.
 - `src/ui/collection_tree_model.*` exposes the current source folder tree to `QTreeView` instances in the normal and fullscreen `Files` panels.
 - `src/ui/image_list_model.*` exposes the active folder's image entries to `QListView` instances in the left `Files` panel. It is UI-only and does not scan sources, decode images, or build thumbnails.
@@ -33,6 +35,7 @@ The build creates:
 - `src/core/folder_collection_source.*` supports the older flat non-recursive folder scan and the current source-tree flow: root folder scan plus lazy per-folder loading.
 - `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and reads selected archive members into memory without extracting them to disk.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
+- `src/core/app_settings.*` defines persistent settings defaults, enum/string conversion, validation/clamping, category reset behavior, and `QSettings` read/write.
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions and metadata fields.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
@@ -106,7 +109,7 @@ Fullscreen overlay UI:
 - The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.
 - The top overlay is a `QToolBar` using the same `QAction` objects as the normal menu/toolbar flow, so shortcuts, enabled state, and command routing remain centralized.
 - The bottom overlay mirrors the normal statusbar text.
-- Hover detection uses in-memory `FullscreenOverlaySettings`: side triggers are 7% of window width by default, top/bottom triggers are 5% of window height by default. Side overlays have priority in corners.
+- Hover detection uses settings-backed `FullscreenOverlaySettings`: side triggers are 7% of window width by default, top/bottom triggers are 5% of window height by default. Side overlays have priority in corners.
 - `Ctrl+F` quick jump suppresses fullscreen edge overlays while its in-window modal overlay is open.
 - Exiting fullscreen hides all edge overlays, returns to normal window mode, and restores the stored normal UI visibility.
 
@@ -119,13 +122,23 @@ Right info panel:
 - EXIF is displayed from `DecodedImage::metadataFields`; only a compact set of useful libvips `exif-*` string fields is collected during decode.
 - Current-entry errors keep entry metadata visible and mark dimensions unavailable.
 
+Settings:
+
+- `Edit -> Preferences` opens `SettingsDialog`.
+- Settings are loaded in `MainWindow` construction and saved on Apply/OK and window close through `QSettings` using the application/organization name `Insidious`.
+- Viewer settings currently include default zoom mode, image-switch view policy, and click zoom multiplier.
+- Fullscreen settings currently include side and top/bottom edge trigger ratios.
+- Interface settings currently include whether to remember layout plus window geometry/state and normal/fullscreen Files splitter state.
+- Settings must stay privacy-safe: do not store recent files, source paths, archive paths, default image folders, archive passwords, thumbnails, decoded image data, or file logs.
+- `AppSettings::read()` clamps numeric values and falls back on defaults for unknown enum strings so older or manually edited config files remain safe.
+
 Navigation:
 
 1. Actions, shortcuts, wheel events, or mouse gestures call `ViewerController` commands through `MainWindow`.
 2. Next/previous image switching first tries `ViewerController` inside the active folder, then activates the next/previous suitable folder in source-tree preorder when the folder boundary is reached.
-3. The current default `ImageSwitchViewPolicy` is `ResetToBaseMode`, which resets temporary zoom state, pan, and zoom to the selected base mode (`FitToWindow` or `ActualSize`) before loading.
+3. The current default `ImageSwitchPolicy` is `ResetToBaseMode`, which resets temporary zoom state, pan, and zoom to the selected base mode (`FitToWindow` or `ActualSize`) before loading.
 4. If next/previous cannot change the index or folder, `MainWindow` still reloads the current entry after applying the switch policy. This clears transient render errors, including errors caused by an excessive custom zoom request.
-5. `ImageSwitchViewPolicy::PreserveView` is reserved for a future setting where image switches keep the current zoom/pan instead of resetting them.
+5. `ImageSwitchPolicy::PreserveView` keeps the current zoom/pan instead of resetting them and is exposed in Preferences.
 6. On a changed index or view transform, `MainWindow` builds a new `DecodeRequest`.
 7. Cache keys include file identity and render request details, so fit/zoom/rotation variants do not collide.
 
@@ -149,13 +162,14 @@ Mouse input:
 
 The MVP intentionally avoids:
 
-- `QSettings`.
 - Recent file lists.
 - Persistent thumbnail caches.
 - Persistent decoded image caches.
 - File logs in normal usage.
 - Archive extraction.
 - Archive password persistence.
+
+The app uses `QSettings` only for non-history preferences. Layout persistence stores Qt geometry/state byte arrays and splitter positions; it must not store opened source paths.
 
 File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit desktop recent-file integration until there is an explicit decision to change this.
 
@@ -169,7 +183,8 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.
 - Thumbnail panel.
 - Configurable or fuzzy quick filename jump.
-- Settings UI and configurable hotkeys.
+- Configurable hotkeys.
+- Advanced settings for rendering quality, statusbar content, quick jump behavior, and thumbnail generation.
 
 ## Change guidance
 

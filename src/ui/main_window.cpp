@@ -5,10 +5,12 @@
 #include "core/image_formats.h"
 #include "core/vips_image_decoder.h"
 #include "ui/quick_jump_dialog.h"
+#include "ui/settings_dialog.h"
 
 #include <QAction>
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QCloseEvent>
 #include <QCursor>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -29,6 +31,7 @@
 #include <QMenuBar>
 #include <QMimeData>
 #include <QScopedValueRollback>
+#include <QSettings>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QToolBar>
@@ -44,7 +47,6 @@
 namespace insidious::ui {
 namespace {
 
-constexpr double DefaultClickZoomMultiplier = 2.0;
 constexpr double ZoomStepMultiplier = 1.25;
 constexpr double MinZoomFactor = 0.05;
 constexpr double MaxZoomFactor = 16.0;
@@ -102,6 +104,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupConnections();
     refreshFileList();
     updateInfoPanelForCurrentImage();
+    loadSettings();
 
     m_resizeReloadTimer.setSingleShot(true);
     m_resizeReloadTimer.setInterval(120);
@@ -110,6 +113,7 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     resize(1100, 760);
+    restoreLayoutSettings();
     updateStatus();
     updateActionState();
     updateInteractionState();
@@ -172,6 +176,12 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     updateFullscreenOverlayGeometry();
     updateFullscreenOverlayVisibility();
     scheduleFitReload();
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    saveSettings();
+    QMainWindow::closeEvent(event);
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -321,16 +331,14 @@ void MainWindow::showPreviousImage()
 void MainWindow::showFirstImage()
 {
     if (m_controller.goFirst()) {
-        syncFileListSelection();
-        loadCurrentImage();
+        reloadAfterImageSwitch();
     }
 }
 
 void MainWindow::showLastImage()
 {
     if (m_controller.goLast()) {
-        syncFileListSelection();
-        loadCurrentImage();
+        reloadAfterImageSwitch();
     }
 }
 
@@ -396,7 +404,7 @@ void MainWindow::handleImageClick(const QPoint &position)
     const double currentScale = m_currentDecoded.effectiveScale;
     const QPointF imagePoint = clampedPointToRect(QPointF(position), imageRect) - imageRect.topLeft();
     const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
-    const double newScale = std::clamp(currentScale * DefaultClickZoomMultiplier, MinZoomFactor, MaxZoomFactor);
+    const double newScale = std::clamp(currentScale * m_clickZoomMultiplier, MinZoomFactor, MaxZoomFactor);
     const QSizeF newDisplaySize(
         m_currentDecoded.image.width() * newScale / currentScale,
         m_currentDecoded.image.height() * newScale / currentScale);
@@ -540,9 +548,21 @@ void MainWindow::showQuickJumpDialog()
     }
 }
 
+void MainWindow::showSettingsDialog()
+{
+    SettingsDialog dialog(this);
+    dialog.setSettings(m_settings);
+    connect(&dialog, &SettingsDialog::settingsApplied, this, [this](const core::AppSettings &settings) {
+        applySettings(settings, true);
+        saveSettings();
+    });
+    dialog.exec();
+}
+
 void MainWindow::setupActions()
 {
     auto *fileMenu = menuBar()->addMenu(tr("&File"));
+    auto *editMenu = menuBar()->addMenu(tr("&Edit"));
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     auto *navigateMenu = menuBar()->addMenu(tr("&Navigate"));
     m_mainToolBar = addToolBar(tr("Main"));
@@ -595,6 +615,11 @@ void MainWindow::setupActions()
     m_quickJumpAction->setShortcutContext(Qt::WindowShortcut);
     connect(m_quickJumpAction, &QAction::triggered, this, &MainWindow::showQuickJumpDialog);
     navigateMenu->addAction(m_quickJumpAction);
+
+    m_preferencesAction = new QAction(tr("Preferences"), this);
+    m_preferencesAction->setShortcut(QKeySequence::Preferences);
+    connect(m_preferencesAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
+    editMenu->addAction(m_preferencesAction);
 
     m_mainToolBar->addSeparator();
 
@@ -920,6 +945,101 @@ void MainWindow::setupFullscreenOverlayPanels()
     updateFullscreenStatusText();
 }
 
+void MainWindow::loadSettings()
+{
+    QSettings settings;
+    applySettings(core::AppSettings::read(settings), false);
+}
+
+void MainWindow::saveSettings()
+{
+    captureLayoutSettings();
+    QSettings settings;
+    m_settings.write(settings);
+    settings.sync();
+}
+
+void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCurrentImage)
+{
+    const bool defaultZoomChanged = settings.viewer.defaultZoomMode != m_settings.viewer.defaultZoomMode;
+
+    m_settings = settings;
+    if (defaultZoomChanged) {
+        m_baseZoomMode = m_settings.viewer.defaultZoomMode == core::ZoomMode::ActualSize
+            ? core::ZoomMode::ActualSize
+            : core::ZoomMode::FitToWindow;
+    }
+    m_imageSwitchPolicy = m_settings.viewer.imageSwitchPolicy;
+    m_clickZoomMultiplier = m_settings.viewer.clickZoomMultiplier;
+    m_fullscreenOverlaySettings.sideTriggerRatio = m_settings.fullscreen.sideTriggerRatio;
+    m_fullscreenOverlaySettings.verticalTriggerRatio = m_settings.fullscreen.verticalTriggerRatio;
+
+    if (!m_settings.interface.rememberLayout) {
+        m_settings.interface.mainWindowGeometry.clear();
+        m_settings.interface.mainWindowState.clear();
+        m_settings.interface.fileSplitterState.clear();
+        m_settings.interface.fullscreenFileSplitterState.clear();
+    }
+
+    if (reloadCurrentImage && defaultZoomChanged && m_controller.hasCollection()) {
+        m_temporaryZoomReturnMode.reset();
+        if (m_baseZoomMode == core::ZoomMode::ActualSize) {
+            m_controller.setActualSize();
+        } else {
+            m_controller.setFitToWindow();
+        }
+        m_imageView->resetPan();
+        updateInteractionState();
+        loadCurrentImage(false);
+    }
+
+    updateFullscreenOverlayGeometry();
+    updateFullscreenOverlayVisibility();
+    updateActionState();
+}
+
+void MainWindow::captureLayoutSettings()
+{
+    if (!m_settings.interface.rememberLayout) {
+        m_settings.interface.mainWindowGeometry.clear();
+        m_settings.interface.mainWindowState.clear();
+        m_settings.interface.fileSplitterState.clear();
+        m_settings.interface.fullscreenFileSplitterState.clear();
+        return;
+    }
+
+    if (!isFullScreen()) {
+        m_settings.interface.mainWindowGeometry = saveGeometry();
+        m_settings.interface.mainWindowState = saveState();
+    }
+    if (!isFullScreen() && m_filePanelSplitter != nullptr) {
+        m_settings.interface.fileSplitterState = m_filePanelSplitter->saveState();
+    }
+    if (m_fullscreenFilePanelSplitter != nullptr) {
+        m_settings.interface.fullscreenFileSplitterState = m_fullscreenFilePanelSplitter->saveState();
+    }
+}
+
+void MainWindow::restoreLayoutSettings()
+{
+    if (!m_settings.interface.rememberLayout) {
+        return;
+    }
+
+    if (!m_settings.interface.mainWindowGeometry.isEmpty()) {
+        restoreGeometry(m_settings.interface.mainWindowGeometry);
+    }
+    if (!m_settings.interface.mainWindowState.isEmpty()) {
+        restoreState(m_settings.interface.mainWindowState);
+    }
+    if (!m_settings.interface.fileSplitterState.isEmpty() && m_filePanelSplitter != nullptr) {
+        m_filePanelSplitter->restoreState(m_settings.interface.fileSplitterState);
+    }
+    if (!m_settings.interface.fullscreenFileSplitterState.isEmpty() && m_fullscreenFilePanelSplitter != nullptr) {
+        m_fullscreenFilePanelSplitter->restoreState(m_settings.interface.fullscreenFileSplitterState);
+    }
+}
+
 void MainWindow::openFile(const QString &filePath)
 {
     clearArchivePassword();
@@ -932,10 +1052,14 @@ void MainWindow::openFile(const QString &filePath)
 
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
-    m_baseZoomMode = core::ZoomMode::FitToWindow;
+    m_baseZoomMode = m_settings.viewer.defaultZoomMode;
     m_cache->clear();
     m_controller.setCollection(single.entries, single.selectedIndex);
-    m_controller.setFitToWindow();
+    if (m_baseZoomMode == core::ZoomMode::ActualSize) {
+        m_controller.setActualSize();
+    } else {
+        m_controller.setFitToWindow();
+    }
     clearSourceTree();
     refreshFileList();
     updateInfoPanelForCurrentImage();
@@ -952,7 +1076,7 @@ void MainWindow::openFolder(const QString &folderPath)
 
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
-    m_baseZoomMode = core::ZoomMode::FitToWindow;
+    m_baseZoomMode = m_settings.viewer.defaultZoomMode;
     m_cache->clear();
     m_controller.clearCollection();
     clearSourceTree();
@@ -972,7 +1096,7 @@ void MainWindow::openArchive(const QString &archivePath)
 
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
-    m_baseZoomMode = core::ZoomMode::FitToWindow;
+    m_baseZoomMode = m_settings.viewer.defaultZoomMode;
     m_cache->clear();
     m_controller.clearCollection();
     clearSourceTree();
@@ -1358,7 +1482,7 @@ void MainWindow::applyImageSwitchViewPolicy()
 {
     m_temporaryZoomReturnMode.reset();
 
-    if (m_imageSwitchViewPolicy == ImageSwitchViewPolicy::ResetToBaseMode) {
+    if (m_imageSwitchPolicy == core::ImageSwitchPolicy::ResetToBaseMode) {
         if (m_baseZoomMode == core::ZoomMode::ActualSize) {
             m_controller.setActualSize();
         } else {
@@ -1653,6 +1777,7 @@ void MainWindow::enterFullscreenMode()
     m_preFullscreenUiState.fileDockVisible = m_fileListDock != nullptr && m_fileListDock->isVisible();
     m_preFullscreenUiState.infoDockVisible = m_infoDock != nullptr && m_infoDock->isVisible();
 
+    captureLayoutSettings();
     m_fullscreenUiActive = true;
     hideFullscreenOverlayPanels();
 
