@@ -30,7 +30,10 @@
 namespace insidious::ui {
 namespace {
 
-constexpr double DefaultClickZoomFactor = 2.0;
+constexpr double DefaultClickZoomMultiplier = 2.0;
+constexpr double ZoomStepMultiplier = 1.25;
+constexpr double MinZoomFactor = 0.05;
+constexpr double MaxZoomFactor = 16.0;
 
 QString formattedFileSize(qint64 bytes)
 {
@@ -67,7 +70,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_resizeReloadTimer.setSingleShot(true);
     m_resizeReloadTimer.setInterval(120);
-    connect(&m_resizeReloadTimer, &QTimer::timeout, this, &MainWindow::loadCurrentImage);
+    connect(&m_resizeReloadTimer, &QTimer::timeout, this, [this]() {
+        loadCurrentImage();
+    });
 
     resize(1100, 760);
     updateStatus();
@@ -155,6 +160,11 @@ void MainWindow::openFolderDialog()
 
 void MainWindow::loadCurrentImage()
 {
+    loadCurrentImage(true);
+}
+
+void MainWindow::loadCurrentImage(bool showTransientLoading)
+{
     const core::ImageEntry *entry = m_controller.currentEntry();
     if (entry == nullptr) {
         updateActionState();
@@ -185,12 +195,13 @@ void MainWindow::loadCurrentImage()
     const bool hasDisplayedImage = m_imageView->hasImage();
     m_currentDecoded = {};
     m_imageView->setImageInteractionEnabled(false);
-    if (hasDisplayedImage) {
+    if (hasDisplayedImage && showTransientLoading) {
         m_imageView->setOverlayMessage(tr("Loading image..."));
-    } else {
+        updateStatus(tr("Loading image..."));
+    } else if (!hasDisplayedImage) {
         m_imageView->setMessage(tr("Loading image..."));
+        updateStatus(tr("Loading image..."));
     }
-    updateStatus(tr("Loading image..."));
 
     if (m_decodeWatcher.isRunning()) {
         m_decodeWatcher.cancel();
@@ -246,18 +257,26 @@ void MainWindow::showLastImage()
 
 void MainWindow::zoomIn()
 {
-    m_controller.zoomIn();
-    m_imageView->resetPan();
+    if (m_currentDecoded.ok() && m_currentDecoded.effectiveScale > 0.0) {
+        m_controller.setCustomZoom(m_currentDecoded.effectiveScale * ZoomStepMultiplier);
+    } else {
+        m_controller.zoomIn();
+    }
+    m_controller.resetPan();
     updateInteractionState();
-    loadCurrentImage();
+    loadCurrentImage(false);
 }
 
 void MainWindow::zoomOut()
 {
-    m_controller.zoomOut();
-    m_imageView->resetPan();
+    if (m_currentDecoded.ok() && m_currentDecoded.effectiveScale > 0.0) {
+        m_controller.setCustomZoom(m_currentDecoded.effectiveScale / ZoomStepMultiplier);
+    } else {
+        m_controller.zoomOut();
+    }
+    m_controller.resetPan();
     updateInteractionState();
-    loadCurrentImage();
+    loadCurrentImage(false);
 }
 
 void MainWindow::setFitToWindow()
@@ -265,9 +284,8 @@ void MainWindow::setFitToWindow()
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = core::ZoomMode::FitToWindow;
     m_controller.setFitToWindow();
-    m_imageView->resetPan();
     updateInteractionState();
-    loadCurrentImage();
+    loadCurrentImage(false);
 }
 
 void MainWindow::setActualSize()
@@ -275,9 +293,8 @@ void MainWindow::setActualSize()
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = core::ZoomMode::ActualSize;
     m_controller.setActualSize();
-    m_imageView->resetPan();
     updateInteractionState();
-    loadCurrentImage();
+    loadCurrentImage(false);
 }
 
 void MainWindow::handleImageClick(const QPoint &position)
@@ -300,7 +317,7 @@ void MainWindow::handleImageClick(const QPoint &position)
     const double currentScale = m_currentDecoded.effectiveScale;
     const QPointF imagePoint = clampedPointToRect(QPointF(position), imageRect) - imageRect.topLeft();
     const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
-    const double newScale = std::clamp(DefaultClickZoomFactor, 0.05, 16.0);
+    const double newScale = std::clamp(currentScale * DefaultClickZoomMultiplier, MinZoomFactor, MaxZoomFactor);
     const QSizeF newDisplaySize(
         m_currentDecoded.image.width() * newScale / currentScale,
         m_currentDecoded.image.height() * newScale / currentScale);
@@ -313,9 +330,8 @@ void MainWindow::handleImageClick(const QPoint &position)
 
     m_controller.setCustomZoom(newScale);
     m_controller.setPanOffset(newPanOffset);
-    m_imageView->setPanOffset(newPanOffset);
     updateInteractionState();
-    loadCurrentImage();
+    loadCurrentImage(false);
 }
 
 void MainWindow::zoomToRect(const QRect &selectionRect)
@@ -336,7 +352,7 @@ void MainWindow::zoomToRect(const QRect &selectionRect)
     const double scaleMultiplier = std::min(
         static_cast<double>(m_imageView->width()) / selected.width(),
         static_cast<double>(m_imageView->height()) / selected.height());
-    const double newScale = std::clamp(currentScale * scaleMultiplier, 0.05, 16.0);
+    const double newScale = std::clamp(currentScale * scaleMultiplier, MinZoomFactor, MaxZoomFactor);
 
     const QPointF selectedCenterInImage = selected.center() - imageRect.topLeft();
     const QPointF sourceCenter(selectedCenterInImage.x() / currentScale, selectedCenterInImage.y() / currentScale);
@@ -352,9 +368,8 @@ void MainWindow::zoomToRect(const QRect &selectionRect)
 
     m_controller.setCustomZoom(newScale);
     m_controller.setPanOffset(newPanOffset);
-    m_imageView->setPanOffset(newPanOffset);
     updateInteractionState();
-    loadCurrentImage();
+    loadCurrentImage(false);
 }
 
 void MainWindow::rotateLeft()

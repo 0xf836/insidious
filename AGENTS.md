@@ -87,9 +87,9 @@ Current MVP supports only regular filesystem images and non-recursive folders. T
 Current MVP mouse behavior:
 
 - Wheel navigates previous/next image.
-- `Ctrl+wheel` zooms in/out.
+- `Ctrl+wheel` zooms in/out relative to the current displayed scale, including the current fit scale.
 - Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. Keep this behavior configurable in code as reset-vs-preserve when image-switch settings are added.
-- Simple left click enters temporary default zoom at 200%, centered on the clicked image point.
+- Simple left click enters temporary 2x zoom relative to the current displayed scale, centered on the clicked image point.
 - Simple left click while in temporary click/rectangle zoom returns to the saved base mode: fit or actual size.
 - Hold left mouse button and drag to pan the image only outside base `fit to window`.
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
@@ -102,7 +102,7 @@ Current MVP mouse behavior:
 - Guard async UI updates against stale results when the current source or decode request changes.
 - Keep cache state memory-only. Do not introduce persistent cache files, recent-file lists, or viewed-path settings.
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
-- Transient loading during navigation or zoom should preserve the currently displayed raster and use a subtle overlay. Error, empty, and scanning states may clear the image and show a full message.
+- Transient loading during image navigation should preserve the currently displayed raster and use a subtle overlay. Zoom-triggered loading should preserve the displayed raster without showing a loading label or moving the old image. Error, empty, and scanning states may clear the image and show a full message.
 - Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.
 - If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
 - The left file list panel should mirror the current collection only. Do not put source scanning, archive access, decoding, thumbnails, or persistence there.

@@ -84,6 +84,7 @@ private:
     void startFolderScan(const QString &folderPath, const QString &selectedPath);
     void applyScanResult(const ScanJobResult &job);
     void displayDecodedImage(const core::DecodedImage &decoded);
+    void loadCurrentImage(bool showTransientLoading);
     void showError(const QString &message);
     void showImageLoadError(const core::ImageEntry &entry, const QString &reason, const QString &details = {});
     void updateStatus(const QString &message = {});

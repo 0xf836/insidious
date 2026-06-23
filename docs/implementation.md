@@ -48,8 +48,9 @@ Opening one image:
 
 Transient loading display:
 
-- Cache misses during navigation or zoom keep the previous `ImageViewWidget` raster visible and show `Loading image...` as a translucent overlay.
-- While that stale raster is displayed, image-specific interactions such as pan, click zoom, and rectangle zoom are disabled; wheel navigation and fullscreen remain available.
+- Cache misses during navigation keep the previous `ImageViewWidget` raster visible and show `Loading image...` as a translucent overlay.
+- Cache misses during zoom keep the previous raster visible without showing a loading label and without moving the old raster before the new decode is ready.
+- While a stale raster is displayed, image-specific interactions such as pan, click zoom, and rectangle zoom are disabled; wheel navigation and fullscreen remain available.
 - Full messages still clear the image for initial loading, scanning, empty states, and current-entry errors.
 
 Current image failures:
@@ -84,8 +85,8 @@ Navigation:
 Mouse input:
 
 - Wheel navigates previous/next image.
-- `Ctrl+wheel` zooms in/out.
-- Simple left click calls `MainWindow::handleImageClick()`: it enters temporary 200% zoom centered on the clicked point, or restores the saved `fit`/`actual size` base mode after click/rectangle zoom.
+- `Ctrl+wheel` zooms in/out relative to the current decoded `effectiveScale`, so zooming from `FitToWindow` starts from the actual fit scale rather than from 100%.
+- Simple left click calls `MainWindow::handleImageClick()`: it enters temporary 2x zoom relative to the current decoded `effectiveScale`, centered on the clicked point, or restores the saved `fit`/`actual size` base mode after click/rectangle zoom.
 - Left-button drag pans the current raster and stores the pan offset in `ViewerController` only outside base `FitToWindow`.
 - Right-button drag draws a rectangle in `ImageViewWidget`; `MainWindow::zoomToRect()` converts that widget rectangle into a custom zoom factor and pan offset.
 - Left double click toggles fullscreen. `ImageViewWidget` delays single-click zoom emission by the system double-click interval and cancels it when a double click arrives, so fullscreen toggle does not also trigger temporary zoom.
