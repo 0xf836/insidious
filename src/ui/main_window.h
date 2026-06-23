@@ -86,8 +86,10 @@ private:
     void openFolder(const QString &folderPath);
     void openArchive(const QString &archivePath);
     void startFolderScan(const QString &folderPath, const QString &selectedPath);
-    void startArchiveScan(const QString &archivePath);
+    void startArchiveScan(const QString &archivePath, const QString &password);
     void applyScanResult(const ScanJobResult &job);
+    bool promptArchivePassword(const QString &archivePath, bool retry);
+    void clearArchivePassword();
     void displayDecodedImage(const core::DecodedImage &decoded);
     void loadCurrentImage(bool showTransientLoading);
     void showError(const QString &message);
@@ -145,6 +147,8 @@ private:
     quint64 m_decodeGeneration = 0;
     bool m_syncingFileListSelection = false;
     bool m_quickJumpDialogOpen = false;
+    QString m_currentArchivePath;
+    QString m_currentArchivePassword;
 };
 
 } // namespace insidious::ui

@@ -8,10 +8,18 @@ class QFileInfo;
 
 namespace insidious::core {
 
+enum class ScanErrorReason {
+    None,
+    Generic,
+    PasswordRequired,
+    InvalidPassword,
+};
+
 struct ScanResult {
     QVector<ImageEntry> entries;
     int selectedIndex = -1;
     QString errorMessage;
+    ScanErrorReason errorReason = ScanErrorReason::None;
 
     [[nodiscard]] bool ok() const;
 };

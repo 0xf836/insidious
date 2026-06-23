@@ -152,7 +152,10 @@ QString cacheKeyFor(const ImageEntry &entry, const DecodeRequest &request)
     return entry.identityKey() + QLatin1Char('|') + request.cacheKeySuffix();
 }
 
-DecodedImage VipsImageDecoder::decode(const ImageEntry &entry, const DecodeRequest &request) const
+DecodedImage VipsImageDecoder::decode(
+    const ImageEntry &entry,
+    const DecodeRequest &request,
+    const QString &archivePassword) const
 {
     DecodedImage result;
 
@@ -160,7 +163,7 @@ DecodedImage VipsImageDecoder::decode(const ImageEntry &entry, const DecodeReque
         QByteArray archiveEntryData;
         vips::VImage image;
         if (entry.source == ImageEntrySource::Archive) {
-            const ArchiveEntryReadResult archiveRead = readArchiveEntry(entry);
+            const ArchiveEntryReadResult archiveRead = readArchiveEntry(entry, archivePassword);
             if (!archiveRead.ok()) {
                 result.errorMessage = archiveRead.errorMessage;
                 return result;

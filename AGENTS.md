@@ -82,9 +82,9 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 ## MVP boundaries
 
-The first implementation should focus on regular filesystem images, folders, and basic unencrypted archives. RAW support, advanced metadata, configurable hotkeys, password-protected archives, and thumbnail panels are later milestones unless explicitly requested.
+The first implementation should focus on regular filesystem images, folders, and archives. RAW support, advanced metadata, configurable hotkeys, password persistence, and thumbnail panels are later milestones unless explicitly requested.
 
-Current MVP supports regular filesystem images, non-recursive folders, and unencrypted ZIP/7z/RAR archives through libarchive without disk extraction. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password-protected archives, thumbnails, advanced metadata backends, settings UI, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
+Current MVP supports regular filesystem images, non-recursive folders, and ZIP/7z/RAR archives through libarchive without disk extraction. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, settings UI, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
 
 Current MVP mouse behavior:
 

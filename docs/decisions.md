@@ -8,9 +8,9 @@
 
 ## ADR-002: Архивы добавляются отдельным ограниченным этапом
 
-Решение: базовая поддержка ZIP/7z/RAR реализуется через libarchive как отдельный этап после стабилизации viewer pipeline. Первый slice открывает обычные архивы без пароля, показывает их как collection source и не распаковывает entries на диск.
+Решение: базовая поддержка ZIP/7z/RAR реализуется через libarchive как отдельный этап после стабилизации viewer pipeline. Архивы показываются как collection source и не распаковывают entries на диск. Архивы с паролем запрашивают пароль при открытии и держат его только в памяти текущего source.
 
-Причина: archive support требует отдельной архитектуры, особенно из-за no-disk-extraction, password support, ошибок, streaming и поддержки ZIP/RAR/7Z. Libarchive даёт единый backend для этих форматов; password prompt и расширенная обработка encrypted archives остаются отдельным следующим шагом.
+Причина: archive support требует отдельной архитектуры, особенно из-за no-disk-extraction, password support, ошибок, streaming и поддержки ZIP/RAR/7Z. Libarchive даёт единый backend для этих форматов; сохранение паролей и расширенная обработка encrypted archives остаются отдельным следующим шагом.
 
 ## ADR-003: Источники изображений абстрагируются как collection source
 

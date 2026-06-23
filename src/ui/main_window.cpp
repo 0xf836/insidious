@@ -17,7 +17,9 @@
 #include <QFileInfo>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
+#include <QInputDialog>
 #include <QListView>
+#include <QLineEdit>
 #include <QLocale>
 #include <QMenuBar>
 #include <QMimeData>
@@ -218,13 +220,17 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
     }
 
     const core::ImageEntry entryCopy = *entry;
-    m_decodeWatcher.setFuture(QtConcurrent::run([entryCopy, request, generation, cacheKey]() {
+    const QString archivePassword = entryCopy.source == core::ImageEntrySource::Archive
+        && entryCopy.archivePath == m_currentArchivePath
+        ? m_currentArchivePassword
+        : QString();
+    m_decodeWatcher.setFuture(QtConcurrent::run([entryCopy, request, generation, cacheKey, archivePassword]() {
         core::VipsImageDecoder decoder;
         DecodeJobResult job;
         job.generation = generation;
         job.cacheKey = cacheKey;
         job.entry = entryCopy;
-        job.decoded = decoder.decode(entryCopy, request);
+        job.decoded = decoder.decode(entryCopy, request, archivePassword);
         return job;
     }));
 }
@@ -650,6 +656,8 @@ void MainWindow::setupInfoPanel()
 
 void MainWindow::openFile(const QString &filePath)
 {
+    clearArchivePassword();
+
     const core::ScanResult single = core::singleImageCollection(filePath);
     if (!single.ok()) {
         showError(single.errorMessage);
@@ -673,6 +681,8 @@ void MainWindow::openFile(const QString &filePath)
 
 void MainWindow::openFolder(const QString &folderPath)
 {
+    clearArchivePassword();
+
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = core::ZoomMode::FitToWindow;
@@ -688,6 +698,9 @@ void MainWindow::openFolder(const QString &folderPath)
 
 void MainWindow::openArchive(const QString &archivePath)
 {
+    clearArchivePassword();
+    m_currentArchivePath = QFileInfo(archivePath).absoluteFilePath();
+
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = core::ZoomMode::FitToWindow;
@@ -698,7 +711,7 @@ void MainWindow::openArchive(const QString &archivePath)
     m_imageView->setMessage(tr("Scanning archive..."));
     updateStatus(tr("Scanning archive..."));
     updateInteractionState();
-    startArchiveScan(archivePath);
+    startArchiveScan(m_currentArchivePath, m_currentArchivePassword);
 }
 
 void MainWindow::startFolderScan(const QString &folderPath, const QString &selectedPath)
@@ -717,18 +730,18 @@ void MainWindow::startFolderScan(const QString &folderPath, const QString &selec
     }));
 }
 
-void MainWindow::startArchiveScan(const QString &archivePath)
+void MainWindow::startArchiveScan(const QString &archivePath, const QString &password)
 {
     const quint64 generation = m_sourceGeneration;
     if (m_scanWatcher.isRunning()) {
         m_scanWatcher.cancel();
     }
 
-    m_scanWatcher.setFuture(QtConcurrent::run([archivePath, generation]() {
+    m_scanWatcher.setFuture(QtConcurrent::run([archivePath, password, generation]() {
         ScanJobResult job;
         job.generation = generation;
         job.selectedPath = archivePath;
-        job.result = core::scanArchive(archivePath);
+        job.result = core::scanArchive(archivePath, password);
         return job;
     }));
 }
@@ -740,6 +753,22 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
     }
 
     if (!job.result.ok()) {
+        if ((job.result.errorReason == core::ScanErrorReason::PasswordRequired
+                || job.result.errorReason == core::ScanErrorReason::InvalidPassword)
+            && core::isSupportedArchiveFile(QFileInfo(job.selectedPath))) {
+            const bool retry = job.result.errorReason == core::ScanErrorReason::InvalidPassword;
+            if (promptArchivePassword(job.selectedPath, retry)) {
+                m_infoPanel->showMessage(tr("Scanning archive..."));
+                m_imageView->setMessage(tr("Scanning archive..."));
+                updateStatus(tr("Scanning archive..."));
+                startArchiveScan(job.selectedPath, m_currentArchivePassword);
+            } else {
+                clearArchivePassword();
+                showError(tr("Archive password is required."));
+            }
+            return;
+        }
+
         if (!m_controller.hasCollection()) {
             showError(job.result.errorMessage);
         }
@@ -757,6 +786,37 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
         updateStatus();
         updateActionState();
     }
+}
+
+bool MainWindow::promptArchivePassword(const QString &archivePath, bool retry)
+{
+    bool ok = false;
+    const QFileInfo archiveInfo(archivePath);
+    const QString label = retry
+        ? tr("The password was not accepted for %1. Enter the archive password:").arg(archiveInfo.fileName())
+        : tr("Enter the password for %1:").arg(archiveInfo.fileName());
+    const QString password = QInputDialog::getText(
+        this,
+        tr("Archive Password"),
+        label,
+        QLineEdit::Password,
+        QString(),
+        &ok,
+        Qt::Dialog);
+
+    if (!ok) {
+        return false;
+    }
+
+    m_currentArchivePath = QFileInfo(archivePath).absoluteFilePath();
+    m_currentArchivePassword = password;
+    return true;
+}
+
+void MainWindow::clearArchivePassword()
+{
+    m_currentArchivePath.clear();
+    m_currentArchivePassword.clear();
 }
 
 void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
@@ -890,6 +950,8 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
     const QVector<core::ImageEntry> entries = m_controller.entries();
     const int currentIndex = m_controller.currentIndex();
     const auto cache = m_cache;
+    const QString currentArchivePath = m_currentArchivePath;
+    const QString currentArchivePassword = m_currentArchivePassword;
 
     for (int index : { currentIndex - 1, currentIndex + 1 }) {
         if (index < 0 || index >= entries.size()) {
@@ -902,9 +964,13 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
             continue;
         }
 
-        auto future = QtConcurrent::run([cache, entry, request, key]() {
+        const QString archivePassword = entry.source == core::ImageEntrySource::Archive
+            && entry.archivePath == currentArchivePath
+            ? currentArchivePassword
+            : QString();
+        auto future = QtConcurrent::run([cache, entry, request, key, archivePassword]() {
             core::VipsImageDecoder decoder;
-            const core::DecodedImage decoded = decoder.decode(entry, request);
+            const core::DecodedImage decoded = decoder.decode(entry, request, archivePassword);
             if (decoded.ok()) {
                 cache->insert(key, decoded);
             }

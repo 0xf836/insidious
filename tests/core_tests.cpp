@@ -10,7 +10,10 @@
 #include <QDir>
 #include <QBuffer>
 #include <QColor>
+#include <QFileInfo>
 #include <QImage>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -32,6 +35,7 @@ private slots:
     void entryLoadValidationReportsMissingAndDirectory();
     void folderScanIsNonRecursiveAndSorted();
     void archiveScanFiltersImagesAndSorts();
+    void archivePasswordIsRequiredAndAccepted();
     void viewerNavigationStopsAtBounds();
     void memoryCacheEvictsByBudget();
     void decoderLoadsTemporaryPng();
@@ -87,6 +91,34 @@ bool writeZipArchive(const QString &path, const QVector<QPair<QString, QByteArra
     archive_write_close(writer);
     archive_write_free(writer);
     return true;
+}
+
+bool writeEncryptedZipArchive(const QString &archivePath, const QString &entryName, const QByteArray &data, const QString &password)
+{
+    const QString zip = QStandardPaths::findExecutable(QStringLiteral("zip"));
+    if (zip.isEmpty()) {
+        return false;
+    }
+
+    const QFileInfo archiveInfo(archivePath);
+    QDir dir(archiveInfo.absolutePath());
+    const QString sourcePath = dir.filePath(entryName);
+    QFile source(sourcePath);
+    if (!source.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    source.write(data);
+    source.close();
+
+    const QStringList arguments = {
+        QStringLiteral("-q"),
+        QStringLiteral("-j"),
+        QStringLiteral("-P"),
+        password,
+        archivePath,
+        sourcePath,
+    };
+    return QProcess::execute(zip, arguments) == 0;
 }
 
 } // namespace
@@ -211,6 +243,43 @@ void CoreTests::archiveScanFiltersImagesAndSorts()
     QCOMPARE(result.entries.at(0).displayName, QStringLiteral("images/2.png"));
     QCOMPARE(result.entries.at(1).displayName, QStringLiteral("images/10.png"));
     QCOMPARE(result.entries.at(0).source, ImageEntrySource::Archive);
+}
+
+void CoreTests::archivePasswordIsRequiredAndAccepted()
+{
+    if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+        QSKIP("zip command is not available");
+    }
+
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("secret.zip"));
+    QVERIFY(writeEncryptedZipArchive(path, QStringLiteral("secret.png"), pngBytes(QSize(10, 5), Qt::blue), QStringLiteral("secret")));
+
+    const ScanResult withoutPassword = scanArchive(path);
+    QVERIFY(!withoutPassword.ok());
+    QCOMPARE(withoutPassword.errorReason, ScanErrorReason::PasswordRequired);
+
+    const ScanResult wrongPassword = scanArchive(path, QStringLiteral("wrong"));
+    QVERIFY(!wrongPassword.ok());
+    QCOMPARE(wrongPassword.errorReason, ScanErrorReason::InvalidPassword);
+
+    const ScanResult correctPassword = scanArchive(path, QStringLiteral("secret"));
+    QVERIFY2(correctPassword.ok(), qPrintable(correctPassword.errorMessage));
+    QCOMPARE(correctPassword.entries.size(), 1);
+
+    const ArchiveEntryReadResult wrongRead = readArchiveEntry(correctPassword.entries.first(), QStringLiteral("wrong"));
+    QVERIFY(!wrongRead.ok());
+    QCOMPARE(wrongRead.errorReason, ArchiveEntryReadErrorReason::InvalidPassword);
+
+    DecodeRequest request;
+    request.viewportSize = QSize(5, 5);
+    request.fitToWindow = true;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(correctPassword.entries.first(), request, QStringLiteral("secret"));
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.sourceSize, QSize(10, 5));
 }
 
 void CoreTests::viewerNavigationStopsAtBounds()

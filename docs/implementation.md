@@ -75,8 +75,9 @@ Opening an archive:
 2. `openArchive()` clears the current collection and starts async `scanArchive()`.
 3. `scanArchive()` uses libarchive to list regular archive entries, filters supported image extensions, and sorts virtual paths naturally.
 4. Archive-backed `ImageEntry` values keep both the archive path and internal entry path; the left file list and quick jump treat them as the current collection.
-5. During decode, `VipsImageDecoder` reads the selected archive entry into a bounded `QByteArray` and passes it to `vips::VImage::new_from_buffer()`.
-6. Password-protected/encrypted archives are not prompted for yet; libarchive read failures are surfaced as normal current-entry/archive errors.
+5. If libarchive reports that a password is required or invalid, `MainWindow` prompts the user and retries the scan until the password works or the user cancels.
+6. The current archive password is stored only in `MainWindow` memory for the active archive source and is passed by value to archive scan/decode jobs; it is never written to `ImageEntry`, cache keys, docs, logs, settings, or UI labels.
+7. During decode, `VipsImageDecoder` reads the selected archive entry into a bounded `QByteArray` with the current archive password and passes it to `vips::VImage::new_from_buffer()`.
 
 Left file list:
 
@@ -136,13 +137,13 @@ The MVP intentionally avoids:
 - Persistent decoded image caches.
 - File logs in normal usage.
 - Archive extraction.
-- Archive passwords.
+- Archive password persistence.
 
 File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit desktop recent-file integration until there is an explicit decision to change this.
 
 ## Out of scope for current MVP
 
-- Archive passwords.
+- Archive password persistence.
 - Recursive folders.
 - Multiple selected files as a temporary collection.
 - GIF animation.
