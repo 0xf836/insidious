@@ -45,6 +45,7 @@ private slots:
     void memoryCacheEvictsByBudget();
     void decoderLoadsTemporaryPng();
     void decoderLoadsPngFromArchive();
+    void decoderReportsRenderTooLargeReason();
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
     void appSettingsRoundTripsThroughQSettings();
@@ -465,6 +466,30 @@ void CoreTests::decoderLoadsPngFromArchive()
     QVERIFY(decoded.displaySize.height() <= 6);
 }
 
+void CoreTests::decoderReportsRenderTooLargeReason()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(16, 8, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(8, 8);
+    request.fitToWindow = false;
+    request.scaleFactor = 100.0;
+    request.maxDecodedBytes = 1024;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY(!decoded.ok());
+    QVERIFY(!decoded.errorMessage.isEmpty());
+    QCOMPARE(decoded.errorReason, DecodeErrorReason::RenderTooLarge);
+}
+
 void CoreTests::decoderRejectsBrokenSupportedFile()
 {
     QTemporaryDir tempDir;
@@ -485,6 +510,7 @@ void CoreTests::decoderRejectsBrokenSupportedFile()
     const DecodedImage decoded = decoder.decode(entry, request);
     QVERIFY(!decoded.ok());
     QVERIFY(!decoded.errorMessage.isEmpty());
+    QCOMPARE(decoded.errorReason, DecodeErrorReason::Other);
 }
 
 void CoreTests::archiveScanRejectsBrokenArchive()

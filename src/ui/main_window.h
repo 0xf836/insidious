@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QPoint>
+#include <QPointF>
 #include <QPointer>
 #include <QRect>
 #include <QTimer>
@@ -103,6 +104,18 @@ private:
         bool infoDockVisible = false;
     };
 
+    struct ViewRenderState {
+        core::ZoomMode zoomMode = core::ZoomMode::FitToWindow;
+        double zoomFactor = 1.0;
+        QPointF panOffset;
+        core::DecodedImage decoded;
+    };
+
+    struct PendingZoomRenderFallback {
+        quint64 generation = 0;
+        ViewRenderState state;
+    };
+
     void setupActions();
     void setupConnections();
     void setupFileListPanel();
@@ -125,6 +138,10 @@ private:
     void clearArchivePassword();
     void displayDecodedImage(const core::DecodedImage &decoded);
     void loadCurrentImage(bool showTransientLoading);
+    void loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback);
+    [[nodiscard]] ViewRenderState captureViewRenderState() const;
+    void restoreViewRenderState(const ViewRenderState &state, const QString &overlayMessage);
+    [[nodiscard]] bool handleZoomRenderError(const DecodeJobResult &job);
     void showError(const QString &message);
     void showImageLoadError(const core::ImageEntry &entry, const QString &reason, const QString &details = {});
     void updateStatus(const QString &message = {});
@@ -136,6 +153,7 @@ private:
     void reloadAfterImageSwitch();
     void applyImageSwitchViewPolicy();
     void applyWheelAction(core::WheelAction action, int angleDeltaY, QPoint position);
+    void applyCustomZoomWithFallback(double zoomFactor, QPointF panOffset);
     void zoomByMultiplier(double multiplier, QPointF anchorPosition);
     void zoomInAt(QPointF anchorPosition);
     void zoomOutAt(QPointF anchorPosition);
@@ -215,6 +233,8 @@ private:
     QTimer m_resizeReloadTimer;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
+    std::optional<PendingZoomRenderFallback> m_pendingZoomRenderFallback;
+    bool m_imageRenderPending = false;
     bool m_syncingFileListSelection = false;
     bool m_syncingFolderTreeSelection = false;
     bool m_quickJumpDialogOpen = false;

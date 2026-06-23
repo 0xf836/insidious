@@ -166,6 +166,7 @@ DecodedImage VipsImageDecoder::decode(
             const ArchiveEntryReadResult archiveRead = readArchiveEntry(entry, archivePassword);
             if (!archiveRead.ok()) {
                 result.errorMessage = archiveRead.errorMessage;
+                result.errorReason = DecodeErrorReason::Other;
                 return result;
             }
             archiveEntryData = archiveRead.data;
@@ -195,6 +196,7 @@ DecodedImage VipsImageDecoder::decode(
 
         if (wouldExceedBudget(image.width(), image.height(), image.bands(), scale, request.maxDecodedBytes)) {
             result.errorMessage = QObject::tr("Image is too large to render at the requested scale.");
+            result.errorReason = DecodeErrorReason::RenderTooLarge;
             return result;
         }
 
@@ -210,6 +212,7 @@ DecodedImage VipsImageDecoder::decode(
         const int bands = image.bands();
         if (bands != 3 && bands != 4) {
             result.errorMessage = QObject::tr("Decoded image has an unsupported channel layout.");
+            result.errorReason = DecodeErrorReason::Other;
             return result;
         }
 
@@ -225,8 +228,10 @@ DecodedImage VipsImageDecoder::decode(
         result.effectiveScale = scale;
     } catch (const vips::VError &error) {
         result.errorMessage = vipsErrorMessage(error.what());
+        result.errorReason = DecodeErrorReason::Other;
     } catch (const std::exception &error) {
         result.errorMessage = QString::fromUtf8(error.what());
+        result.errorReason = DecodeErrorReason::Other;
     }
 
     return result;

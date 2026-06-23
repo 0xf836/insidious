@@ -31,6 +31,12 @@ struct ImageMetadataField {
     QString value;
 };
 
+enum class DecodeErrorReason {
+    None,
+    RenderTooLarge,
+    Other,
+};
+
 struct DecodedImage {
     QImage image;
     QSize sourceSize;
@@ -38,6 +44,7 @@ struct DecodedImage {
     QVector<ImageMetadataField> metadataFields;
     double effectiveScale = 1.0;
     QString errorMessage;
+    DecodeErrorReason errorReason = DecodeErrorReason::None;
 
     [[nodiscard]] bool ok() const { return errorMessage.isEmpty() && !image.isNull(); }
 };

@@ -224,8 +224,15 @@ void MainWindow::loadCurrentImage()
 
 void MainWindow::loadCurrentImage(bool showTransientLoading)
 {
+    loadCurrentImage(showTransientLoading, std::nullopt);
+}
+
+void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback)
+{
     const core::ImageEntry *entry = m_controller.currentEntry();
     if (entry == nullptr) {
+        m_imageRenderPending = false;
+        m_pendingZoomRenderFallback.reset();
         updateActionState();
         updateInfoPanelForCurrentImage();
         return;
@@ -234,6 +241,8 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
     const core::EntryValidationResult validation = core::validateImageEntryLoadable(*entry);
     if (!validation.ok()) {
         ++m_decodeGeneration;
+        m_imageRenderPending = false;
+        m_pendingZoomRenderFallback.reset();
         if (m_decodeWatcher.isRunning()) {
             m_decodeWatcher.cancel();
         }
@@ -246,23 +255,36 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
 
     core::DecodedImage cached;
     if (m_cache->tryGet(cacheKey, &cached)) {
+        m_imageRenderPending = false;
+        m_pendingZoomRenderFallback.reset();
         displayDecodedImage(cached);
         prefetchNeighbors(request);
         return;
     }
 
     const quint64 generation = ++m_decodeGeneration;
+    if (zoomFallback.has_value()) {
+        m_pendingZoomRenderFallback = PendingZoomRenderFallback { generation, *zoomFallback };
+    } else {
+        m_pendingZoomRenderFallback.reset();
+    }
     const bool hasDisplayedImage = m_imageView->hasImage();
-    m_currentDecoded = {};
+    if (!zoomFallback.has_value()) {
+        m_currentDecoded = {};
+    }
+    m_imageRenderPending = true;
     updateInfoPanelForCurrentImage(tr("Loading..."));
     m_imageView->setImageInteractionEnabled(false);
     if (hasDisplayedImage && showTransientLoading) {
         m_imageView->setOverlayMessage(tr("Loading image..."));
         updateStatus(tr("Loading image..."));
+    } else if (hasDisplayedImage) {
+        m_imageView->setOverlayMessage(QString());
     } else if (!hasDisplayedImage) {
         m_imageView->setMessage(tr("Loading image..."));
         updateStatus(tr("Loading image..."));
     }
+    updateActionState();
 
     if (m_decodeWatcher.isRunning()) {
         m_decodeWatcher.cancel();
@@ -368,7 +390,10 @@ void MainWindow::setActualSize()
 
 void MainWindow::handleImageClick(const QPoint &position)
 {
-    if (!m_controller.hasCollection() || !m_currentDecoded.ok() || m_currentDecoded.effectiveScale <= 0.0) {
+    if (m_imageRenderPending
+        || !m_controller.hasCollection()
+        || !m_currentDecoded.ok()
+        || m_currentDecoded.effectiveScale <= 0.0) {
         return;
     }
 
@@ -397,15 +422,15 @@ void MainWindow::handleImageClick(const QPoint &position)
     const QPointF pointAtNewScale(sourcePoint.x() * newScale, sourcePoint.y() * newScale);
     const QPointF newPanOffset = viewportCenter - centeredTopLeft - pointAtNewScale;
 
-    m_controller.setCustomZoom(newScale);
-    m_controller.setPanOffset(newPanOffset);
-    updateInteractionState();
-    loadCurrentImage(false);
+    applyCustomZoomWithFallback(newScale, newPanOffset);
 }
 
 void MainWindow::zoomToRect(const QRect &selectionRect)
 {
-    if (!m_controller.hasCollection() || !m_currentDecoded.ok() || m_currentDecoded.effectiveScale <= 0.0) {
+    if (m_imageRenderPending
+        || !m_controller.hasCollection()
+        || !m_currentDecoded.ok()
+        || m_currentDecoded.effectiveScale <= 0.0) {
         return;
     }
 
@@ -435,10 +460,7 @@ void MainWindow::zoomToRect(const QRect &selectionRect)
     const QPointF selectedCenterAtNewScale(sourceCenter.x() * newScale, sourceCenter.y() * newScale);
     const QPointF newPanOffset = viewportCenter - centeredTopLeft - selectedCenterAtNewScale;
 
-    m_controller.setCustomZoom(newScale);
-    m_controller.setPanOffset(newPanOffset);
-    updateInteractionState();
-    loadCurrentImage(false);
+    applyCustomZoomWithFallback(newScale, newPanOffset);
 }
 
 void MainWindow::rotateLeft()
@@ -696,12 +718,22 @@ void MainWindow::setupConnections()
     connect(&m_decodeWatcher, &QFutureWatcher<DecodeJobResult>::finished, this, [this]() {
         const DecodeJobResult job = m_decodeWatcher.result();
         if (job.generation != m_decodeGeneration) {
+            if (m_pendingZoomRenderFallback.has_value()
+                && m_pendingZoomRenderFallback->generation == job.generation) {
+                m_pendingZoomRenderFallback.reset();
+            }
             return;
         }
+        m_imageRenderPending = false;
         if (!job.decoded.ok()) {
+            if (handleZoomRenderError(job)) {
+                return;
+            }
+            m_pendingZoomRenderFallback.reset();
             showImageLoadError(job.entry, tr("Could not decode image."), job.decoded.errorMessage);
             return;
         }
+        m_pendingZoomRenderFallback.reset();
         m_cache->insert(job.cacheKey, job.decoded);
         displayDecodedImage(job.decoded);
         prefetchNeighbors(currentDecodeRequest());
@@ -1281,6 +1313,7 @@ void MainWindow::clearArchivePassword()
 
 void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
 {
+    m_imageRenderPending = false;
     m_currentDecoded = decoded;
     m_imageView->setImageInteractionEnabled(true);
     m_imageView->setImage(decoded.image);
@@ -1291,8 +1324,59 @@ void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
     updateInteractionState();
 }
 
+MainWindow::ViewRenderState MainWindow::captureViewRenderState() const
+{
+    return ViewRenderState {
+        m_controller.zoomMode(),
+        m_controller.zoomFactor(),
+        m_controller.panOffset(),
+        m_currentDecoded,
+    };
+}
+
+void MainWindow::restoreViewRenderState(const ViewRenderState &state, const QString &overlayMessage)
+{
+    switch (state.zoomMode) {
+    case core::ZoomMode::FitToWindow:
+        m_controller.setFitToWindow();
+        break;
+    case core::ZoomMode::ActualSize:
+        m_controller.setActualSize();
+        break;
+    case core::ZoomMode::Custom:
+        m_controller.setCustomZoom(state.zoomFactor);
+        break;
+    }
+
+    m_controller.setPanOffset(state.panOffset);
+    m_currentDecoded = state.decoded;
+    m_imageView->setImageInteractionEnabled(true);
+    m_imageView->setImage(m_currentDecoded.image);
+    m_imageView->setPanOffset(m_controller.panOffset());
+    m_imageView->setOverlayMessage(overlayMessage);
+    updateInfoPanelForCurrentImage();
+    updateStatus(overlayMessage);
+    updateActionState();
+    updateInteractionState();
+}
+
+bool MainWindow::handleZoomRenderError(const DecodeJobResult &job)
+{
+    if (job.decoded.errorReason != core::DecodeErrorReason::RenderTooLarge
+        || !m_pendingZoomRenderFallback.has_value()
+        || m_pendingZoomRenderFallback->generation != job.generation
+        || !m_pendingZoomRenderFallback->state.decoded.ok()) {
+        return false;
+    }
+
+    restoreViewRenderState(m_pendingZoomRenderFallback->state, tr("Too large to render"));
+    m_pendingZoomRenderFallback.reset();
+    return true;
+}
+
 void MainWindow::showError(const QString &message)
 {
+    m_imageRenderPending = false;
     m_currentDecoded = {};
     const QString fallback = message.isEmpty() ? tr("Operation failed.") : message;
     m_imageView->setMessage(fallback);
@@ -1372,18 +1456,19 @@ void MainWindow::updateActionState()
     const bool hasNextInFolder = hasImage && m_controller.currentIndex() + 1 < m_controller.count();
     const bool hasPrevious = hasPreviousInFolder || hasAdjacentFolder(false);
     const bool hasNext = hasNextInFolder || hasAdjacentFolder(true);
+    const bool canChangeView = hasImage && !m_imageRenderPending;
 
     m_previousAction->setEnabled(hasPrevious || hasImage);
     m_nextAction->setEnabled(hasNext || hasImage);
     m_firstAction->setEnabled(hasPreviousInFolder);
     m_lastAction->setEnabled(hasNextInFolder);
     m_quickJumpAction->setEnabled(hasImage);
-    m_zoomInAction->setEnabled(hasImage);
-    m_zoomOutAction->setEnabled(hasImage);
-    m_fitAction->setEnabled(hasImage);
-    m_actualSizeAction->setEnabled(hasImage);
-    m_rotateLeftAction->setEnabled(hasImage);
-    m_rotateRightAction->setEnabled(hasImage);
+    m_zoomInAction->setEnabled(canChangeView);
+    m_zoomOutAction->setEnabled(canChangeView);
+    m_fitAction->setEnabled(canChangeView);
+    m_actualSizeAction->setEnabled(canChangeView);
+    m_rotateLeftAction->setEnabled(canChangeView);
+    m_rotateRightAction->setEnabled(canChangeView);
     m_fullscreenAction->setEnabled(hasImage);
 }
 
@@ -1498,6 +1583,9 @@ void MainWindow::applyWheelAction(core::WheelAction action, int angleDeltaY, QPo
         }
         break;
     case core::WheelAction::Zoom:
+        if (m_imageRenderPending) {
+            break;
+        }
         if (angleDeltaY > 0) {
             zoomInAt(position);
         } else {
@@ -1509,9 +1597,18 @@ void MainWindow::applyWheelAction(core::WheelAction action, int angleDeltaY, QPo
     }
 }
 
+void MainWindow::applyCustomZoomWithFallback(double zoomFactor, QPointF panOffset)
+{
+    const ViewRenderState fallback = captureViewRenderState();
+    m_controller.setCustomZoom(zoomFactor);
+    m_controller.setPanOffset(panOffset);
+    updateInteractionState();
+    loadCurrentImage(false, fallback);
+}
+
 void MainWindow::zoomByMultiplier(double multiplier, QPointF anchorPosition)
 {
-    if (!m_controller.hasCollection()) {
+    if (m_imageRenderPending || !m_controller.hasCollection()) {
         return;
     }
 
@@ -1553,10 +1650,7 @@ void MainWindow::zoomByMultiplier(double multiplier, QPointF anchorPosition)
     const QPointF pointAtNewScale(sourcePoint.x() * newScale, sourcePoint.y() * newScale);
     const QPointF newPanOffset = anchor - centeredTopLeft - pointAtNewScale;
 
-    m_controller.setCustomZoom(newScale);
-    m_controller.setPanOffset(newPanOffset);
-    updateInteractionState();
-    loadCurrentImage(false);
+    applyCustomZoomWithFallback(newScale, newPanOffset);
 }
 
 void MainWindow::zoomInAt(QPointF anchorPosition)

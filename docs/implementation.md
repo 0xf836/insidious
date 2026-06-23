@@ -36,7 +36,7 @@ The build creates:
 - `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and reads selected archive members into memory without extracting them to disk.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
 - `src/core/app_settings.*` defines persistent settings defaults, enum/string conversion, validation/clamping, category reset behavior, and `QSettings` read/write.
-- `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions and metadata fields.
+- `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, metadata fields, and machine-readable decode error reasons.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
@@ -56,8 +56,9 @@ Opening one image:
 Transient loading display:
 
 - Cache misses during navigation keep the previous `ImageViewWidget` raster visible and show `Loading image...` as a translucent overlay.
-- Cache misses during zoom keep the previous raster visible without showing a loading label and without moving the old raster before the new decode is ready.
-- While a stale raster is displayed, image-specific interactions such as pan, click zoom, and rectangle zoom are disabled; wheel navigation and fullscreen remain available.
+- Cache misses during zoom keep the previous raster and decoded state visible without showing a loading label and without moving the old raster before the new decode is ready.
+- While a stale raster is displayed, image-specific interactions such as pan, click zoom, rectangle zoom, wheel zoom, toolbar zoom, fit/actual size, and rotate are disabled; image navigation and fullscreen remain available.
+- If a zoom-triggered decode exceeds the render budget, `VipsImageDecoder` reports `DecodeErrorReason::RenderTooLarge`; `MainWindow` restores the previous zoom/pan/raster and shows a compact `Too large to render` overlay instead of replacing the image with a full error message.
 - Full messages still clear the image for initial loading, scanning, empty states, and current-entry errors.
 
 Current image failures:
