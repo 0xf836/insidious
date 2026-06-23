@@ -1,112 +1,81 @@
 # Roadmap
 
-## Phase 0 — Specification and skeleton
+Roadmap — живой backlog реализации, а не обещание релиза. Держим его отсортированным по текущей продуктовой ценности и зависимостям. Если фича переезжает между разделами, нужно обновить `README.md`, `AGENTS.md`, `docs/mvp.md` и `docs/implementation.md`, если они описывают затронутое текущее состояние.
 
-- Разложить спецификацию по `docs/`.
-- Создать `AGENTS.md` и `PLANS.md`.
-- Выбрать стек.
-- Создать минимальный проект.
-- Запустить пустое окно.
+## Готово / MVP foundation
 
-## Phase 1 — Basic file viewer
+- Документация проекта, build skeleton, C++20 / Qt6 Widgets приложение.
+- Базовый viewer: открыть изображение, открыть папку, использовать родительскую папку как контекст при открытии одного файла.
+- Viewer controls: `fit to window`, `actual size`, zoom in/out, pan, view-only rotate left/right, fullscreen.
+- Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
+- Async decode pipeline через libvips: display-sized rasters, stale-result guards, neighbor prefetch, memory-only decoded image cache.
+- Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
+- Source tree `Files`: дерево папок/архива над списком изображений активной папки, lazy filesystem folder loading, cross-folder next/previous.
+- Архивы: ZIP/7z/RAR через libarchive, password prompt, без распаковки на диск, пароль только в памяти.
+- `Info` panel с компактной информацией об entry и полезными EXIF-полями из libvips metadata.
+- Quick Jump по имени файла в активной папке, включая fullscreen in-window overlay.
+- True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.
+- Basic Preferences dialog: viewer defaults, image-switch policy, wheel actions, zoom step, click zoom multiplier, fullscreen trigger zones, layout persistence.
 
-- Открытие одного изображения.
-- Отображение в главном окне.
-- `fit to window`.
-- `actual size`.
-- Zoom in/out.
-- Pan увеличенного изображения.
-- Базовая статусная строка.
+## Ближайшее / small stabilization
 
-## Phase 2 — Folder context and navigation
+- Zoom UX polish:
+  - У основного зума (по лкм) сделать две вариации: 1. zoom-in и возврат. 2. при зажатой лкм изображение зуммируется и ведется вслед за курсором, после отжатия возврат к исходному состоянию. Добавить выбор в настройки.
+  - zoom от wheel/buttons вокруг курсора или релевантной точки viewport, где это применимо, а не всегда вокруг центра изображения;
+  - проверить maximum zoom limits и сообщения об ошибках;
+  - показывать magnifier cursor только когда click-zoom доступен.
+- Settings polish:
+  - добавить on/off для EXIF autorotate;
+  - добавить default sort mode после появления sort-by-date;
+  - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
+- Status/fullscreen presentation settings:
+  - настройка состава statusbar/fullscreen info line;
+  - компактное и локализуемое форматирование.
+  - сделать опциональный нескрываемый fullscreen info line в области вывода изображения
+- Quick Jump fullscreen polish:
+  - сделать fullscreen search dialog компактнее;
+  - когда focus в поле поиска, Up/Down должны двигать выделение в result list.
+- Clipboard:
+  - copy current rendered image to clipboard;
+  - отдельно решить, нужна ли команда copy original bytes.
+- Rotate:
+  - добавить возможность поворота изображения кнопками по/против часовой стрелки на 90 градусов
 
-- Открытие папки.
-- Если открыт файл — родительская папка становится контекстом.
-- Natural sort по имени.
-- Next/previous.
-- First/last.
-- Номер текущего изображения и общее количество.
-- Обработка пустой папки.
 
-## Phase 3 — Input and fullscreen
+## Среднесрочные features
 
-- Keyboard shortcuts.
-- Mouse wheel navigation.
-- Ctrl+wheel zoom behavior.
-- Left-click default zoom / restore behavior.
-- Left-button pan mode.
-- Right-button rectangle zoom.
-- Fullscreen.
-- Drag'n'drop файла и папки.
+- Sorting:
+  - sort by modification date для filesystem sources;
+  - fallback для архивов, когда надёжная дата entry недоступна.
+- Thumbnail panel, optional:
+  - lazy async generation;
+  - memory-only thumbnail cache;
+  - отмена thumbnail work при смене panel/source.
+- Performance and memory audit:
+  - проверить cache eviction на очень больших изображениях;
+  - проверить lazy-load behavior на больших filesystem trees и больших архивах;
+  - держать long-running work вне UI thread.
+- Source completeness:
+  - поддержать несколько выбранных файлов и multi-file drag'n'drop как временную коллекцию;
+  - сохранить совместимость этого source type с текущими viewer/source-tree concepts.
 
-## Phase 4 — Robustness and performance
+## Позже / larger milestones
 
-- Image loading outside UI thread.
-- Memory cache current/previous/next.
-- Prefetch соседних изображений.
-- Обработка corrupted/unsupported files без сброса коллекции.
-- Поведение при удалении файла во время просмотра без сброса коллекции.
-- Проверка больших папок.
-
-## Phase 5 — Metadata and side panels
-
-- Базовая информация об изображении.
-- EXIF reader.
-- Правая панель информации.
-- Левая панель списка файлов.
-- Быстрый переход по имени файла.
-
-## Phase 6 — Thumbnails (not neccesary)
-
-- Панель миниатюр.
-- Lazy thumbnail generation.
-- Memory-only thumbnail cache.
-- Отмена генерации thumbnails при закрытии панели.
-
-## Phase 7 — Archives
-
-- Basic ZIP/7z/RAR archive collections through libarchive.
-- Password prompt.
-- Archive as collection source.
-- No disk extraction.
-- Error handling for corrupted/encrypted archives.
-
-## Phase 8 — Advanced formats and rendering
-
-- AVIF.
-- JPEG XL.
-- RAW.
-- ICC/color profile handling.
-- Rendering quality settings.
-- Scaling filters / antialiasing settings.
-
-## Phase 9 — Settings and polish
-
-- Basic settings dialog for viewer defaults, fullscreen trigger zones, image-switch policy and layout persistence. Done.
-- Hotkey customization.
-- Fullscreen info line customization.
-- Statusbar customization.
-- Default sort mode.
-- Advanced rendering and status presentation settings.
-- Packaging for Linux.
-
-## Phase 10 - Fixes
-- Сделать модальное окно поиска в fullscreen меньше
-- В модальном окне поиска в fullscreen-режиме при фокусе ввода текста кнопки вверх-вниз должны изменять выбранное в результатах поиска
-- zoom на ctrl+wheel на курсор, а не на центр изображения
-
-## Phase 11 - Some features
-- Добавить возможность поворота изображения кнопками по/против часовой стрелки на 90 градусов
-- Включить/отключить автоповорот по EXIF в настройках
-- Копировать изображение буфер обмена
-
-## Phase 12 - Zoom features
-- У основного зума (по лкм) сделать две вариации: 1. zoom-in и возврат. 2. при зажатой лкм изображение зуммируется и ведется вслед за курсором, после отжатия возврат к исходному состоянию. Добавить выбор в настройки.
-- Проверить условия максимального зума, вероятно, можно сделать сильнее.
-- Сделать курсор в виде лупы на соответствущие условия
-
-# Phase 12 - Optimization
-- Почекать корректность выделения и очистки памяти
-- Почекать lazy-load, оптимизировать, если есть необходимость
-
-# Phase 13 - Improvements, refactoring
+- Advanced rendering:
+  - ICC/color management;
+  - configurable scaling/filter quality;
+  - HiDPI correctness audit.
+- Advanced formats:
+  - AVIF;
+  - JPEG XL;
+  - TIFF, если libvips support надёжен в target environments;
+  - RAW как отдельный research-heavy milestone.
+- Configurable hotkeys:
+  - shortcut editor;
+  - conflict detection;
+  - restore defaults.
+- Packaging:
+  - документировать runtime dependencies по дистрибутивам;
+  - подготовить Linux packaging path после стабилизации viewer behavior.
+- UI:
+  - Переделать кнопки

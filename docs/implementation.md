@@ -39,7 +39,7 @@ The build creates:
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions and metadata fields.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
-- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
+- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
 ## Data flow
 
@@ -193,4 +193,5 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - Keep source scanning, sorting, cache, and decode behavior testable without constructing UI widgets.
 - Add or update `tests/core_tests.cpp` for non-trivial core behavior.
 - Update `docs/decisions.md` when changing stack, privacy behavior, cache policy, source abstraction, or MVP boundaries.
+- Update `docs/roadmap.md` when completing a backlog item, reprioritizing work, or adding/removing a milestone.
 - Run `cmake --build build` and `ctest --test-dir build --output-on-failure` after code changes when dependencies are available.

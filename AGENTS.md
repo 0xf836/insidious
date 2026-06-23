@@ -2,7 +2,7 @@
 
 ## Project
 
-This is a native Linux GUI image viewer. The application should quickly open and browse image files, folders, and later archives containing images. The project prioritizes performance, predictable navigation, rendering quality, and privacy: no activity history, no persistent thumbnail cache, no persistent archive extraction, and no file logs in normal usage.
+This is a native Linux GUI image viewer. The application should quickly open and browse image files, folders, and archives containing images. The project prioritizes performance, predictable navigation, rendering quality, and privacy: no activity history, no persistent thumbnail cache, no persistent archive extraction, and no file logs in normal usage.
 
 ## Language policy
 
@@ -85,9 +85,11 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 ## MVP boundaries
 
-The first implementation should focus on regular filesystem images, folders, and archives. RAW support, advanced metadata, configurable hotkeys, password persistence, and thumbnail panels are later milestones unless explicitly requested.
+Current implementation should stay focused on a stable viewer pipeline for regular filesystem images, folders, archives, navigation, fullscreen, metadata, and privacy-safe settings. RAW support, advanced metadata, configurable hotkeys, password persistence, and thumbnail panels are later milestones unless explicitly requested.
 
 Current MVP supports regular filesystem images, filesystem folder trees with lazy per-folder loading, ZIP/7z/RAR archive trees through libarchive without disk extraction, and a basic Preferences dialog. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, configurable hotkeys, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
+
+Use `docs/roadmap.md` as the living backlog. Keep completed work, next stabilization tasks, mid-term features, later milestones, and explicit non-goals sorted there when product direction changes.
 
 Current MVP mouse behavior:
 
