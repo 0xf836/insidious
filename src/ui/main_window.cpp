@@ -237,6 +237,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     const core::ImageEntry *entry = m_controller.currentEntry();
     if (entry == nullptr) {
         m_imageRenderPending = false;
+        clearPendingDecodeRequest();
         m_pendingZoomRenderFallback.reset();
         updateInteractionState();
         updateActionState();
@@ -248,6 +249,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     if (!validation.ok()) {
         ++m_decodeGeneration;
         m_imageRenderPending = false;
+        clearPendingDecodeRequest();
         m_pendingZoomRenderFallback.reset();
         if (m_decodeWatcher.isRunning()) {
             m_decodeWatcher.cancel();
@@ -258,17 +260,18 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
 
     const core::DecodeRequest request = currentDecodeRequest();
     const QString cacheKey = currentCacheKey(request);
+    const quint64 generation = ++m_decodeGeneration;
 
     core::DecodedImage cached;
     if (m_cache->tryGet(cacheKey, &cached)) {
         m_imageRenderPending = false;
+        clearPendingDecodeRequest();
         m_pendingZoomRenderFallback.reset();
         displayDecodedImage(cached);
         prefetchNeighbors(request);
         return;
     }
 
-    const quint64 generation = ++m_decodeGeneration;
     if (zoomFallback.has_value()) {
         m_pendingZoomRenderFallback = PendingZoomRenderFallback { generation, *zoomFallback };
     } else {
@@ -296,24 +299,69 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     updateActionState();
     updateInteractionState();
 
-    if (m_decodeWatcher.isRunning()) {
-        m_decodeWatcher.cancel();
-    }
-
     const core::ImageEntry entryCopy = *entry;
     const QString archivePassword = entryCopy.source == core::ImageEntrySource::Archive
         && entryCopy.archivePath == m_currentArchivePath
         ? m_currentArchivePassword
         : QString();
-    m_decodeWatcher.setFuture(QtConcurrent::run([entryCopy, request, generation, cacheKey, archivePassword]() {
+    const PendingDecodeRequest decodeRequest {
+        generation,
+        cacheKey,
+        entryCopy,
+        request,
+        archivePassword,
+    };
+
+    if (m_decodeWatcher.isRunning()) {
+        m_decodeWatcher.cancel();
+        if (m_activeDecodeRequest.has_value()
+            && isSameDecodeEntry(*m_activeDecodeRequest, decodeRequest)) {
+            m_pendingDecodeRequest = decodeRequest;
+            return;
+        }
+
+        clearPendingDecodeRequest();
+        startDecodeJob(decodeRequest);
+        return;
+    }
+
+    startDecodeJob(decodeRequest);
+}
+
+void MainWindow::startDecodeJob(const PendingDecodeRequest &request)
+{
+    m_activeDecodeRequest = request;
+    m_decodeWatcher.setFuture(QtConcurrent::run([request]() {
         core::VipsImageDecoder decoder;
         DecodeJobResult job;
-        job.generation = generation;
-        job.cacheKey = cacheKey;
-        job.entry = entryCopy;
-        job.decoded = decoder.decode(entryCopy, request, archivePassword);
+        job.generation = request.generation;
+        job.cacheKey = request.cacheKey;
+        job.entry = request.entry;
+        job.decoded = decoder.decode(request.entry, request.request, request.archivePassword);
         return job;
     }));
+}
+
+bool MainWindow::startPendingDecodeJob()
+{
+    if (!m_pendingDecodeRequest.has_value() || m_decodeWatcher.isRunning()) {
+        return false;
+    }
+
+    const PendingDecodeRequest request = *m_pendingDecodeRequest;
+    m_pendingDecodeRequest.reset();
+    startDecodeJob(request);
+    return true;
+}
+
+void MainWindow::clearPendingDecodeRequest()
+{
+    m_pendingDecodeRequest.reset();
+}
+
+bool MainWindow::isSameDecodeEntry(const PendingDecodeRequest &left, const PendingDecodeRequest &right) const
+{
+    return left.entry.identityKey() == right.entry.identityKey();
 }
 
 void MainWindow::showNextImage()
@@ -734,13 +782,20 @@ void MainWindow::setupConnections()
     connect(m_fileListView, &QListView::activated, this, &MainWindow::selectImageFromFileList);
 
     connect(&m_decodeWatcher, &QFutureWatcher<DecodeJobResult>::finished, this, [this]() {
+        if (m_decodeWatcher.isRunning()) {
+            return;
+        }
+
         const QFuture<DecodeJobResult> future = m_decodeWatcher.future();
+        m_activeDecodeRequest.reset();
         if (future.isCanceled() || future.resultCount() == 0 || !future.isResultReadyAt(0)) {
-            if (future.isCanceled()) {
-                m_imageRenderPending = false;
-                m_pendingZoomRenderFallback.reset();
-                updateActionState();
+            if (startPendingDecodeJob()) {
+                return;
             }
+            m_imageRenderPending = false;
+            m_pendingZoomRenderFallback.reset();
+            updateActionState();
+            updateInteractionState();
             return;
         }
 
@@ -750,6 +805,12 @@ void MainWindow::setupConnections()
                 && m_pendingZoomRenderFallback->generation == job.generation) {
                 m_pendingZoomRenderFallback.reset();
             }
+            if (startPendingDecodeJob()) {
+                return;
+            }
+            m_imageRenderPending = false;
+            updateActionState();
+            updateInteractionState();
             return;
         }
         m_imageRenderPending = false;
@@ -1112,6 +1173,10 @@ void MainWindow::openFile(const QString &filePath)
     }
 
     ++m_sourceGeneration;
+    ++m_decodeGeneration;
+    clearPendingDecodeRequest();
+    m_pendingZoomRenderFallback.reset();
+    m_imageRenderPending = false;
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = m_settings.viewer.defaultZoomMode;
     clearPrefetchJobs();
@@ -1137,6 +1202,10 @@ void MainWindow::openFolder(const QString &folderPath)
     clearArchivePassword();
 
     ++m_sourceGeneration;
+    ++m_decodeGeneration;
+    clearPendingDecodeRequest();
+    m_pendingZoomRenderFallback.reset();
+    m_imageRenderPending = false;
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = m_settings.viewer.defaultZoomMode;
     clearPrefetchJobs();
@@ -1158,6 +1227,10 @@ void MainWindow::openArchive(const QString &archivePath)
     m_currentArchivePath = QFileInfo(archivePath).absoluteFilePath();
 
     ++m_sourceGeneration;
+    ++m_decodeGeneration;
+    clearPendingDecodeRequest();
+    m_pendingZoomRenderFallback.reset();
+    m_imageRenderPending = false;
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = m_settings.viewer.defaultZoomMode;
     clearPrefetchJobs();
@@ -1380,6 +1453,7 @@ MainWindow::ViewRenderState MainWindow::captureViewRenderState() const
 void MainWindow::restoreViewRenderState(const ViewRenderState &state, const QString &overlayMessage)
 {
     m_imageRenderPending = false;
+    clearPendingDecodeRequest();
     switch (state.zoomMode) {
     case core::ZoomMode::FitToWindow:
         m_controller.setFitToWindow();
@@ -1421,7 +1495,9 @@ bool MainWindow::handleZoomRenderError(const DecodeJobResult &job)
 
 void MainWindow::showError(const QString &message)
 {
+    ++m_decodeGeneration;
     m_imageRenderPending = false;
+    clearPendingDecodeRequest();
     m_activeHoldZoom.reset();
     m_currentDecoded = {};
     const QString fallback = message.isEmpty() ? tr("Operation failed.") : message;

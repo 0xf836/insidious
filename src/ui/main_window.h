@@ -81,6 +81,14 @@ private:
         core::DecodedImage decoded;
     };
 
+    struct PendingDecodeRequest {
+        quint64 generation = 0;
+        QString cacheKey;
+        core::ImageEntry entry;
+        core::DecodeRequest request;
+        QString archivePassword;
+    };
+
     struct ScanJobResult {
         quint64 generation = 0;
         QString selectedPath;
@@ -145,6 +153,10 @@ private:
     void displayDecodedImage(const core::DecodedImage &decoded);
     void loadCurrentImage(bool showTransientLoading);
     void loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback);
+    void startDecodeJob(const PendingDecodeRequest &request);
+    bool startPendingDecodeJob();
+    void clearPendingDecodeRequest();
+    [[nodiscard]] bool isSameDecodeEntry(const PendingDecodeRequest &left, const PendingDecodeRequest &right) const;
     [[nodiscard]] ViewRenderState captureViewRenderState() const;
     void restoreViewRenderState(const ViewRenderState &state, const QString &overlayMessage);
     [[nodiscard]] bool handleZoomRenderError(const DecodeJobResult &job);
@@ -248,6 +260,8 @@ private:
     QTimer m_resizeReloadTimer;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
+    std::optional<PendingDecodeRequest> m_activeDecodeRequest;
+    std::optional<PendingDecodeRequest> m_pendingDecodeRequest;
     std::optional<PendingZoomRenderFallback> m_pendingZoomRenderFallback;
     std::optional<ActiveHoldZoom> m_activeHoldZoom;
     bool m_imageRenderPending = false;

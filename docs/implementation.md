@@ -50,9 +50,9 @@ Opening one image:
 2. `singleImageCollection()` validates the file and creates a one-entry collection so the selected image can load immediately.
 3. `MainWindow` starts an async scan of the parent folder with the selected path.
 4. `ViewerController` holds the current entry and view state.
-5. `MainWindow::loadCurrentImage()` checks `MemoryImageCache`; on a miss it starts a `QtConcurrent` decode job.
+5. `MainWindow::loadCurrentImage()` checks `MemoryImageCache`; on a miss it starts a `QtConcurrent` decode job. Same-entry re-render requests may be stored as the newest pending decode while another render for that entry is active.
 6. `VipsImageDecoder::decode()` returns a display raster as `DecodedImage`.
-7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries. Prefetch jobs are tracked by cache key, coalesced while in flight, and use `MemoryImageCache` generation guards so results decoded before a cache clear cannot repopulate a new source cache.
+7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries. Same-entry render reloads are coalesced so only the newest pending request is kept while the active render finishes; switching to another entry starts a new foreground decode immediately. Prefetch jobs are tracked by cache key, coalesced while in flight, and use `MemoryImageCache` generation guards so results decoded before a cache clear cannot repopulate a new source cache.
 
 Transient loading display:
 
@@ -162,6 +162,7 @@ Mouse input:
 - UI widgets must only be touched on the UI thread.
 - Folder scans, archive scans, and libvips decoding run through `QtConcurrent::run`.
 - `MainWindow` uses `m_sourceGeneration` and `m_decodeGeneration` to ignore old async results after the user opens another source or starts another decode.
+- Main image decode requests are routed through `MainWindow`: repeated same-entry reloads store only the newest pending request and start it after the active watcher finishes, but image switches start a new foreground decode immediately so navigation stays responsive. Cache hits still display immediately and invalidate older active decode results through `m_decodeGeneration`.
 - Current prefetch jobs are tracked by `MainWindow`, coalesced by cache key, and only write successful decoded images into the shared memory cache when the cache generation still matches the generation captured at prefetch start. Password-protected archive entries skip speculative prefetch so archive passwords are not retained by background neighbor jobs.
 
 ## Privacy boundaries

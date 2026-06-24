@@ -10,7 +10,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom around cursor, toolbar/shortcut zoom around viewport center, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
 - Настраиваемые режимы ЛКМ zoom: click-to-zoom/restore по умолчанию и hold-to-zoom-pan с возвратом на release.
 - Magnifier cursor для режимов ЛКМ zoom показывается только когда zoom/restore или hold-to-zoom доступен.
-- Async decode pipeline через libvips: display-sized rasters, stale-result guards, tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
+- Async decode pipeline через libvips: display-sized rasters, stale-result guards, same-entry render coalescing, immediate foreground decode on image switch, tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
 - Zoom render budget guard: если zoom-запрос слишком большой для decode budget, viewer откатывает предыдущий raster/zoom/pan и показывает компактный overlay вместо full-screen ошибки.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
 - Source tree `Files`: дерево папок/архива над списком изображений активной папки, lazy filesystem folder loading, cross-folder next/previous.
@@ -52,7 +52,6 @@ Roadmap — живой backlog реализации, а не обещание р
   - отмена thumbnail work при смене panel/source.
 - Performance and memory improvements:
   - archive random-access/performance strategy: benchmark current per-image archive decode on large ZIP/7z/RAR, reduce repeated header scans where possible, consider limiting archive prefetch until access strategy is improved;
-  - decode request coalescing: держать только newest resize/zoom decode request active/queued и избегать накопления stale libvips jobs при resize, zoom и rapid navigation;
   - large tree UI scaling: не пересобирать preorder folder lists на каждый action-state update, не делать full `CollectionTreeModel` reset при lazy-load одной папки, рассмотреть path-to-node/index maps.
 - Source completeness:
   - поддержать несколько выбранных файлов и multi-file drag'n'drop как временную коллекцию;

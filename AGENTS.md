@@ -117,6 +117,7 @@ Current MVP fullscreen behavior:
 - Keep `src/core` free of `QWidget`/GUI dependencies. QtCore/QtGui value types such as `QString`, `QImage`, `QSize`, and `QDateTime` are currently accepted there.
 - Do not run folder scanning or libvips decoding on the UI thread.
 - Guard async UI updates against stale results when the current source or decode request changes.
+- Main image decode requests must go through the `MainWindow` loader. Re-render requests for the same entry should coalesce to the newest pending request, while image switches should start the new foreground decode immediately.
 - Keep cache state memory-only. Do not introduce persistent cache files, recent-file lists, or viewed-path settings.
 - Prefetch cache writes must use `MemoryImageCache` generation guards so stale background prefetch cannot repopulate cache after source switches or cache clears.
 - Prefetch jobs should be tracked/coalesced by cache key. Do not start speculative prefetch for password-protected archive entries.
