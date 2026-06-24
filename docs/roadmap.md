@@ -22,6 +22,10 @@ Roadmap — живой backlog реализации, а не обещание р
 
 ## Ближайшее / small stabilization
 
+- Performance/memory stabilization:
+  - async job lifecycle hardening: отслеживать prefetch jobs по source/decode generation, не вставлять stale prefetch results после смены source/cache clear, не удерживать пароль архива в obsolete background work дольше необходимого;
+  - render memory budget audit: измерить peak memory для large filesystem image, large archive image, zoom render и prefetch; учесть вместе libvips cache, archive entry buffer, финальный raster copy, displayed raster и decoded cache;
+  - quick fix: в `prefetchNeighbors()` не копировать весь active-folder entry list, использовать const reference к `ViewerController::entries()` до запуска per-entry jobs.
 - Settings polish:
   - добавить default sort mode после появления sort-by-date;
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
@@ -48,10 +52,10 @@ Roadmap — живой backlog реализации, а не обещание р
   - lazy async generation;
   - memory-only thumbnail cache;
   - отмена thumbnail work при смене panel/source.
-- Performance and memory audit:
-  - проверить cache eviction на очень больших изображениях;
-  - проверить lazy-load behavior на больших filesystem trees и больших архивах;
-  - держать long-running work вне UI thread.
+- Performance and memory improvements:
+  - archive random-access/performance strategy: benchmark current per-image archive decode on large ZIP/7z/RAR, reduce repeated header scans where possible, consider limiting archive prefetch until access strategy is improved;
+  - decode request coalescing: держать только newest resize/zoom decode request active/queued и избегать накопления stale libvips jobs при resize, zoom и rapid navigation;
+  - large tree UI scaling: не пересобирать preorder folder lists на каждый action-state update, не делать full `CollectionTreeModel` reset при lazy-load одной папки, рассмотреть path-to-node/index maps.
 - Source completeness:
   - поддержать несколько выбранных файлов и multi-file drag'n'drop как временную коллекцию;
   - сохранить совместимость этого source type с текущими viewer/source-tree concepts.
