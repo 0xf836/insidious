@@ -1114,6 +1114,7 @@ void MainWindow::openFile(const QString &filePath)
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = m_settings.viewer.defaultZoomMode;
+    clearPrefetchJobs();
     m_cache->clear();
     m_controller.setCollection(single.entries, single.selectedIndex);
     if (m_baseZoomMode == core::ZoomMode::ActualSize) {
@@ -1138,6 +1139,7 @@ void MainWindow::openFolder(const QString &folderPath)
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = m_settings.viewer.defaultZoomMode;
+    clearPrefetchJobs();
     m_cache->clear();
     m_controller.clearCollection();
     clearSourceTree();
@@ -1158,6 +1160,7 @@ void MainWindow::openArchive(const QString &archivePath)
     ++m_sourceGeneration;
     m_temporaryZoomReturnMode.reset();
     m_baseZoomMode = m_settings.viewer.defaultZoomMode;
+    clearPrefetchJobs();
     m_cache->clear();
     m_controller.clearCollection();
     clearSourceTree();
@@ -1560,6 +1563,21 @@ void MainWindow::scheduleFitReload()
     }
 }
 
+void MainWindow::clearPrefetchJobs()
+{
+    for (auto it = m_prefetchWatchers.begin(); it != m_prefetchWatchers.end(); ++it) {
+        QFutureWatcher<void> *watcher = it.value();
+        if (watcher == nullptr) {
+            continue;
+        }
+
+        disconnect(watcher, nullptr, this, nullptr);
+        watcher->cancel();
+        watcher->deleteLater();
+    }
+    m_prefetchWatchers.clear();
+}
+
 void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
 {
     const QVector<core::ImageEntry> &entries = m_controller.entries();
@@ -1576,7 +1594,13 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
 
         const core::ImageEntry entry = entries.at(index);
         const QString key = core::cacheKeyFor(entry, request);
-        if (cache->contains(key)) {
+        if (cache->contains(key) || m_prefetchWatchers.contains(key)) {
+            continue;
+        }
+
+        if (entry.source == core::ImageEntrySource::Archive
+            && entry.archivePath == currentArchivePath
+            && !currentArchivePassword.isEmpty()) {
             continue;
         }
 
@@ -1584,14 +1608,24 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
             && entry.archivePath == currentArchivePath
             ? currentArchivePassword
             : QString();
-        auto future = QtConcurrent::run([cache, entry, request, key, archivePassword, cacheGeneration]() {
+
+        auto *watcher = new QFutureWatcher<void>(this);
+        m_prefetchWatchers.insert(key, watcher);
+        connect(watcher, &QFutureWatcher<void>::finished, this, [this, key, watcher]() {
+            auto it = m_prefetchWatchers.find(key);
+            if (it != m_prefetchWatchers.end() && it.value() == watcher) {
+                m_prefetchWatchers.erase(it);
+            }
+            watcher->deleteLater();
+        });
+
+        watcher->setFuture(QtConcurrent::run([cache, entry, request, key, archivePassword, cacheGeneration]() {
             core::VipsImageDecoder decoder;
             const core::DecodedImage decoded = decoder.decode(entry, request, archivePassword);
             if (decoded.ok()) {
                 [[maybe_unused]] const bool inserted = cache->insertIfGeneration(key, decoded, cacheGeneration);
             }
-        });
-        Q_UNUSED(future)
+        }));
     }
 }
 

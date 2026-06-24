@@ -51,7 +51,7 @@ Opening one image:
 4. `ViewerController` holds the current entry and view state.
 5. `MainWindow::loadCurrentImage()` checks `MemoryImageCache`; on a miss it starts a `QtConcurrent` decode job.
 6. `VipsImageDecoder::decode()` returns a display raster as `DecodedImage`.
-7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries. Prefetch cache writes use `MemoryImageCache` generation guards so results decoded before a cache clear cannot repopulate a new source cache.
+7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries. Prefetch jobs are tracked by cache key, coalesced while in flight, and use `MemoryImageCache` generation guards so results decoded before a cache clear cannot repopulate a new source cache.
 
 Transient loading display:
 
@@ -161,7 +161,7 @@ Mouse input:
 - UI widgets must only be touched on the UI thread.
 - Folder scans, archive scans, and libvips decoding run through `QtConcurrent::run`.
 - `MainWindow` uses `m_sourceGeneration` and `m_decodeGeneration` to ignore old async results after the user opens another source or starts another decode.
-- Current prefetch jobs are fire-and-forget and only write successful decoded images into the shared memory cache when the cache generation still matches the generation captured at prefetch start.
+- Current prefetch jobs are tracked by `MainWindow`, coalesced by cache key, and only write successful decoded images into the shared memory cache when the cache generation still matches the generation captured at prefetch start. Password-protected archive entries skip speculative prefetch so archive passwords are not retained by background neighbor jobs.
 
 ## Privacy boundaries
 

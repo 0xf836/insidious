@@ -11,6 +11,7 @@
 #include "ui/image_view_widget.h"
 
 #include <QFutureWatcher>
+#include <QHash>
 #include <QLabel>
 #include <QMainWindow>
 #include <QPoint>
@@ -154,6 +155,7 @@ private:
     void updateInteractionState();
     void updateInfoPanelForCurrentImage(const QString &state = {});
     void scheduleFitReload();
+    void clearPrefetchJobs();
     void prefetchNeighbors(const core::DecodeRequest &request);
     void reloadAfterImageSwitch();
     void applyImageSwitchViewPolicy();
@@ -242,6 +244,7 @@ private:
     QFutureWatcher<DecodeJobResult> m_decodeWatcher;
     QFutureWatcher<ScanJobResult> m_scanWatcher;
     QFutureWatcher<FolderLoadJobResult> m_folderLoadWatcher;
+    QHash<QString, QFutureWatcher<void> *> m_prefetchWatchers;
     QTimer m_resizeReloadTimer;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;

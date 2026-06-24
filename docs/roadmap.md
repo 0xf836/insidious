@@ -10,7 +10,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom around cursor, toolbar/shortcut zoom around viewport center, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
 - Настраиваемые режимы ЛКМ zoom: click-to-zoom/restore по умолчанию и hold-to-zoom-pan с возвратом на release.
 - Magnifier cursor для режимов ЛКМ zoom показывается только когда zoom/restore или hold-to-zoom доступен.
-- Async decode pipeline через libvips: display-sized rasters, stale-result guards, neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
+- Async decode pipeline через libvips: display-sized rasters, stale-result guards, tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
 - Zoom render budget guard: если zoom-запрос слишком большой для decode budget, viewer откатывает предыдущий raster/zoom/pan и показывает компактный overlay вместо full-screen ошибки.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
 - Source tree `Files`: дерево папок/архива над списком изображений активной папки, lazy filesystem folder loading, cross-folder next/previous.
@@ -23,7 +23,6 @@ Roadmap — живой backlog реализации, а не обещание р
 ## Ближайшее / small stabilization
 
 - Performance/memory stabilization:
-  - async job lifecycle hardening: отслеживать/коалесить prefetch jobs по source/decode generation, не держать obsolete jobs и пароли архивов дольше необходимого;
   - render memory budget audit: измерить peak memory для large filesystem image, large archive image, zoom render и prefetch; учесть вместе libvips cache, archive entry buffer, displayed raster и decoded cache;
 - Settings polish:
   - добавить default sort mode после появления sort-by-date;
