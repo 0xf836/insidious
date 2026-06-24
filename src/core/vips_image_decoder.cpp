@@ -1,6 +1,7 @@
 #include "core/vips_image_decoder.h"
 
 #include "core/archive_collection_source.h"
+#include "core/render_memory_budget.h"
 
 #include <QByteArray>
 #include <QImage>
@@ -9,7 +10,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <vector>
 #include <vips/vips8>
 
@@ -74,14 +74,6 @@ double fitScaleFor(QSize imageSize, QSize viewportSize)
     const double horizontal = static_cast<double>(viewportSize.width()) / static_cast<double>(imageSize.width());
     const double vertical = static_cast<double>(viewportSize.height()) / static_cast<double>(imageSize.height());
     return std::max(0.01, std::min(horizontal, vertical));
-}
-
-bool wouldExceedBudget(int width, int height, int bands, double scale, qint64 maxDecodedBytes)
-{
-    const double scaledWidth = std::ceil(static_cast<double>(width) * scale);
-    const double scaledHeight = std::ceil(static_cast<double>(height) * scale);
-    const double bytes = scaledWidth * scaledHeight * static_cast<double>(std::max(4, bands));
-    return bytes > static_cast<double>(maxDecodedBytes);
 }
 
 void freeVipsMemory(void *memory)
@@ -202,7 +194,11 @@ DecodedImage VipsImageDecoder::decode(
             ? fitScaleFor(rotatedSize, request.viewportSize)
             : std::max(0.01, request.scaleFactor);
 
-        if (wouldExceedBudget(image.width(), image.height(), image.bands(), scale, request.maxDecodedBytes)) {
+        if (exceedsRenderMemoryBudget(
+                QSize(image.width(), image.height()),
+                image.bands(),
+                scale,
+                request.maxDecodedBytes)) {
             result.errorMessage = QObject::tr("Image is too large to render at the requested scale.");
             result.errorReason = DecodeErrorReason::RenderTooLarge;
             return result;

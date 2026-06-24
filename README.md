@@ -33,7 +33,7 @@
 
 - `src/app/` — запуск процесса, инициализация libvips, создание `QApplication`, обработка optional path argument.
 - `src/ui/` — Qt Widgets слой: главное окно, actions/shortcuts, drag'n'drop, statusbar, fullscreen, левая панель дерева/списка файлов, правая панель базовой информации, диалог настроек, widget отрисовки изображения.
-- `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки/архива, source tree для папок/архивов, состояние viewer, настройки, memory-only cache, libarchive reader, libvips decoder.
+- `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки/архива, source tree для папок/архивов, состояние viewer, настройки, render-memory budget, memory-only cache, libarchive reader, libvips decoder.
 - `tests/` — Qt Test тесты для core-логики.
 
 Главный поток открытия изображения: UI принимает путь, core создаёт одиночную коллекцию, сканирует папку или читает список изображений из архива, `ViewerController` выбирает текущий entry, `VipsImageDecoder` асинхронно строит display-sized `QImage`, `MainWindow` обновляет `ImageViewWidget` и statusbar.

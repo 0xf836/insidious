@@ -91,6 +91,8 @@ Memory-only cache для:
 
 Persistent cache запрещён текущими privacy requirements.
 
+Render-memory budget считается отдельной core-логикой для полного output raster fit/zoom decode request. Текущая оценка не является total peak memory budget: поверх неё остаются libvips working/cache memory, archive entry buffer, displayed raster и decoded cache.
+
 ### Settings
 
 Хранит настройки приложения, но не хранит историю открытых файлов/папок/архивов.

@@ -23,7 +23,7 @@ Roadmap — живой backlog реализации, а не обещание р
 ## Ближайшее / small stabilization
 
 - Performance/memory stabilization:
-  - render memory budget audit: измерить peak memory для large filesystem image, large archive image, zoom render и prefetch; учесть вместе libvips cache, archive entry buffer, displayed raster и decoded cache;
+  - total peak memory audit: после централизации и тестового покрытия расчёта full-raster render budget измерить peak memory для large filesystem image, large archive image, zoom render и prefetch; учесть вместе libvips cache, archive entry buffer, displayed raster и decoded cache;
 - Settings polish:
   - добавить default sort mode после появления sort-by-date;
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.

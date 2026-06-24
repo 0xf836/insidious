@@ -33,6 +33,8 @@ set(CORE_SOURCES
     src/core/memory_image_cache.h
     src/core/natural_sort.cpp
     src/core/natural_sort.h
+    src/core/render_memory_budget.cpp
+    src/core/render_memory_budget.h
     src/core/vips_image_decoder.cpp
     src/core/vips_image_decoder.h
     src/core/viewer_controller.cpp

@@ -5,6 +5,7 @@
 #include "core/image_formats.h"
 #include "core/memory_image_cache.h"
 #include "core/natural_sort.h"
+#include "core/render_memory_budget.h"
 #include "core/vips_image_decoder.h"
 #include "core/viewer_controller.h"
 
@@ -21,6 +22,7 @@
 
 #include <archive.h>
 #include <archive_entry.h>
+#include <limits>
 #include <vips/vips8>
 
 using namespace insidious::core;
@@ -45,6 +47,9 @@ private slots:
     void memoryCacheEvictsByBudget();
     void memoryCacheConditionalInsertAcceptsCurrentGeneration();
     void memoryCacheConditionalInsertRejectsStaleGeneration();
+    void renderMemoryEstimateUsesConservativeRasterBytes();
+    void renderMemoryEstimateCeilsScaledSize();
+    void renderMemoryBudgetTreatsOverflowAsExceeded();
     void decoderLoadsTemporaryPng();
     void decoderImageBufferOutlivesDecodedImageCopies();
     void decoderLoadsPngFromArchive();
@@ -450,6 +455,44 @@ void CoreTests::memoryCacheConditionalInsertRejectsStaleGeneration()
 
     QVERIFY(!cache.insertIfGeneration(QStringLiteral("stale"), image, staleGeneration));
     QVERIFY(!cache.contains(QStringLiteral("stale")));
+}
+
+void CoreTests::renderMemoryEstimateUsesConservativeRasterBytes()
+{
+    const RenderMemoryEstimate estimate = estimateRenderMemory(QSize(16, 8), 3, 1.0);
+
+    QVERIFY(!estimate.overflowed);
+    QCOMPARE(estimate.outputSize, QSize(16, 8));
+    QCOMPARE(estimate.bytesPerPixel, 4);
+    QCOMPARE(estimate.bytes, 16LL * 8LL * 4LL);
+    QVERIFY(!exceedsRenderMemoryBudget(QSize(16, 8), 3, 1.0, estimate.bytes));
+    QVERIFY(exceedsRenderMemoryBudget(QSize(16, 8), 3, 1.0, estimate.bytes - 1));
+}
+
+void CoreTests::renderMemoryEstimateCeilsScaledSize()
+{
+    const RenderMemoryEstimate estimate = estimateRenderMemory(QSize(10, 7), 4, 1.25);
+
+    QVERIFY(!estimate.overflowed);
+    QCOMPARE(estimate.outputSize, QSize(13, 9));
+    QCOMPARE(estimate.bytesPerPixel, 4);
+    QCOMPARE(estimate.bytes, 13LL * 9LL * 4LL);
+}
+
+void CoreTests::renderMemoryBudgetTreatsOverflowAsExceeded()
+{
+    const RenderMemoryEstimate estimate = estimateRenderMemory(
+        QSize(std::numeric_limits<int>::max(), std::numeric_limits<int>::max()),
+        4,
+        2.0);
+
+    QVERIFY(estimate.overflowed);
+    QCOMPARE(estimate.bytes, std::numeric_limits<qint64>::max());
+    QVERIFY(exceedsRenderMemoryBudget(
+        QSize(std::numeric_limits<int>::max(), std::numeric_limits<int>::max()),
+        4,
+        2.0,
+        std::numeric_limits<qint64>::max()));
 }
 
 void CoreTests::decoderLoadsTemporaryPng()

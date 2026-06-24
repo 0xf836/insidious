@@ -40,7 +40,7 @@ The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp, and 
 - `src/ui/image_list_model.*` is a UI-only list model for images in the active folder. Keep it source-agnostic and free of thumbnail/decode work.
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
-- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive scanning, viewer state, settings schema, decode request/result types, memory cache, libarchive entry reading, and libvips decoding.
+- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive scanning, viewer state, settings schema, decode request/result types, render-memory budget estimation, memory cache, libarchive entry reading, and libvips decoding.
 - `tests/core_tests.cpp` covers core behavior with Qt Test. Add tests here for non-trivial core changes.
 - `docs/implementation.md` is the longer orientation document for current code structure and data flow.
 
@@ -124,6 +124,7 @@ Current MVP fullscreen behavior:
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
 - Transient loading during image navigation should preserve the currently displayed raster and use a subtle overlay. Zoom-triggered loading should preserve the displayed raster and decoded state without showing a loading label or moving the old image. Do not stack additional zoom/view-transform requests while an image render is pending; navigation may still cancel the pending render. Zoom-triggered render-too-large errors should restore the previous zoom/pan/raster and show a compact overlay instead of clearing the image. Error, empty, and scanning states may clear the image and show a full message.
 - Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.
+- Use `src/core/render_memory_budget.*` for render-memory checks. Do not duplicate ad hoc raster byte math in decoders, cache code, or UI code.
 - Decoder-owned `QImage` data must either own its backing buffer through a Qt cleanup callback or be a real copy; never return a `QImage` pointing at freed libvips memory.
 - EXIF autorotate is a viewer setting and a synced checkable `View`/toolbar action. It must flow through `DecodeRequest` and the decoded image cache key so autorotated and non-autorotated rasters never collide.
 - If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
