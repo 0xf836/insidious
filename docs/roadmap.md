@@ -18,12 +18,11 @@ Roadmap — живой backlog реализации, а не обещание р
 - `Info` panel с компактной информацией об entry и полезными EXIF-полями из libvips metadata.
 - Quick Jump по имени файла в активной папке, включая fullscreen in-window overlay.
 - True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.
-- Basic Preferences dialog: viewer defaults, image-switch policy, left-button zoom behavior, wheel actions, zoom step, click zoom multiplier, fullscreen trigger zones, layout persistence.
+- Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, fullscreen trigger zones, layout persistence.
 
 ## Ближайшее / small stabilization
 
 - Settings polish:
-  - добавить on/off для EXIF autorotate;
   - добавить default sort mode после появления sort-by-date;
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
 - Status/fullscreen presentation settings:

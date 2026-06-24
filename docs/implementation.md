@@ -38,7 +38,7 @@ The build creates:
 - `src/core/app_settings.*` defines persistent settings defaults, enum/string conversion, validation/clamping, category reset behavior, and `QSettings` read/write.
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, metadata fields, and machine-readable decode error reasons.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
-- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
+- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
 ## Data flow
@@ -109,7 +109,7 @@ Fullscreen overlay UI:
 - Fullscreen edge UI is implemented as child overlay widgets of `MainWindow`, not as dock widgets and not as layout participants. Showing or hiding these overlays must not resize `ImageViewWidget`, alter zoom/pan, or trigger image reload.
 - The left overlay owns a second `QTreeView` and `QListView` backed by the same tree/list models as the normal `Files` dock. The views have separate selection models and are synchronized from the active folder and `ViewerController::currentIndex()`.
 - The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.
-- The top overlay is a `QToolBar` using the same `QAction` objects as the normal menu/toolbar flow, so shortcuts, enabled state, and command routing remain centralized.
+- The top overlay is a `QToolBar` using the same `QAction` objects as the normal menu/toolbar flow, so shortcuts, enabled state, checkable state, and command routing remain centralized.
 - The bottom overlay mirrors the normal statusbar text.
 - Hover detection uses settings-backed `FullscreenOverlaySettings`: side triggers are 7% of window width by default, top/bottom triggers are 5% of window height by default. Side overlays have priority in corners.
 - `Ctrl+F` quick jump suppresses fullscreen edge overlays while its in-window modal overlay is open.
@@ -128,7 +128,7 @@ Settings:
 
 - `Edit -> Preferences` opens `SettingsDialog`.
 - Settings are loaded in `MainWindow` construction and saved on Apply/OK and window close through `QSettings` using the application/organization name `Insidious`.
-- Viewer settings currently include default zoom mode, image-switch view policy, left-button zoom behavior, click zoom multiplier, shared zoom step, and wheel / Ctrl+wheel / Shift+wheel actions.
+- Viewer settings currently include default zoom mode, image-switch view policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, shared zoom step, and wheel / Ctrl+wheel / Shift+wheel actions. EXIF autorotate is also exposed as a synced checkable action in the `View` menu, main toolbar, and fullscreen top overlay.
 - Fullscreen settings currently include side and top/bottom edge trigger ratios.
 - Interface settings currently include whether to remember layout plus window geometry/state and normal/fullscreen Files splitter state.
 - Settings must stay privacy-safe: do not store recent files, source paths, archive paths, default image folders, archive passwords, thumbnails, decoded image data, or file logs.

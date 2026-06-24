@@ -66,6 +66,7 @@ private slots:
     void zoomToRect(const QRect &selectionRect);
     void rotateLeft();
     void rotateRight();
+    void setExifAutorotateEnabled(bool enabled);
     void toggleFullscreen();
     void showQuickJumpDialog();
     void showSettingsDialog();
@@ -225,6 +226,7 @@ private:
     QAction *m_actualSizeAction = nullptr;
     QAction *m_rotateLeftAction = nullptr;
     QAction *m_rotateRightAction = nullptr;
+    QAction *m_exifAutorotateAction = nullptr;
     QAction *m_fullscreenAction = nullptr;
 
     core::ViewerController m_controller;

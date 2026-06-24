@@ -35,6 +35,7 @@ struct ViewerSettings {
     ZoomMode defaultZoomMode = ZoomMode::FitToWindow;
     ImageSwitchPolicy imageSwitchPolicy = ImageSwitchPolicy::ResetToBaseMode;
     ClickZoomBehavior clickZoomBehavior = ClickZoomBehavior::ToggleOnClick;
+    bool exifAutorotate = true;
     double clickZoomMultiplier = 2.0;
     WheelAction wheelAction = WheelAction::NavigateImages;
     WheelAction ctrlWheelAction = WheelAction::Zoom;

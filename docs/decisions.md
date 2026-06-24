@@ -94,6 +94,6 @@
 
 ## ADR-016: Настройки разделены на core schema и UI dialog
 
-Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, click zoom multiplier, wheel actions, zoom step, fullscreen edge trigger ratios и layout state.
+Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, fullscreen edge trigger ratios и layout state.
 
 Причина: настройки должны быть расширяемыми и тестируемыми без GUI. Core-слой валидирует enum/string conversion и clamp числовых значений, а UI остаётся тонким слоем отображения. Privacy boundary остаётся явным: не сохранять recent files, viewed paths, archive paths, passwords, thumbnails, decoded cache или file logs.

@@ -32,6 +32,7 @@
 #include <QMimeData>
 #include <QScopedValueRollback>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QToolBar>
@@ -472,6 +473,18 @@ void MainWindow::rotateRight()
     loadCurrentImage();
 }
 
+void MainWindow::setExifAutorotateEnabled(bool enabled)
+{
+    if (m_settings.viewer.exifAutorotate == enabled) {
+        return;
+    }
+
+    core::AppSettings settings = m_settings;
+    settings.viewer.exifAutorotate = enabled;
+    applySettings(settings, true);
+    saveSettings();
+}
+
 void MainWindow::toggleFullscreen()
 {
     if (isFullScreen()) {
@@ -660,6 +673,12 @@ void MainWindow::setupActions()
     m_rotateRightAction->setShortcut(QKeySequence(Qt::Key_BracketRight));
     connect(m_rotateRightAction, &QAction::triggered, this, &MainWindow::rotateRight);
     viewMenu->addAction(m_rotateRightAction);
+
+    m_exifAutorotateAction = new QAction(tr("Use EXIF Orientation"), this);
+    m_exifAutorotateAction->setCheckable(true);
+    connect(m_exifAutorotateAction, &QAction::toggled, this, &MainWindow::setExifAutorotateEnabled);
+    viewMenu->addAction(m_exifAutorotateAction);
+    m_mainToolBar->addAction(m_exifAutorotateAction);
 
     m_fullscreenAction = new QAction(tr("Fullscreen"), this);
     m_fullscreenAction->setShortcut(QKeySequence(Qt::Key_F11));
@@ -949,6 +968,7 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenTopPanel->addAction(m_actualSizeAction);
     m_fullscreenTopPanel->addAction(m_rotateLeftAction);
     m_fullscreenTopPanel->addAction(m_rotateRightAction);
+    m_fullscreenTopPanel->addAction(m_exifAutorotateAction);
     m_fullscreenTopPanel->addAction(m_fullscreenAction);
     m_fullscreenTopPanel->hide();
 
@@ -990,6 +1010,7 @@ void MainWindow::saveSettings()
 void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCurrentImage)
 {
     const bool defaultZoomChanged = settings.viewer.defaultZoomMode != m_settings.viewer.defaultZoomMode;
+    const bool exifAutorotateChanged = settings.viewer.exifAutorotate != m_settings.viewer.exifAutorotate;
 
     m_settings = settings;
     if (defaultZoomChanged) {
@@ -1004,6 +1025,10 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
     m_fullscreenOverlaySettings.sideTriggerRatio = m_settings.fullscreen.sideTriggerRatio;
     m_fullscreenOverlaySettings.verticalTriggerRatio = m_settings.fullscreen.verticalTriggerRatio;
     m_imageView->setClickZoomBehavior(m_clickZoomBehavior);
+    if (m_exifAutorotateAction != nullptr) {
+        const QSignalBlocker blocker(m_exifAutorotateAction);
+        m_exifAutorotateAction->setChecked(m_settings.viewer.exifAutorotate);
+    }
 
     if (!m_settings.interface.rememberLayout) {
         m_settings.interface.mainWindowGeometry.clear();
@@ -1012,16 +1037,20 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
         m_settings.interface.fullscreenFileSplitterState.clear();
     }
 
-    if (reloadCurrentImage && defaultZoomChanged && m_controller.hasCollection()) {
-        m_temporaryZoomReturnMode.reset();
-        if (m_baseZoomMode == core::ZoomMode::ActualSize) {
-            m_controller.setActualSize();
-        } else {
-            m_controller.setFitToWindow();
+    if (reloadCurrentImage && m_controller.hasCollection()) {
+        if (defaultZoomChanged) {
+            m_temporaryZoomReturnMode.reset();
+            if (m_baseZoomMode == core::ZoomMode::ActualSize) {
+                m_controller.setActualSize();
+            } else {
+                m_controller.setFitToWindow();
+            }
+            m_imageView->resetPan();
+            updateInteractionState();
+            loadCurrentImage(false);
+        } else if (exifAutorotateChanged) {
+            loadCurrentImage(false);
         }
-        m_imageView->resetPan();
-        updateInteractionState();
-        loadCurrentImage(false);
     }
 
     updateFullscreenOverlayGeometry();
@@ -2226,6 +2255,7 @@ core::DecodeRequest MainWindow::currentDecodeRequest() const
     request.viewportSize = m_imageView->size();
     request.rotationDegrees = m_controller.rotationDegrees();
     request.fitToWindow = m_controller.zoomMode() == core::ZoomMode::FitToWindow;
+    request.exifAutorotate = m_settings.viewer.exifAutorotate;
     request.scaleFactor = m_controller.zoomMode() == core::ZoomMode::ActualSize ? 1.0 : m_controller.zoomFactor();
     return request;
 }

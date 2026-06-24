@@ -184,7 +184,9 @@ DecodedImage VipsImageDecoder::decode(
 
         result.metadataFields = extractExifFields(image);
 
-        image = image.autorot();
+        if (request.exifAutorotate) {
+            image = image.autorot();
+        }
         result.sourceSize = QSize(image.width(), image.height());
 
         image = applyViewRotation(image, request.rotationDegrees);

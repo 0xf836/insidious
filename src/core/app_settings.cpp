@@ -48,6 +48,7 @@ AppSettings AppSettings::read(QSettings &settings)
     result.viewer.clickZoomBehavior = clickZoomBehaviorFromSettingsString(
         settings.value(QStringLiteral("clickZoomBehavior"), clickZoomBehaviorToSettingsString(defaults.viewer.clickZoomBehavior)).toString(),
         defaults.viewer.clickZoomBehavior);
+    result.viewer.exifAutorotate = settings.value(QStringLiteral("exifAutorotate"), defaults.viewer.exifAutorotate).toBool();
     result.viewer.clickZoomMultiplier = clampedDouble(
         settings.value(QStringLiteral("clickZoomMultiplier"), defaults.viewer.clickZoomMultiplier),
         defaults.viewer.clickZoomMultiplier,
@@ -103,6 +104,7 @@ void AppSettings::write(QSettings &settings) const
     settings.setValue(QStringLiteral("defaultZoomMode"), zoomModeToSettingsString(viewer.defaultZoomMode));
     settings.setValue(QStringLiteral("imageSwitchPolicy"), imageSwitchPolicyToSettingsString(viewer.imageSwitchPolicy));
     settings.setValue(QStringLiteral("clickZoomBehavior"), clickZoomBehaviorToSettingsString(viewer.clickZoomBehavior));
+    settings.setValue(QStringLiteral("exifAutorotate"), viewer.exifAutorotate);
     settings.setValue(QStringLiteral("clickZoomMultiplier"), std::clamp(viewer.clickZoomMultiplier, MinClickZoomMultiplier, MaxClickZoomMultiplier));
     settings.setValue(QStringLiteral("wheelAction"), wheelActionToSettingsString(viewer.wheelAction));
     settings.setValue(QStringLiteral("ctrlWheelAction"), wheelActionToSettingsString(viewer.ctrlWheelAction));

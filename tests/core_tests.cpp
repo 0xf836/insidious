@@ -48,6 +48,7 @@ private slots:
     void decoderReportsRenderTooLargeReason();
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
+    void decodeRequestCacheKeyIncludesExifAutorotate();
     void appSettingsRoundTripsThroughQSettings();
     void appSettingsFallbacksAndClampsInvalidValues();
 };
@@ -529,6 +530,21 @@ void CoreTests::archiveScanRejectsBrokenArchive()
     QVERIFY(!result.errorMessage.isEmpty());
 }
 
+void CoreTests::decodeRequestCacheKeyIncludesExifAutorotate()
+{
+    DecodeRequest enabled;
+    enabled.viewportSize = QSize(800, 600);
+    enabled.scaleFactor = 1.5;
+    enabled.rotationDegrees = 90;
+    enabled.fitToWindow = false;
+    enabled.exifAutorotate = true;
+
+    DecodeRequest disabled = enabled;
+    disabled.exifAutorotate = false;
+
+    QVERIFY(enabled.cacheKeySuffix() != disabled.cacheKeySuffix());
+}
+
 void CoreTests::appSettingsRoundTripsThroughQSettings()
 {
     QTemporaryDir tempDir;
@@ -539,6 +555,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.viewer.defaultZoomMode = ZoomMode::ActualSize;
     values.viewer.imageSwitchPolicy = ImageSwitchPolicy::PreserveView;
     values.viewer.clickZoomBehavior = ClickZoomBehavior::HoldToZoomPan;
+    values.viewer.exifAutorotate = false;
     values.viewer.clickZoomMultiplier = 3.5;
     values.viewer.wheelAction = WheelAction::NoAction;
     values.viewer.ctrlWheelAction = WheelAction::NavigateImages;
@@ -562,6 +579,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.viewer.defaultZoomMode, ZoomMode::ActualSize);
     QCOMPARE(loaded.viewer.imageSwitchPolicy, ImageSwitchPolicy::PreserveView);
     QCOMPARE(loaded.viewer.clickZoomBehavior, ClickZoomBehavior::HoldToZoomPan);
+    QVERIFY(!loaded.viewer.exifAutorotate);
     QCOMPARE(loaded.viewer.clickZoomMultiplier, 3.5);
     QCOMPARE(loaded.viewer.wheelAction, WheelAction::NoAction);
     QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::NavigateImages);
@@ -605,6 +623,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     QCOMPARE(loaded.viewer.defaultZoomMode, ZoomMode::FitToWindow);
     QCOMPARE(loaded.viewer.imageSwitchPolicy, ImageSwitchPolicy::ResetToBaseMode);
     QCOMPARE(loaded.viewer.clickZoomBehavior, ClickZoomBehavior::ToggleOnClick);
+    QVERIFY(loaded.viewer.exifAutorotate);
     QCOMPARE(loaded.viewer.clickZoomMultiplier, 8.0);
     QCOMPARE(loaded.viewer.wheelAction, WheelAction::NavigateImages);
     QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::Zoom);

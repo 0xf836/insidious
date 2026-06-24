@@ -43,6 +43,7 @@
 - fit to window;
 - actual size;
 - rotate left / rotate right;
+- EXIF autorotate toggle;
 - fullscreen;
 - переключение левой панели;
 - переключение правой панели.
@@ -129,9 +130,11 @@ Trigger zones:
 
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
-- `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
+- `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), EXIF autorotate, multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
 - `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей.
 - `Interface` — запоминание layout окна, dock-панелей и splitter sizes.
+
+EXIF autorotate также доступен как быстрый checkable action в меню `View`, обычной верхней панели и fullscreen top overlay. Переключение сразу сохраняет настройку и перерендеривает текущий image, если он открыт.
 
 Настройки сохраняются через стандартный механизм Qt `QSettings`. Они не должны содержать историю открытых файлов, пути к просмотренным источникам, пароли архивов, thumbnails или decoded cache.
 
