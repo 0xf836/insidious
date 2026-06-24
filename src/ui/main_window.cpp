@@ -1562,9 +1562,10 @@ void MainWindow::scheduleFitReload()
 
 void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
 {
-    const QVector<core::ImageEntry> entries = m_controller.entries();
+    const QVector<core::ImageEntry> &entries = m_controller.entries();
     const int currentIndex = m_controller.currentIndex();
     const auto cache = m_cache;
+    const quint64 cacheGeneration = cache->generation();
     const QString currentArchivePath = m_currentArchivePath;
     const QString currentArchivePassword = m_currentArchivePassword;
 
@@ -1583,11 +1584,11 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
             && entry.archivePath == currentArchivePath
             ? currentArchivePassword
             : QString();
-        auto future = QtConcurrent::run([cache, entry, request, key, archivePassword]() {
+        auto future = QtConcurrent::run([cache, entry, request, key, archivePassword, cacheGeneration]() {
             core::VipsImageDecoder decoder;
             const core::DecodedImage decoded = decoder.decode(entry, request, archivePassword);
             if (decoded.ok()) {
-                cache->insert(key, decoded);
+                [[maybe_unused]] const bool inserted = cache->insertIfGeneration(key, decoded, cacheGeneration);
             }
         });
         Q_UNUSED(future)

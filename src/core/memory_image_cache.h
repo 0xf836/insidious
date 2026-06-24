@@ -16,11 +16,13 @@ public:
     [[nodiscard]] bool contains(const QString &key) const;
     [[nodiscard]] bool tryGet(const QString &key, DecodedImage *image);
     void insert(const QString &key, const DecodedImage &image);
+    [[nodiscard]] bool insertIfGeneration(const QString &key, const DecodedImage &image, quint64 expectedGeneration);
     void clear();
 
     [[nodiscard]] qint64 byteBudget() const;
     [[nodiscard]] qint64 bytesUsed() const;
     [[nodiscard]] int size() const;
+    [[nodiscard]] quint64 generation() const;
 
 private:
     struct CacheItem {
@@ -30,12 +32,14 @@ private:
     };
 
     void evictIfNeeded();
+    void insertLocked(const QString &key, const DecodedImage &image);
 
     mutable QMutex m_mutex;
     QHash<QString, CacheItem> m_items;
     qint64 m_byteBudget = 0;
     qint64 m_bytesUsed = 0;
     quint64 m_clock = 0;
+    quint64 m_generation = 0;
 };
 
 } // namespace insidious::core

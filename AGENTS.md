@@ -118,6 +118,7 @@ Current MVP fullscreen behavior:
 - Do not run folder scanning or libvips decoding on the UI thread.
 - Guard async UI updates against stale results when the current source or decode request changes.
 - Keep cache state memory-only. Do not introduce persistent cache files, recent-file lists, or viewed-path settings.
+- Prefetch cache writes must use `MemoryImageCache` generation guards so stale background prefetch cannot repopulate cache after source switches or cache clears.
 - When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, `docs/`, `README.md`, and this file together.
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
 - Transient loading during image navigation should preserve the currently displayed raster and use a subtle overlay. Zoom-triggered loading should preserve the displayed raster and decoded state without showing a loading label or moving the old image. Do not stack additional zoom/view-transform requests while an image render is pending; navigation may still cancel the pending render. Zoom-triggered render-too-large errors should restore the previous zoom/pan/raster and show a compact overlay instead of clearing the image. Error, empty, and scanning states may clear the image and show a full message.

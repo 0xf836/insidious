@@ -43,6 +43,8 @@ private slots:
     void viewerNavigationStopsAtBounds();
     void viewerCustomZoomClampsToSupportedRange();
     void memoryCacheEvictsByBudget();
+    void memoryCacheConditionalInsertAcceptsCurrentGeneration();
+    void memoryCacheConditionalInsertRejectsStaleGeneration();
     void decoderLoadsTemporaryPng();
     void decoderLoadsPngFromArchive();
     void decoderReportsRenderTooLargeReason();
@@ -417,6 +419,36 @@ void CoreTests::memoryCacheEvictsByBudget()
     QCOMPARE(cache.size(), 1);
     QVERIFY(!cache.contains(QStringLiteral("first")));
     QVERIFY(cache.contains(QStringLiteral("second")));
+}
+
+void CoreTests::memoryCacheConditionalInsertAcceptsCurrentGeneration()
+{
+    MemoryImageCache cache(1024);
+
+    DecodedImage image;
+    image.image = QImage(4, 4, QImage::Format_RGBA8888);
+    image.sourceSize = image.image.size();
+    image.displaySize = image.image.size();
+
+    const quint64 generation = cache.generation();
+    QVERIFY(cache.insertIfGeneration(QStringLiteral("current"), image, generation));
+    QVERIFY(cache.contains(QStringLiteral("current")));
+}
+
+void CoreTests::memoryCacheConditionalInsertRejectsStaleGeneration()
+{
+    MemoryImageCache cache(1024);
+
+    DecodedImage image;
+    image.image = QImage(4, 4, QImage::Format_RGBA8888);
+    image.sourceSize = image.image.size();
+    image.displaySize = image.image.size();
+
+    const quint64 staleGeneration = cache.generation();
+    cache.clear();
+
+    QVERIFY(!cache.insertIfGeneration(QStringLiteral("stale"), image, staleGeneration));
+    QVERIFY(!cache.contains(QStringLiteral("stale")));
 }
 
 void CoreTests::decoderLoadsTemporaryPng()

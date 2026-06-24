@@ -38,22 +38,22 @@ void MemoryImageCache::insert(const QString &key, const DecodedImage &image)
     }
 
     QMutexLocker locker(&m_mutex);
-    const qint64 bytes = image.image.sizeInBytes();
+    insertLocked(key, image);
+}
 
-    auto existing = m_items.find(key);
-    if (existing != m_items.end()) {
-        m_bytesUsed -= existing->bytes;
-        m_items.erase(existing);
+bool MemoryImageCache::insertIfGeneration(const QString &key, const DecodedImage &image, quint64 expectedGeneration)
+{
+    if (!image.ok()) {
+        return false;
     }
 
-    CacheItem item;
-    item.image = image;
-    item.bytes = bytes;
-    item.lastUsed = ++m_clock;
-    m_items.insert(key, item);
-    m_bytesUsed += bytes;
+    QMutexLocker locker(&m_mutex);
+    if (m_generation != expectedGeneration) {
+        return false;
+    }
 
-    evictIfNeeded();
+    insertLocked(key, image);
+    return true;
 }
 
 void MemoryImageCache::clear()
@@ -61,6 +61,7 @@ void MemoryImageCache::clear()
     QMutexLocker locker(&m_mutex);
     m_items.clear();
     m_bytesUsed = 0;
+    ++m_generation;
 }
 
 qint64 MemoryImageCache::byteBudget() const
@@ -79,6 +80,32 @@ int MemoryImageCache::size() const
 {
     QMutexLocker locker(&m_mutex);
     return m_items.size();
+}
+
+quint64 MemoryImageCache::generation() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_generation;
+}
+
+void MemoryImageCache::insertLocked(const QString &key, const DecodedImage &image)
+{
+    const qint64 bytes = image.image.sizeInBytes();
+
+    auto existing = m_items.find(key);
+    if (existing != m_items.end()) {
+        m_bytesUsed -= existing->bytes;
+        m_items.erase(existing);
+    }
+
+    CacheItem item;
+    item.image = image;
+    item.bytes = bytes;
+    item.lastUsed = ++m_clock;
+    m_items.insert(key, item);
+    m_bytesUsed += bytes;
+
+    evictIfNeeded();
 }
 
 void MemoryImageCache::evictIfNeeded()
