@@ -25,6 +25,7 @@ public:
     void setImageInteractionEnabled(bool enabled);
     void setPanningEnabled(bool enabled);
     void setClickZoomBehavior(core::ClickZoomBehavior behavior);
+    void setClickZoomCursorEnabled(bool enabled);
     void setPanOffset(QPointF offset);
     [[nodiscard]] bool hasImage() const;
     [[nodiscard]] QPointF panOffset() const;
@@ -59,6 +60,8 @@ private:
     void scheduleImageClick(QPoint position);
     void cancelPendingImageClick();
     void stopImageInteraction();
+    void updateIdleCursor();
+    [[nodiscard]] bool shouldShowClickZoomCursor() const;
 
     QImage m_image;
     QString m_message;
@@ -77,6 +80,7 @@ private:
     bool m_clickPending = false;
     bool m_selectingZoom = false;
     bool m_holdingZoom = false;
+    bool m_clickZoomCursorEnabled = false;
     core::ClickZoomBehavior m_clickZoomBehavior = core::ClickZoomBehavior::ToggleOnClick;
 };
 

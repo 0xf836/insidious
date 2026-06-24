@@ -9,6 +9,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Viewer controls: `fit to window`, `actual size`, zoom in/out, pan, view-only rotate left/right, fullscreen.
 - Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom around cursor, toolbar/shortcut zoom around viewport center, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
 - Настраиваемые режимы ЛКМ zoom: click-to-zoom/restore по умолчанию и hold-to-zoom-pan с возвратом на release.
+- Magnifier cursor для режимов ЛКМ zoom показывается только когда zoom/restore или hold-to-zoom доступен.
 - Async decode pipeline через libvips: display-sized rasters, stale-result guards, neighbor prefetch, memory-only decoded image cache.
 - Zoom render budget guard: если zoom-запрос слишком большой для decode budget, viewer откатывает предыдущий raster/zoom/pan и показывает компактный overlay вместо full-screen ошибки.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
@@ -21,8 +22,6 @@ Roadmap — живой backlog реализации, а не обещание р
 
 ## Ближайшее / small stabilization
 
-- Zoom UX polish:
-  - показывать magnifier cursor только когда click-zoom доступен.
 - Settings polish:
   - добавить on/off для EXIF autorotate;
   - добавить default sort mode после появления sort-by-date;

@@ -237,6 +237,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     if (entry == nullptr) {
         m_imageRenderPending = false;
         m_pendingZoomRenderFallback.reset();
+        updateInteractionState();
         updateActionState();
         updateInfoPanelForCurrentImage();
         return;
@@ -292,6 +293,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
         updateStatus(tr("Loading image..."));
     }
     updateActionState();
+    updateInteractionState();
 
     if (m_decodeWatcher.isRunning()) {
         m_decodeWatcher.cancel();
@@ -1487,7 +1489,13 @@ void MainWindow::updateInteractionState()
 {
     const bool panningEnabled = m_controller.hasCollection()
         && m_controller.zoomMode() != core::ZoomMode::FitToWindow;
+    const bool clickZoomCursorEnabled = m_controller.hasCollection()
+        && !m_imageRenderPending
+        && !m_activeHoldZoom.has_value()
+        && m_currentDecoded.ok()
+        && m_currentDecoded.effectiveScale > 0.0;
     m_imageView->setPanningEnabled(panningEnabled);
+    m_imageView->setClickZoomCursorEnabled(clickZoomCursorEnabled);
 }
 
 void MainWindow::updateInfoPanelForCurrentImage(const QString &state)

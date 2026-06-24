@@ -1,11 +1,38 @@
 #include "ui/image_view_widget.h"
 
 #include <QApplication>
+#include <QCursor>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPixmap>
 #include <QWheelEvent>
 
 namespace insidious::ui {
+namespace {
+
+const QCursor &clickZoomCursor()
+{
+    static const QCursor cursor = [] {
+        QPixmap pixmap(32, 32);
+        pixmap.fill(Qt::transparent);
+
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        painter.setPen(QPen(QColor(10, 10, 10, 200), 4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawEllipse(QRectF(6.0, 5.0, 14.0, 14.0));
+        painter.drawLine(QPointF(17.0, 17.0), QPointF(25.0, 25.0));
+
+        painter.setPen(QPen(QColor(245, 245, 245, 245), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawEllipse(QRectF(6.0, 5.0, 14.0, 14.0));
+        painter.drawLine(QPointF(17.0, 17.0), QPointF(25.0, 25.0));
+
+        return QCursor(pixmap, 10, 10);
+    }();
+    return cursor;
+}
+
+} // namespace
 
 ImageViewWidget::ImageViewWidget(QWidget *parent)
     : QWidget(parent)
@@ -30,6 +57,7 @@ void ImageViewWidget::setImage(const QImage &image)
     m_image = image;
     m_message.clear();
     m_overlayMessage.clear();
+    updateIdleCursor();
     update();
 }
 
@@ -60,7 +88,10 @@ void ImageViewWidget::setImageInteractionEnabled(bool enabled)
         stopImageInteraction();
         cancelPendingImageClick();
         update();
+        return;
     }
+
+    updateIdleCursor();
 }
 
 void ImageViewWidget::setPanningEnabled(bool enabled)
@@ -73,7 +104,7 @@ void ImageViewWidget::setPanningEnabled(bool enabled)
     if (!m_panningEnabled) {
         m_panning = false;
         m_leftDragMoved = false;
-        unsetCursor();
+        updateIdleCursor();
     }
 }
 
@@ -87,6 +118,16 @@ void ImageViewWidget::setClickZoomBehavior(core::ClickZoomBehavior behavior)
     stopImageInteraction();
     cancelPendingImageClick();
     update();
+}
+
+void ImageViewWidget::setClickZoomCursorEnabled(bool enabled)
+{
+    if (m_clickZoomCursorEnabled == enabled) {
+        return;
+    }
+
+    m_clickZoomCursorEnabled = enabled;
+    updateIdleCursor();
 }
 
 void ImageViewWidget::setPanOffset(QPointF offset)
@@ -281,7 +322,7 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
         const bool wasDrag = m_leftDragMoved;
         m_panning = false;
         m_leftDragMoved = false;
-        unsetCursor();
+        updateIdleCursor();
         if (!wasDrag) {
             scheduleImageClick(event->pos());
         }
@@ -291,7 +332,7 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
 
     if (event->button() == Qt::LeftButton && m_holdingZoom) {
         m_holdingZoom = false;
-        unsetCursor();
+        updateIdleCursor();
         emit holdZoomEnded();
         event->accept();
         return;
@@ -310,7 +351,7 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
         m_zoomSelectionEnd = event->pos();
         const QRect selection = zoomSelectionRect().intersected(rect());
         m_selectingZoom = false;
-        unsetCursor();
+        updateIdleCursor();
         update();
         if (selection.width() >= 8 && selection.height() >= 8) {
             emit zoomToRectRequested(selection);
@@ -331,7 +372,7 @@ void ImageViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
         m_leftDragMoved = false;
         m_selectingZoom = false;
         m_holdingZoom = false;
-        unsetCursor();
+        updateIdleCursor();
         update();
         if (wasHoldingZoom) {
             emit holdZoomEnded();
@@ -374,7 +415,28 @@ void ImageViewWidget::stopImageInteraction()
     m_leftDragMoved = false;
     m_selectingZoom = false;
     m_holdingZoom = false;
+    updateIdleCursor();
+}
+
+void ImageViewWidget::updateIdleCursor()
+{
+    if (m_panning || m_selectingZoom || m_holdingZoom) {
+        return;
+    }
+
+    if (shouldShowClickZoomCursor()) {
+        setCursor(clickZoomCursor());
+        return;
+    }
+
     unsetCursor();
+}
+
+bool ImageViewWidget::shouldShowClickZoomCursor() const
+{
+    return m_clickZoomCursorEnabled
+        && m_imageInteractionEnabled
+        && !m_image.isNull();
 }
 
 } // namespace insidious::ui
