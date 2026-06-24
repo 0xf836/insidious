@@ -583,6 +583,7 @@ void MainWindow::setupActions()
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     auto *navigateMenu = menuBar()->addMenu(tr("&Navigate"));
     m_mainToolBar = addToolBar(tr("Main"));
+    m_mainToolBar->setObjectName(QStringLiteral("mainToolBar"));
     m_mainToolBar->setMovable(false);
 
     m_openFileAction = new QAction(tr("Open File"), this);
