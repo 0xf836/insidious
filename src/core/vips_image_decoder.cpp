@@ -3,6 +3,7 @@
 #include "core/archive_collection_source.h"
 
 #include <QByteArray>
+#include <QImage>
 #include <QObject>
 #include <QtGlobal>
 
@@ -81,6 +82,11 @@ bool wouldExceedBudget(int width, int height, int bands, double scale, qint64 ma
     const double scaledHeight = std::ceil(static_cast<double>(height) * scale);
     const double bytes = scaledWidth * scaledHeight * static_cast<double>(std::max(4, bands));
     return bytes > static_cast<double>(maxDecodedBytes);
+}
+
+void freeVipsMemory(void *memory)
+{
+    g_free(memory);
 }
 
 QString vipsErrorMessage(const char *message)
@@ -220,11 +226,30 @@ DecodedImage VipsImageDecoder::decode(
 
         size_t memorySize = 0;
         void *memory = image.write_to_memory(&memorySize);
+        if (memory == nullptr || memorySize == 0) {
+            result.errorMessage = QObject::tr("Decoded image memory allocation failed.");
+            result.errorReason = DecodeErrorReason::Other;
+            return result;
+        }
+
         const int bytesPerLine = image.width() * bands;
         const QImage::Format format = bands == 4 ? QImage::Format_RGBA8888 : QImage::Format_RGB888;
-        const QImage view(reinterpret_cast<const uchar *>(memory), image.width(), image.height(), bytesPerLine, format);
-        result.image = view.copy();
-        g_free(memory);
+        QImage view(
+            reinterpret_cast<uchar *>(memory),
+            image.width(),
+            image.height(),
+            bytesPerLine,
+            format,
+            freeVipsMemory,
+            memory);
+        if (view.isNull()) {
+            g_free(memory);
+            result.errorMessage = QObject::tr("Decoded image could not be wrapped for display.");
+            result.errorReason = DecodeErrorReason::Other;
+            return result;
+        }
+
+        result.image = view;
 
         result.displaySize = result.image.size();
         result.effectiveScale = scale;

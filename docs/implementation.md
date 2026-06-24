@@ -38,7 +38,7 @@ The build creates:
 - `src/core/app_settings.*` defines persistent settings defaults, enum/string conversion, validation/clamping, category reset behavior, and `QSettings` read/write.
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, metadata fields, and machine-readable decode error reasons.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
-- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a copied `QImage`.
+- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
 ## Data flow

@@ -46,6 +46,7 @@ private slots:
     void memoryCacheConditionalInsertAcceptsCurrentGeneration();
     void memoryCacheConditionalInsertRejectsStaleGeneration();
     void decoderLoadsTemporaryPng();
+    void decoderImageBufferOutlivesDecodedImageCopies();
     void decoderLoadsPngFromArchive();
     void decoderReportsRenderTooLargeReason();
     void decoderRejectsBrokenSupportedFile();
@@ -472,6 +473,33 @@ void CoreTests::decoderLoadsTemporaryPng()
     QCOMPARE(decoded.sourceSize, QSize(16, 8));
     QVERIFY(decoded.displaySize.width() <= 8);
     QVERIFY(decoded.displaySize.height() <= 8);
+}
+
+void CoreTests::decoderImageBufferOutlivesDecodedImageCopies()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(8, 8, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    QImage retained;
+    {
+        const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+        DecodeRequest request;
+        request.viewportSize = QSize(8, 8);
+        request.fitToWindow = true;
+
+        VipsImageDecoder decoder;
+        const DecodedImage decoded = decoder.decode(entry, request);
+        QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+        retained = decoded.image;
+    }
+
+    QVERIFY(!retained.isNull());
+    QCOMPARE(QColor(retained.pixel(0, 0)), QColor(Qt::blue));
 }
 
 void CoreTests::decoderLoadsPngFromArchive()
