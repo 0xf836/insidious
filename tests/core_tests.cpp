@@ -179,6 +179,11 @@ void CoreTests::supportedExtensionsAreMvpOnly()
     QVERIFY(isSupportedImageExtension(QStringLiteral("png")));
     QVERIFY(isSupportedImageExtension(QStringLiteral("webp")));
     QVERIFY(isSupportedImageExtension(QStringLiteral("bmp")));
+    QVERIFY(isSupportedImageExtension(QStringLiteral("dib")));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.jpeg")), QStringLiteral("image/jpeg"));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("two.PNG")), QStringLiteral("image/png"));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("three.webp")), QStringLiteral("image/webp"));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("four.dib")), QStringLiteral("image/bmp"));
 
     QVERIFY(!isSupportedImageExtension(QStringLiteral("gif")));
     QVERIFY(!isSupportedImageExtension(QStringLiteral("tiff")));
@@ -656,6 +661,7 @@ void CoreTests::shortcutSettingsDefaultsAndCustomization()
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::PreviousImage), defaultShortcutSequences(ShortcutCommand::PreviousImage));
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::PreviousFolder), QStringList({ QStringLiteral("MouseBack") }));
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextFolder), QStringList({ QStringLiteral("MouseForward") }));
+    QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::CopyOriginalImage), QStringList({ QStringLiteral("Ctrl+C") }));
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::ExifAutorotate), QStringList());
     QVERIFY(values.fullscreen.infoLineEnabled);
     QCOMPARE(values.fullscreen.infoLineFontFamily, QStringLiteral("DejaVu Sans"));

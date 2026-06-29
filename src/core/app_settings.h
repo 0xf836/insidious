@@ -39,6 +39,7 @@ enum class ShortcutCommand {
     FirstImage,
     LastImage,
     QuickJump,
+    CopyOriginalImage,
     Preferences,
     ZoomIn,
     ZoomOut,

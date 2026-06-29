@@ -39,6 +39,7 @@
 - открыть ZIP/7z/RAR архив;
 - назад / вперёд;
 - первый / последний;
+- copy original image;
 - zoom in / zoom out;
 - fit to window;
 - actual size;
@@ -94,6 +95,10 @@ EXIF date в status/fullscreen line показывается только как
 ## Быстрый переход
 
 `Navigate -> Quick Jump` (`Ctrl+F`) открывает небольшой модальный диалог поиска по имени файла в текущей коллекции. Поиск использует case-insensitive contains matching по отображаемому имени файла. Подтверждение выбранной строки переключает изображение через тот же pipeline, что и выбор строки в панели `Files`. В fullscreen диалог открывается поверх viewer без выхода из fullscreen.
+
+## Clipboard
+
+`Edit -> Copy Original Image` (`Ctrl+C`) копирует в clipboard исходные bytes текущего image с MIME исходного формата и добавляет совместимое clipboard image data, декодированное из этих же исходных bytes. Команда не копирует rendered raster: zoom, fit, rotate, EXIF autorotate и display scaling не меняют clipboard payload. Для archive entries bytes читаются из архива в память без распаковки на диск.
 
 ## Правая панель
 
@@ -186,6 +191,7 @@ Shortcut editor разрешает очистить shortcut у команды �
 - previous/next folder: `MouseBack`, `MouseForward`;
 - first/last image: `Home`, `End`;
 - quick jump: `Ctrl+F`;
+- copy original image: `Ctrl+C`;
 - preferences: toolkit default Preferences shortcut;
 - zoom in/out: toolkit default Zoom In / Zoom Out shortcuts;
 - fit to window / actual size: `0`, `1`;

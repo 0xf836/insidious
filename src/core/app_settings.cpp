@@ -395,6 +395,7 @@ QVector<ShortcutCommand> shortcutCommands()
         ShortcutCommand::FirstImage,
         ShortcutCommand::LastImage,
         ShortcutCommand::QuickJump,
+        ShortcutCommand::CopyOriginalImage,
         ShortcutCommand::Preferences,
         ShortcutCommand::ZoomIn,
         ShortcutCommand::ZoomOut,
@@ -428,6 +429,8 @@ QString shortcutCommandId(ShortcutCommand command)
         return QStringLiteral("lastImage");
     case ShortcutCommand::QuickJump:
         return QStringLiteral("quickJump");
+    case ShortcutCommand::CopyOriginalImage:
+        return QStringLiteral("copyOriginalImage");
     case ShortcutCommand::Preferences:
         return QStringLiteral("preferences");
     case ShortcutCommand::ZoomIn:
@@ -477,6 +480,8 @@ QStringList defaultShortcutSequences(ShortcutCommand command)
         return { keySequenceToSettingsString(QKeySequence(Qt::Key_End)) };
     case ShortcutCommand::QuickJump:
         return { keySequenceToSettingsString(QKeySequence::Find) };
+    case ShortcutCommand::CopyOriginalImage:
+        return { keySequenceToSettingsString(QKeySequence::Copy) };
     case ShortcutCommand::Preferences:
         return { keySequenceToSettingsString(QKeySequence::Preferences) };
     case ShortcutCommand::ZoomIn:

@@ -106,6 +106,14 @@ Quick filename jump:
 - In fullscreen, `MainWindow` keeps the viewer fullscreen and shows the same dialog inside an in-window overlay, avoiding a separate top-level dialog that can make the window manager leave fullscreen.
 - Accepted selection maps the proxy row back to the collection row and switches through `MainWindow::reloadAfterImageSwitch()`.
 
+Clipboard:
+
+- `Edit -> Copy Original Image` / `Ctrl+C` copies the current source image bytes to the clipboard with the MIME type derived from the original extension and also adds Qt clipboard image data decoded from those same source bytes for paste compatibility.
+- The command does not use `DecodedImage` or the rendered raster, so zoom, rotate, fit mode, display scaling, and EXIF autorotate do not affect the clipboard payload.
+- Filesystem images are read from `ImageEntry::absolutePath`; archive images are read through `readArchiveEntry()` with the current in-memory archive password and are not extracted to disk.
+- Clipboard reads run on a separate `QFutureWatcher`, are limited to 256 MiB, and stale results are ignored if the current entry changes before the read finishes.
+- Clipboard payload stores image bytes and decoded image data only. Archive passwords and filesystem/archive paths are not written into clipboard metadata.
+
 Fullscreen overlay UI:
 
 - Entering fullscreen stores the normal visibility of the menu bar, main toolbar, statusbar, `Files` dock, and `Info` dock, hides them, and makes the central image viewer occupy the window.
@@ -133,7 +141,7 @@ Settings:
 - `Edit -> Preferences` opens `SettingsDialog`.
 - Settings are loaded in `MainWindow` construction and saved on Apply/OK and window close through `QSettings` using the application/organization name `Insidious`.
 - Viewer settings currently include default zoom mode, image-switch view policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, shared zoom step, and wheel / Ctrl+wheel / Shift+wheel actions. EXIF autorotate is also exposed as a synced checkable action in the `View` menu, main toolbar, and fullscreen top overlay.
-- Shortcut settings currently include core viewer commands only. `AppSettings` owns stable command ids, keyboard/mouse input strings, defaults, QSettings read/write, reset behavior, and invalid-input fallback. `MainWindow` maps keyboard inputs onto existing `QAction` shortcuts and triggers the same actions for matching mouse button inputs, so menus, the normal toolbar, and the fullscreen top overlay share command routing.
+- Shortcut settings currently include core viewer commands only. `AppSettings` owns stable command ids, keyboard/mouse input strings, defaults, QSettings read/write, reset behavior, and invalid-input fallback. `MainWindow` maps keyboard inputs onto existing `QAction` shortcuts and triggers the same actions for matching mouse button inputs, so menus, the normal toolbar, and the fullscreen top overlay share command routing. `CopyOriginalImage` defaults to `Ctrl+C`.
 - `SettingsDialog` exposes a `Shortcuts` page where a command can have keyboard and mouse inputs at the same time, be cleared, or reset to defaults. `Set Keyboard` replaces only keyboard inputs for that command, while `Set Mouse` replaces only mouse inputs. Apply/OK rejects duplicate non-empty inputs across the editable command set.
 - Fullscreen settings currently include side and top/bottom edge trigger ratios plus pinned info line enabled/font family/font size/color.
 - Interface settings currently include whether to remember layout plus window geometry/state and normal/fullscreen Files splitter state.

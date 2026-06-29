@@ -71,6 +71,24 @@ QString formatHintFromSuffix(QString suffix)
     return suffix.toUpper();
 }
 
+QString imageMimeTypeFromPath(const QString &path)
+{
+    const QString suffix = QFileInfo(path).suffix().toCaseFolded();
+    if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg")) {
+        return QStringLiteral("image/jpeg");
+    }
+    if (suffix == QLatin1String("png")) {
+        return QStringLiteral("image/png");
+    }
+    if (suffix == QLatin1String("webp")) {
+        return QStringLiteral("image/webp");
+    }
+    if (suffix == QLatin1String("bmp") || suffix == QLatin1String("dib")) {
+        return QStringLiteral("image/bmp");
+    }
+    return QStringLiteral("application/octet-stream");
+}
+
 QStringList supportedImageNameFilters()
 {
     return {

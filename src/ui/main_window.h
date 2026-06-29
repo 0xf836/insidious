@@ -10,7 +10,9 @@
 #include "ui/image_list_model.h"
 #include "ui/image_view_widget.h"
 
+#include <QByteArray>
 #include <QFutureWatcher>
+#include <QImage>
 #include <QHash>
 #include <QLabel>
 #include <QMainWindow>
@@ -73,6 +75,7 @@ private slots:
     void toggleFullscreen();
     void showQuickJumpDialog();
     void showSettingsDialog();
+    void copyOriginalImageToClipboard();
     void handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY, QPoint position);
     void handleMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button, bool *handled);
 
@@ -102,6 +105,17 @@ private:
         quint64 generation = 0;
         QString folderRelativePath;
         core::FolderLoadResult result;
+    };
+
+    struct CopyOriginalImageJobResult {
+        quint64 generation = 0;
+        core::ImageEntry entry;
+        QByteArray data;
+        QImage imageData;
+        QString mimeType;
+        QString errorMessage;
+
+        [[nodiscard]] bool ok() const { return errorMessage.isEmpty() && !data.isEmpty() && !mimeType.isEmpty(); }
     };
 
     struct FullscreenOverlaySettings {
@@ -244,6 +258,7 @@ private:
     QAction *m_firstAction = nullptr;
     QAction *m_lastAction = nullptr;
     QAction *m_quickJumpAction = nullptr;
+    QAction *m_copyOriginalImageAction = nullptr;
     QAction *m_preferencesAction = nullptr;
     QAction *m_zoomInAction = nullptr;
     QAction *m_zoomOutAction = nullptr;
@@ -267,10 +282,12 @@ private:
     QFutureWatcher<DecodeJobResult> m_decodeWatcher;
     QFutureWatcher<ScanJobResult> m_scanWatcher;
     QFutureWatcher<FolderLoadJobResult> m_folderLoadWatcher;
+    QFutureWatcher<CopyOriginalImageJobResult> m_copyOriginalImageWatcher;
     QHash<QString, QFutureWatcher<void> *> m_prefetchWatchers;
     QTimer m_resizeReloadTimer;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
+    quint64 m_copyOriginalImageGeneration = 0;
     std::optional<PendingDecodeRequest> m_activeDecodeRequest;
     std::optional<PendingDecodeRequest> m_pendingDecodeRequest;
     std::optional<PendingZoomRenderFallback> m_pendingZoomRenderFallback;

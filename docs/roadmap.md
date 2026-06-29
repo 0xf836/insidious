@@ -20,6 +20,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.
 - Compact status/fullscreen line formatter: labelled dimensions/MP, file size, file date, EXIF date, filename, zoom, index/count.
 - Optional pinned fullscreen info line: `name (resolution | filesize) [index/count] zoom`, separate from edge overlays, with fullscreen settings for visibility, font, size, and color.
+- Clipboard: copy current original image bytes to clipboard with the source image MIME type.
 - Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, explicit previous/next folder actions, configurable core viewer keyboard/mouse shortcuts with conflict detection and restore defaults, fullscreen trigger zones, layout persistence.
 
 ## Ближайшее / small stabilization
@@ -32,9 +33,6 @@ Roadmap — живой backlog реализации, а не обещание р
 - Quick Jump fullscreen polish:
   - сделать fullscreen search dialog компактнее;
   - когда focus в поле поиска, Up/Down должны двигать выделение в result list.
-- Clipboard:
-  - copy current rendered image to clipboard;
-  - отдельно решить, нужна ли команда copy original bytes.
 - Rotate:
   - добавить возможность поворота изображения кнопками по/против часовой стрелки на 90 градусов
 

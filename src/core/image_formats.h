@@ -12,6 +12,7 @@ namespace insidious::core {
 [[nodiscard]] bool isSupportedArchiveExtension(QString suffix);
 [[nodiscard]] bool isSupportedArchiveFile(const QFileInfo &fileInfo);
 [[nodiscard]] QString formatHintFromSuffix(QString suffix);
+[[nodiscard]] QString imageMimeTypeFromPath(const QString &path);
 [[nodiscard]] QStringList supportedImageNameFilters();
 [[nodiscard]] QStringList supportedOpenNameFilters();
 

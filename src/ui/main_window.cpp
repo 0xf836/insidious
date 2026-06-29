@@ -11,6 +11,8 @@
 #include <QAction>
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QBuffer>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QColor>
 #include <QCursor>
@@ -19,6 +21,7 @@
 #include <QDropEvent>
 #include <QEvent>
 #include <QEventLoop>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
@@ -28,6 +31,7 @@
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QInputDialog>
+#include <QImageReader>
 #include <QListView>
 #include <QLineEdit>
 #include <QLocale>
@@ -53,6 +57,14 @@ namespace {
 
 constexpr int FullscreenInfoLineMarginLeft = 16;
 constexpr int FullscreenInfoLineMarginTop = 14;
+constexpr qint64 MaxOriginalClipboardBytes = 256LL * 1024LL * 1024LL;
+
+struct OriginalImageReadResult {
+    QByteArray data;
+    QImage imageData;
+    QString mimeType;
+    QString errorMessage;
+};
 
 QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
 {
@@ -97,6 +109,60 @@ QList<QKeySequence> keySequencesFromSettings(const QStringList &values)
 Qt::KeyboardModifiers shortcutRelevantModifiers(Qt::KeyboardModifiers modifiers)
 {
     return modifiers & (Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier);
+}
+
+QImage decodedClipboardImage(const QByteArray &data)
+{
+    QBuffer buffer;
+    buffer.setData(data);
+    if (!buffer.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    QImageReader reader(&buffer);
+    reader.setAutoTransform(false);
+    return reader.read();
+}
+
+OriginalImageReadResult readOriginalImageBytes(const core::ImageEntry &entry, const QString &archivePassword)
+{
+    OriginalImageReadResult result;
+    if (entry.source == core::ImageEntrySource::Archive) {
+        const core::ArchiveEntryReadResult archiveResult = core::readArchiveEntry(entry, archivePassword, MaxOriginalClipboardBytes);
+        if (!archiveResult.ok()) {
+            result.errorMessage = archiveResult.errorMessage;
+            return result;
+        }
+        result.data = archiveResult.data;
+        result.mimeType = core::imageMimeTypeFromPath(entry.archiveEntryPath);
+        result.imageData = decodedClipboardImage(result.data);
+        return result;
+    }
+
+    const QFileInfo fileInfo(entry.absolutePath);
+    if (!fileInfo.exists() || !fileInfo.isFile() || !fileInfo.isReadable()) {
+        result.errorMessage = QObject::tr("Original image file is not readable.");
+        return result;
+    }
+    if (fileInfo.size() > MaxOriginalClipboardBytes) {
+        result.errorMessage = QObject::tr("Original image is too large to copy.");
+        return result;
+    }
+
+    QFile file(fileInfo.absoluteFilePath());
+    if (!file.open(QIODevice::ReadOnly)) {
+        result.errorMessage = file.errorString();
+        return result;
+    }
+
+    result.data = file.readAll();
+    if (result.data.isEmpty()) {
+        result.errorMessage = QObject::tr("Original image file is empty.");
+        return result;
+    }
+    result.mimeType = core::imageMimeTypeFromPath(fileInfo.absoluteFilePath());
+    result.imageData = decodedClipboardImage(result.data);
+    return result;
 }
 
 } // namespace
@@ -657,6 +723,34 @@ void MainWindow::showSettingsDialog()
     dialog.exec();
 }
 
+void MainWindow::copyOriginalImageToClipboard()
+{
+    const core::ImageEntry *entry = m_controller.currentEntry();
+    if (entry == nullptr || m_copyOriginalImageWatcher.isRunning()) {
+        return;
+    }
+
+    const quint64 generation = ++m_copyOriginalImageGeneration;
+    const core::ImageEntry entryCopy = *entry;
+    const QString archivePassword = entryCopy.source == core::ImageEntrySource::Archive
+        && entryCopy.archivePath == m_currentArchivePath
+        ? m_currentArchivePassword
+        : QString();
+
+    m_copyOriginalImageWatcher.setFuture(QtConcurrent::run([generation, entryCopy, archivePassword]() {
+        const OriginalImageReadResult readResult = readOriginalImageBytes(entryCopy, archivePassword);
+        CopyOriginalImageJobResult job;
+        job.generation = generation;
+        job.entry = entryCopy;
+        job.data = readResult.data;
+        job.imageData = readResult.imageData;
+        job.mimeType = readResult.mimeType;
+        job.errorMessage = readResult.errorMessage;
+        return job;
+    }));
+    updateActionState();
+}
+
 void MainWindow::handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY, QPoint position)
 {
     applyWheelAction(wheelActionForModifiers(modifiers), angleDeltaY, position);
@@ -731,6 +825,11 @@ void MainWindow::setupActions()
     connect(m_quickJumpAction, &QAction::triggered, this, &MainWindow::showQuickJumpDialog);
     navigateMenu->addAction(m_quickJumpAction);
 
+    m_copyOriginalImageAction = new QAction(tr("Copy Original Image"), this);
+    connect(m_copyOriginalImageAction, &QAction::triggered, this, &MainWindow::copyOriginalImageToClipboard);
+    editMenu->addAction(m_copyOriginalImageAction);
+
+    editMenu->addSeparator();
     m_preferencesAction = new QAction(tr("Preferences"), this);
     connect(m_preferencesAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
     editMenu->addAction(m_preferencesAction);
@@ -877,6 +976,40 @@ void MainWindow::setupConnections()
     });
     connect(&m_folderLoadWatcher, &QFutureWatcher<FolderLoadJobResult>::finished, this, [this]() {
         applyFolderLoadResult(m_folderLoadWatcher.result());
+    });
+    connect(&m_copyOriginalImageWatcher, &QFutureWatcher<CopyOriginalImageJobResult>::finished, this, [this]() {
+        updateActionState();
+        const QFuture<CopyOriginalImageJobResult> future = m_copyOriginalImageWatcher.future();
+        if (future.isCanceled() || future.resultCount() == 0 || !future.isResultReadyAt(0)) {
+            return;
+        }
+
+        const CopyOriginalImageJobResult job = future.result();
+        const core::ImageEntry *currentEntry = m_controller.currentEntry();
+        if (job.generation != m_copyOriginalImageGeneration
+            || currentEntry == nullptr
+            || currentEntry->identityKey() != job.entry.identityKey()) {
+            return;
+        }
+
+        if (!job.ok()) {
+            const QString message = job.errorMessage.isEmpty()
+                ? tr("Could not copy original image.")
+                : tr("Could not copy original image: %1").arg(job.errorMessage);
+            m_imageView->setOverlayMessage(message);
+            updateStatus(message);
+            return;
+        }
+
+        auto *mimeData = new QMimeData;
+        mimeData->setData(job.mimeType, job.data);
+        if (!job.imageData.isNull()) {
+            mimeData->setImageData(job.imageData);
+        }
+        QApplication::clipboard()->setMimeData(mimeData);
+        const QString message = tr("Original image copied to clipboard.");
+        m_imageView->setOverlayMessage(message);
+        updateStatus(message);
     });
 }
 
@@ -1069,6 +1202,7 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenTopPanel->addAction(m_firstAction);
     m_fullscreenTopPanel->addAction(m_lastAction);
     m_fullscreenTopPanel->addAction(m_quickJumpAction);
+    m_fullscreenTopPanel->addAction(m_copyOriginalImageAction);
     m_fullscreenTopPanel->addSeparator();
     m_fullscreenTopPanel->addAction(m_zoomInAction);
     m_fullscreenTopPanel->addAction(m_zoomOutAction);
@@ -1204,6 +1338,8 @@ QAction *MainWindow::actionForShortcutCommand(core::ShortcutCommand command) con
         return m_lastAction;
     case core::ShortcutCommand::QuickJump:
         return m_quickJumpAction;
+    case core::ShortcutCommand::CopyOriginalImage:
+        return m_copyOriginalImageAction;
     case core::ShortcutCommand::Preferences:
         return m_preferencesAction;
     case core::ShortcutCommand::ZoomIn:
@@ -1698,6 +1834,7 @@ void MainWindow::updateActionState()
     m_firstAction->setEnabled(hasPreviousInFolder);
     m_lastAction->setEnabled(hasNextInFolder);
     m_quickJumpAction->setEnabled(hasImage);
+    m_copyOriginalImageAction->setEnabled(hasImage && !m_copyOriginalImageWatcher.isRunning());
     m_zoomInAction->setEnabled(canChangeView);
     m_zoomOutAction->setEnabled(canChangeView);
     m_fitAction->setEnabled(canChangeView);
