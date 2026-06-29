@@ -19,6 +19,7 @@ int normalizeRotation(int degrees)
 void ViewerController::setCollection(QVector<ImageEntry> entries, int selectedIndex)
 {
     m_entries = std::move(entries);
+    resetRotation();
     if (m_entries.isEmpty()) {
         m_currentIndex = -1;
         return;
@@ -32,6 +33,7 @@ void ViewerController::clearCollection()
     m_entries.clear();
     m_currentIndex = -1;
     resetPan();
+    resetRotation();
 }
 
 bool ViewerController::hasCollection() const
@@ -89,6 +91,7 @@ bool ViewerController::setCurrentIndex(int index)
     }
     m_currentIndex = index;
     resetPan();
+    resetRotation();
     return true;
 }
 
@@ -132,6 +135,11 @@ void ViewerController::resetPan()
 void ViewerController::setPanOffset(QPointF offset)
 {
     m_panOffset = offset;
+}
+
+void ViewerController::resetRotation()
+{
+    m_rotationDegrees = 0;
 }
 
 void ViewerController::rotateLeft()

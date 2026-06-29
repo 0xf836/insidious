@@ -43,6 +43,7 @@ private slots:
     void archiveSourceTreeGroupsImagesByFolder();
     void archivePasswordIsRequiredAndAccepted();
     void viewerNavigationStopsAtBounds();
+    void viewerRotationNormalizesAndResetsOnImageSwitch();
     void viewerCustomZoomClampsToSupportedRange();
     void memoryCacheEvictsByBudget();
     void memoryCacheConditionalInsertAcceptsCurrentGeneration();
@@ -51,12 +52,14 @@ private slots:
     void renderMemoryEstimateCeilsScaledSize();
     void renderMemoryBudgetTreatsOverflowAsExceeded();
     void decoderLoadsTemporaryPng();
+    void decoderAppliesViewRotation();
     void decoderImageBufferOutlivesDecodedImageCopies();
     void decoderLoadsPngFromArchive();
     void decoderReportsRenderTooLargeReason();
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
     void decodeRequestCacheKeyIncludesExifAutorotate();
+    void decodeRequestCacheKeyIncludesRotation();
     void shortcutSettingsDefaultsAndCustomization();
     void appSettingsRoundTripsThroughQSettings();
     void appSettingsFallbacksAndClampsInvalidValues();
@@ -400,6 +403,49 @@ void CoreTests::viewerNavigationStopsAtBounds()
     QCOMPARE(controller.currentIndex(), 1);
 }
 
+void CoreTests::viewerRotationNormalizesAndResetsOnImageSwitch()
+{
+    ViewerController controller;
+    QVector<ImageEntry> entries;
+    ImageEntry first;
+    first.displayName = QStringLiteral("1.png");
+    first.absolutePath = QStringLiteral("/tmp/1.png");
+    first.fileSize = 1;
+    first.formatHint = QStringLiteral("PNG");
+    entries.append(first);
+
+    ImageEntry second;
+    second.displayName = QStringLiteral("2.png");
+    second.absolutePath = QStringLiteral("/tmp/2.png");
+    second.fileSize = 1;
+    second.formatHint = QStringLiteral("PNG");
+    entries.append(second);
+
+    controller.setCollection(entries, 0);
+    controller.setPanOffset(QPointF(10.0, 20.0));
+
+    controller.rotateRight();
+    QCOMPARE(controller.rotationDegrees(), 90);
+    QCOMPARE(controller.panOffset(), QPointF());
+
+    controller.rotateRight();
+    controller.rotateRight();
+    controller.rotateRight();
+    QCOMPARE(controller.rotationDegrees(), 0);
+
+    controller.rotateLeft();
+    QCOMPARE(controller.rotationDegrees(), 270);
+
+    QVERIFY(controller.goNext());
+    QCOMPARE(controller.currentIndex(), 1);
+    QCOMPARE(controller.rotationDegrees(), 0);
+
+    controller.rotateRight();
+    QCOMPARE(controller.rotationDegrees(), 90);
+    controller.setCollection(entries, 0);
+    QCOMPARE(controller.rotationDegrees(), 0);
+}
+
 void CoreTests::viewerCustomZoomClampsToSupportedRange()
 {
     ViewerController controller;
@@ -522,6 +568,37 @@ void CoreTests::decoderLoadsTemporaryPng()
     QCOMPARE(decoded.sourceSize, QSize(16, 8));
     QVERIFY(decoded.displaySize.width() <= 8);
     QVERIFY(decoded.displaySize.height() <= 8);
+}
+
+void CoreTests::decoderAppliesViewRotation()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(16, 8, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(32, 32);
+    request.fitToWindow = false;
+    request.scaleFactor = 1.0;
+    request.exifAutorotate = false;
+
+    VipsImageDecoder decoder;
+    const DecodedImage normal = decoder.decode(entry, request);
+    QVERIFY2(normal.ok(), qPrintable(normal.errorMessage));
+    QCOMPARE(normal.sourceSize, QSize(16, 8));
+    QCOMPARE(normal.displaySize, QSize(16, 8));
+
+    request.rotationDegrees = 90;
+    const DecodedImage rotated = decoder.decode(entry, request);
+    QVERIFY2(rotated.ok(), qPrintable(rotated.errorMessage));
+    QCOMPARE(rotated.sourceSize, QSize(16, 8));
+    QCOMPARE(rotated.displaySize, QSize(8, 16));
+    QCOMPARE(rotated.image.size(), QSize(8, 16));
 }
 
 void CoreTests::decoderImageBufferOutlivesDecodedImageCopies()
@@ -652,6 +729,20 @@ void CoreTests::decodeRequestCacheKeyIncludesExifAutorotate()
     disabled.exifAutorotate = false;
 
     QVERIFY(enabled.cacheKeySuffix() != disabled.cacheKeySuffix());
+}
+
+void CoreTests::decodeRequestCacheKeyIncludesRotation()
+{
+    DecodeRequest unrotated;
+    unrotated.viewportSize = QSize(800, 600);
+    unrotated.scaleFactor = 1.5;
+    unrotated.fitToWindow = false;
+    unrotated.exifAutorotate = true;
+
+    DecodeRequest rotated = unrotated;
+    rotated.rotationDegrees = 90;
+
+    QVERIFY(unrotated.cacheKeySuffix() != rotated.cacheKeySuffix());
 }
 
 void CoreTests::shortcutSettingsDefaultsAndCustomization()

@@ -859,10 +859,12 @@ void MainWindow::setupActions()
     m_rotateLeftAction = new QAction(tr("Rotate Left"), this);
     connect(m_rotateLeftAction, &QAction::triggered, this, &MainWindow::rotateLeft);
     viewMenu->addAction(m_rotateLeftAction);
+    m_mainToolBar->addAction(m_rotateLeftAction);
 
     m_rotateRightAction = new QAction(tr("Rotate Right"), this);
     connect(m_rotateRightAction, &QAction::triggered, this, &MainWindow::rotateRight);
     viewMenu->addAction(m_rotateRightAction);
+    m_mainToolBar->addAction(m_rotateRightAction);
 
     m_exifAutorotateAction = new QAction(tr("Use EXIF Orientation"), this);
     m_exifAutorotateAction->setCheckable(true);

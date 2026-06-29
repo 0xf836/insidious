@@ -40,6 +40,7 @@ public:
     void zoomOut();
     void resetPan();
     void setPanOffset(QPointF offset);
+    void resetRotation();
     void rotateLeft();
     void rotateRight();
 

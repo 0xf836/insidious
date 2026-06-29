@@ -33,9 +33,6 @@ Roadmap — живой backlog реализации, а не обещание р
 - Quick Jump fullscreen polish:
   - сделать fullscreen search dialog компактнее;
   - когда focus в поле поиска, Up/Down должны двигать выделение в result list.
-- Rotate:
-  - добавить возможность поворота изображения кнопками по/против часовой стрелки на 90 градусов
-
 
 ## Среднесрочные features
 
