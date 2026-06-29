@@ -73,9 +73,9 @@ struct FullscreenSettings {
     double sideTriggerRatio = 0.07;
     double verticalTriggerRatio = 0.05;
     bool infoLineEnabled = true;
-    QString infoLineFontFamily;
-    int infoLineFontPointSize = 11;
-    QString infoLineColor = QStringLiteral("#F2F2F2");
+    QString infoLineFontFamily = QStringLiteral("DejaVu Sans");
+    int infoLineFontPointSize = 10;
+    QString infoLineColor = QStringLiteral("#00ff00");
 };
 
 struct InterfaceSettings {

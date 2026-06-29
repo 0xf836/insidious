@@ -657,6 +657,10 @@ void CoreTests::shortcutSettingsDefaultsAndCustomization()
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::PreviousFolder), QStringList({ QStringLiteral("MouseBack") }));
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextFolder), QStringList({ QStringLiteral("MouseForward") }));
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::ExifAutorotate), QStringList());
+    QVERIFY(values.fullscreen.infoLineEnabled);
+    QCOMPARE(values.fullscreen.infoLineFontFamily, QStringLiteral("DejaVu Sans"));
+    QCOMPARE(values.fullscreen.infoLineFontPointSize, 10);
+    QCOMPARE(values.fullscreen.infoLineColor, QStringLiteral("#00ff00"));
 
     setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList { QStringLiteral("N") });
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextImage), QStringList({ QStringLiteral("N") }));

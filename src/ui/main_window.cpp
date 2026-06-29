@@ -51,6 +51,9 @@
 namespace insidious::ui {
 namespace {
 
+constexpr int FullscreenInfoLineMarginLeft = 16;
+constexpr int FullscreenInfoLineMarginTop = 14;
+
 QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
 {
     return QPointF(
@@ -2386,7 +2389,7 @@ void MainWindow::updateFullscreenOverlayGeometry()
     m_fullscreenBottomPanel->setGeometry(0, windowRect.height() - bottomPanelHeight, windowRect.width(), bottomPanelHeight);
 
     if (m_fullscreenInfoLineLabel != nullptr) {
-        m_fullscreenInfoLineLabel->move(16, 14);
+        m_fullscreenInfoLineLabel->move(FullscreenInfoLineMarginLeft, FullscreenInfoLineMarginTop);
     }
 }
 
@@ -2527,7 +2530,7 @@ void MainWindow::updateFullscreenInfoLine()
     };
     m_fullscreenInfoLineLabel->setText(formatFullscreenInfoLine(context));
     m_fullscreenInfoLineLabel->adjustSize();
-    m_fullscreenInfoLineLabel->move(16, 14);
+    m_fullscreenInfoLineLabel->move(FullscreenInfoLineMarginLeft, FullscreenInfoLineMarginTop);
     m_fullscreenInfoLineLabel->show();
 }
 

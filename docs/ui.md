@@ -137,7 +137,7 @@ Trigger zones:
 Pinned fullscreen info line:
 
 - формат: `name (resolution | filesize) [index/count] zoom`;
-- default: enabled, small readable system font, light color, shadow for readability on dark background and images;
+- default: enabled, `DejaVu Sans`, `10 pt`, `#00ff00`, shadow for readability on dark background and images;
 - в настройках можно включить/выключить строку, выбрать font family, font size и color.
 
 ## Настройки
