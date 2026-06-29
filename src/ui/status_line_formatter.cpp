@@ -24,7 +24,14 @@ QString mutedLabel(const QString &value)
 
 QString fieldWithLabel(const QString &label, const QString &value)
 {
-    return QStringLiteral("%1 %2").arg(mutedLabel(label + QLatin1Char(':')), escaped(value.isEmpty() ? QObject::tr("N/A") : value));
+    return QStringLiteral("%1&nbsp;%2")
+        .arg(mutedLabel(label + QLatin1Char(':')),
+             escaped(value.isEmpty() ? QObject::tr("N/A") : value));
+}
+
+QString fieldSeparator()
+{
+    return QStringLiteral("&nbsp;&nbsp;<span style=\"color:#9a9a9a;\">|</span>&nbsp;&nbsp;");
 }
 
 QString formattedFileSize(qint64 bytes)
@@ -162,16 +169,16 @@ QString formatStatusLine(const StatusLineContext &context)
 
     const core::ImageEntry &entry = *context.entry;
     const QStringList fields {
-        escaped(formattedDimensions(context.decoded)),
-        escaped(formattedFileSize(entry.fileSize)),
-        fieldWithLabel(QObject::tr("file"), formattedDateTime(entry.modifiedTime)),
-        fieldWithLabel(QObject::tr("exif"), trimmedExifDate(exifDate(context.decoded))),
-        escaped(displayPath(entry)),
-        escaped(zoomText(context.decoded, context.zoomMode, context.zoomFactor)),
-        escaped(indexText(context.currentIndex, context.totalCount)),
+        fieldWithLabel(QObject::tr("image"), formattedDimensions(context.decoded)),
+        fieldWithLabel(QObject::tr("size"), formattedFileSize(entry.fileSize)),
+        fieldWithLabel(QObject::tr("modified"), formattedDateTime(entry.modifiedTime)),
+        fieldWithLabel(QObject::tr("taken"), trimmedExifDate(exifDate(context.decoded))),
+        fieldWithLabel(QObject::tr("name"), displayPath(entry)),
+        fieldWithLabel(QObject::tr("zoom"), zoomText(context.decoded, context.zoomMode, context.zoomFactor)),
+        fieldWithLabel(QObject::tr("pos"), indexText(context.currentIndex, context.totalCount)),
     };
 
-    return fields.join(QStringLiteral(" &middot; "));
+    return fields.join(fieldSeparator());
 }
 
 } // namespace insidious::ui

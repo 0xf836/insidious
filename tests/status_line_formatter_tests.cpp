@@ -72,16 +72,22 @@ void StatusLineFormatterTests::formatsDecodedStatusLine()
 
     const QString line = ui::formatStatusLine(sampleContext(entry, decoded));
 
+    QVERIFY(line.contains(QStringLiteral("image:")));
     QVERIFY(line.contains(QStringLiteral("4000 x 3000 = 12.0 MP")));
+    QVERIFY(line.contains(QStringLiteral("size:")));
     QVERIFY(line.contains(QLocale::system().formattedDataSize(entry.fileSize)));
-    QVERIFY(line.contains(QStringLiteral("file")));
+    QVERIFY(line.contains(QStringLiteral("modified:")));
     QVERIFY(line.contains(QStringLiteral("2026.6.29 12:34:00")));
-    QVERIFY(line.contains(QStringLiteral("exif")));
+    QVERIFY(line.contains(QStringLiteral("taken:")));
     QVERIFY(line.contains(QStringLiteral("2024.5.4 10:20:30")));
     QVERIFY(!line.contains(QStringLiteral("+03:00")));
+    QVERIFY(line.contains(QStringLiteral("name:")));
     QVERIFY(line.contains(QStringLiteral("folder/image &amp; one.jpg")));
+    QVERIFY(line.contains(QStringLiteral("zoom:")));
     QVERIFY(line.contains(QStringLiteral("42%")));
+    QVERIFY(line.contains(QStringLiteral("pos:")));
     QVERIFY(line.contains(QStringLiteral("5 / 12")));
+    QVERIFY(line.contains(QStringLiteral("|")));
 }
 
 void StatusLineFormatterTests::formatsFitScaleAsPercentage()
@@ -116,7 +122,7 @@ void StatusLineFormatterTests::marksMissingExifDateAsUnavailable()
 
     const QString line = ui::formatStatusLine(sampleContext(entry, decoded));
 
-    QVERIFY(line.contains(QStringLiteral("exif")));
+    QVERIFY(line.contains(QStringLiteral("taken:")));
     QVERIFY(line.contains(QStringLiteral("N/A")));
 }
 
