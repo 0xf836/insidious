@@ -28,6 +28,16 @@ void ViewerController::setCollection(QVector<ImageEntry> entries, int selectedIn
     resetPan();
 }
 
+void ViewerController::setCollectionPreservingView(QVector<ImageEntry> entries, int selectedIndex)
+{
+    m_entries = std::move(entries);
+    if (m_entries.isEmpty()) {
+        m_currentIndex = -1;
+        return;
+    }
+    m_currentIndex = std::clamp(selectedIndex, 0, static_cast<int>(m_entries.size()) - 1);
+}
+
 void ViewerController::clearCollection()
 {
     m_entries.clear();

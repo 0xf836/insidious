@@ -15,6 +15,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QColor>
+#include <QComboBox>
 #include <QCursor>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -43,6 +44,7 @@
 #include <QSplitter>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QToolButton>
 #include <QTreeView>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -65,6 +67,35 @@ struct OriginalImageReadResult {
     QString mimeType;
     QString errorMessage;
 };
+
+core::ImageSortKey sortKeyFromComboIndex(int index)
+{
+    switch (index) {
+    case 1:
+        return core::ImageSortKey::Type;
+    case 2:
+        return core::ImageSortKey::Size;
+    case 3:
+        return core::ImageSortKey::Date;
+    default:
+        return core::ImageSortKey::Name;
+    }
+}
+
+int comboIndexForSortKey(core::ImageSortKey key)
+{
+    switch (key) {
+    case core::ImageSortKey::Name:
+        return 0;
+    case core::ImageSortKey::Type:
+        return 1;
+    case core::ImageSortKey::Size:
+        return 2;
+    case core::ImageSortKey::Date:
+        return 3;
+    }
+    return 0;
+}
 
 QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
 {
@@ -1037,9 +1068,30 @@ void MainWindow::setupFileListPanel()
     m_fileListView->setAlternatingRowColors(true);
     m_fileListView->setUniformItemSizes(true);
 
+    auto *fileListContainer = new QWidget(this);
+    auto *fileListLayout = new QVBoxLayout(fileListContainer);
+    fileListLayout->setContentsMargins(0, 0, 0, 0);
+    fileListLayout->setSpacing(4);
+
+    auto *sortLayout = new QHBoxLayout;
+    sortLayout->setContentsMargins(0, 0, 0, 0);
+    sortLayout->setSpacing(4);
+    m_fileSortKeyCombo = new QComboBox(fileListContainer);
+    m_fileSortKeyCombo->addItem(tr("Name"));
+    m_fileSortKeyCombo->addItem(tr("Type"));
+    m_fileSortKeyCombo->addItem(tr("Size"));
+    m_fileSortKeyCombo->addItem(tr("Date"));
+    m_fileSortKeyCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    m_fileSortDirectionButton = new QToolButton(fileListContainer);
+    m_fileSortDirectionButton->setAutoRaise(true);
+    sortLayout->addWidget(m_fileSortKeyCombo, 1);
+    sortLayout->addWidget(m_fileSortDirectionButton);
+    fileListLayout->addLayout(sortLayout);
+    fileListLayout->addWidget(m_fileListView, 1);
+
     m_filePanelSplitter = new QSplitter(Qt::Vertical, this);
     m_filePanelSplitter->addWidget(m_fileTreeView);
-    m_filePanelSplitter->addWidget(m_fileListView);
+    m_filePanelSplitter->addWidget(fileListContainer);
     m_filePanelSplitter->setChildrenCollapsible(false);
     m_filePanelSplitter->setStretchFactor(0, 2);
     m_filePanelSplitter->setStretchFactor(1, 3);
@@ -1050,6 +1102,20 @@ void MainWindow::setupFileListPanel()
     m_fileListDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_fileListDock->setWidget(m_filePanelSplitter);
     addDockWidget(Qt::LeftDockWidgetArea, m_fileListDock);
+
+    connect(m_fileSortKeyCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+        core::ImageSortMode mode = m_imageSortMode;
+        mode.key = sortKeyFromComboIndex(index);
+        applyImageSortMode(mode);
+    });
+    connect(m_fileSortDirectionButton, &QToolButton::clicked, this, [this]() {
+        core::ImageSortMode mode = m_imageSortMode;
+        mode.direction = mode.direction == core::SortDirection::Ascending
+            ? core::SortDirection::Descending
+            : core::SortDirection::Ascending;
+        applyImageSortMode(mode);
+    });
+    syncFileSortControls();
 }
 
 void MainWindow::setupInfoPanel()
@@ -1131,6 +1197,30 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenFileTreeView->viewport()->installEventFilter(this);
     m_fullscreenFilePanelSplitter->addWidget(m_fullscreenFileTreeView);
 
+    auto *fullscreenFileListContainer = new QWidget(m_fullscreenLeftPanel);
+    fullscreenFileListContainer->setAutoFillBackground(false);
+    auto *fullscreenFileListLayout = new QVBoxLayout(fullscreenFileListContainer);
+    fullscreenFileListLayout->setContentsMargins(0, 0, 0, 0);
+    fullscreenFileListLayout->setSpacing(4);
+    auto *fullscreenSortLayout = new QHBoxLayout;
+    fullscreenSortLayout->setContentsMargins(0, 0, 0, 0);
+    fullscreenSortLayout->setSpacing(4);
+    m_fullscreenFileSortKeyCombo = new QComboBox(fullscreenFileListContainer);
+    m_fullscreenFileSortKeyCombo->addItem(tr("Name"));
+    m_fullscreenFileSortKeyCombo->addItem(tr("Type"));
+    m_fullscreenFileSortKeyCombo->addItem(tr("Size"));
+    m_fullscreenFileSortKeyCombo->addItem(tr("Date"));
+    m_fullscreenFileSortKeyCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    m_fullscreenFileSortKeyCombo->setMouseTracking(true);
+    m_fullscreenFileSortKeyCombo->installEventFilter(this);
+    m_fullscreenFileSortDirectionButton = new QToolButton(fullscreenFileListContainer);
+    m_fullscreenFileSortDirectionButton->setAutoRaise(true);
+    m_fullscreenFileSortDirectionButton->setMouseTracking(true);
+    m_fullscreenFileSortDirectionButton->installEventFilter(this);
+    fullscreenSortLayout->addWidget(m_fullscreenFileSortKeyCombo, 1);
+    fullscreenSortLayout->addWidget(m_fullscreenFileSortDirectionButton);
+    fullscreenFileListLayout->addLayout(fullscreenSortLayout);
+
     m_fullscreenFileListView = new QListView(m_fullscreenLeftPanel);
     m_fullscreenFileListView->setModel(m_fileListModel);
     m_fullscreenFileListView->setFrameShape(QFrame::NoFrame);
@@ -1146,9 +1236,24 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenFileListView->viewport()->setAutoFillBackground(false);
     m_fullscreenFileListView->viewport()->setMouseTracking(true);
     m_fullscreenFileListView->viewport()->installEventFilter(this);
-    m_fullscreenFilePanelSplitter->addWidget(m_fullscreenFileListView);
+    fullscreenFileListLayout->addWidget(m_fullscreenFileListView, 1);
+    m_fullscreenFilePanelSplitter->addWidget(fullscreenFileListContainer);
     m_fullscreenFilePanelSplitter->setSizes(QList<int> { 220, 340 });
     leftLayout->addWidget(m_fullscreenFilePanelSplitter, 1);
+
+    connect(m_fullscreenFileSortKeyCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+        core::ImageSortMode mode = m_imageSortMode;
+        mode.key = sortKeyFromComboIndex(index);
+        applyImageSortMode(mode);
+    });
+    connect(m_fullscreenFileSortDirectionButton, &QToolButton::clicked, this, [this]() {
+        core::ImageSortMode mode = m_imageSortMode;
+        mode.direction = mode.direction == core::SortDirection::Ascending
+            ? core::SortDirection::Descending
+            : core::SortDirection::Ascending;
+        applyImageSortMode(mode);
+    });
+    syncFileSortControls();
 
     connect(m_fullscreenFileTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFolderTreeSelection) {
@@ -1626,7 +1731,13 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
             m_fullscreenFileTreeView->expand(m_fileTreeModel->indexForFolderPath(QString()));
         }
     }
-    activateFolder(job.result.selectedFolderPath, job.result.selectedImageIndex, true);
+    QString selectedIdentityKey;
+    if (!job.selectedPath.isEmpty() && core::isSupportedImageFile(QFileInfo(job.selectedPath))) {
+        if (const core::CollectionFolderNode *folder = folderNodeForPath(job.result.selectedFolderPath)) {
+            selectedIdentityKey = identityKeyForSelectedPath(*folder, job.selectedPath);
+        }
+    }
+    activateFolder(job.result.selectedFolderPath, job.result.selectedImageIndex, true, selectedIdentityKey);
 }
 
 void MainWindow::applyFolderLoadResult(const FolderLoadJobResult &job)
@@ -2166,7 +2277,11 @@ void MainWindow::clearSourceTree()
     }
 }
 
-void MainWindow::activateFolder(const QString &folderRelativePath, int selectedImageIndex, bool loadCurrent)
+void MainWindow::activateFolder(
+    const QString &folderRelativePath,
+    int selectedImageIndex,
+    bool loadCurrent,
+    const QString &selectedIdentityKey)
 {
     core::CollectionFolderNode *folder = folderNodeForPath(folderRelativePath);
     if (folder == nullptr) {
@@ -2198,12 +2313,15 @@ void MainWindow::activateFolder(const QString &folderRelativePath, int selectedI
         return;
     }
 
-    if (selectedImageIndex < 0 && !folder->images.isEmpty()) {
-        selectedImageIndex = folder->images.size() - 1;
-    }
+    int sortedSelectedIndex = selectedImageIndex;
+    QVector<core::ImageEntry> sortedImages = sortedImagesForFolder(
+        *folder,
+        selectedImageIndex,
+        selectedIdentityKey,
+        &sortedSelectedIndex);
 
     m_temporaryZoomReturnMode.reset();
-    m_controller.setCollection(folder->images, selectedImageIndex);
+    m_controller.setCollection(std::move(sortedImages), sortedSelectedIndex);
     if (m_baseZoomMode == core::ZoomMode::ActualSize) {
         m_controller.setActualSize();
     } else {
@@ -2303,6 +2421,122 @@ bool MainWindow::hasAdjacentFolder(bool forward) const
         }
     }
     return false;
+}
+
+QVector<core::ImageEntry> MainWindow::sortedImagesForFolder(
+    const core::CollectionFolderNode &folder,
+    int selectedImageIndex,
+    const QString &selectedIdentityKey,
+    int *sortedSelectedIndex) const
+{
+    QVector<core::ImageEntry> entries = folder.images;
+    core::sortImageEntries(&entries, m_imageSortMode);
+
+    int resolvedIndex = entries.isEmpty() ? -1 : 0;
+    if (!entries.isEmpty()) {
+        if (!selectedIdentityKey.isEmpty()) {
+            for (qsizetype index = 0; index < entries.size(); ++index) {
+                if (entries.at(index).identityKey() == selectedIdentityKey) {
+                    resolvedIndex = static_cast<int>(index);
+                    break;
+                }
+            }
+        } else if (selectedImageIndex < 0) {
+            resolvedIndex = entries.size() - 1;
+        } else {
+            resolvedIndex = std::clamp(selectedImageIndex, 0, static_cast<int>(entries.size()) - 1);
+        }
+    }
+
+    if (sortedSelectedIndex != nullptr) {
+        *sortedSelectedIndex = resolvedIndex;
+    }
+    return entries;
+}
+
+QString MainWindow::identityKeyForSelectedPath(
+    const core::CollectionFolderNode &folder,
+    const QString &selectedPath) const
+{
+    const QString absoluteSelected = QFileInfo(selectedPath).absoluteFilePath();
+    for (const core::ImageEntry &entry : folder.images) {
+        if (entry.absolutePath == absoluteSelected) {
+            return entry.identityKey();
+        }
+    }
+    return {};
+}
+
+void MainWindow::applyImageSortMode(core::ImageSortMode mode)
+{
+    if (mode.key == m_imageSortMode.key && mode.direction == m_imageSortMode.direction) {
+        syncFileSortControls();
+        return;
+    }
+
+    const core::ImageEntry *currentEntry = m_controller.currentEntry();
+    const QString currentIdentityKey = currentEntry == nullptr ? QString() : currentEntry->identityKey();
+    m_imageSortMode = mode;
+    syncFileSortControls();
+
+    core::CollectionFolderNode *folder = folderNodeForPath(m_activeFolderPath);
+    if (folder == nullptr) {
+        refreshFileList();
+        updateActionState();
+        return;
+    }
+
+    int selectedIndex = -1;
+    QVector<core::ImageEntry> sortedImages = sortedImagesForFolder(*folder, 0, currentIdentityKey, &selectedIndex);
+    if (sortedImages.isEmpty()) {
+        m_controller.clearCollection();
+        refreshFileList();
+        updateInfoPanelForCurrentImage();
+        updateStatus();
+        updateActionState();
+        return;
+    }
+
+    const bool keptCurrentEntry = !currentIdentityKey.isEmpty()
+        && selectedIndex >= 0
+        && selectedIndex < sortedImages.size()
+        && sortedImages.at(selectedIndex).identityKey() == currentIdentityKey;
+    m_controller.setCollectionPreservingView(std::move(sortedImages), selectedIndex);
+    refreshFileList();
+    updateInfoPanelForCurrentImage();
+    updateStatus();
+    updateActionState();
+
+    if (!keptCurrentEntry) {
+        reloadAfterImageSwitch();
+    }
+}
+
+void MainWindow::syncFileSortControls()
+{
+    const int keyIndex = comboIndexForSortKey(m_imageSortMode.key);
+    const bool descending = m_imageSortMode.direction == core::SortDirection::Descending;
+    const QString directionText = descending ? tr("Desc") : tr("Asc");
+    const QString directionToolTip = descending ? tr("Sort descending") : tr("Sort ascending");
+
+    if (m_fileSortKeyCombo != nullptr) {
+        const QSignalBlocker blocker(m_fileSortKeyCombo);
+        m_fileSortKeyCombo->setCurrentIndex(keyIndex);
+    }
+    if (m_fileSortDirectionButton != nullptr) {
+        const QSignalBlocker blocker(m_fileSortDirectionButton);
+        m_fileSortDirectionButton->setText(directionText);
+        m_fileSortDirectionButton->setToolTip(directionToolTip);
+    }
+    if (m_fullscreenFileSortKeyCombo != nullptr) {
+        const QSignalBlocker blocker(m_fullscreenFileSortKeyCombo);
+        m_fullscreenFileSortKeyCombo->setCurrentIndex(keyIndex);
+    }
+    if (m_fullscreenFileSortDirectionButton != nullptr) {
+        const QSignalBlocker blocker(m_fullscreenFileSortDirectionButton);
+        m_fullscreenFileSortDirectionButton->setText(directionText);
+        m_fullscreenFileSortDirectionButton->setToolTip(directionToolTip);
+    }
 }
 
 void MainWindow::refreshFileList()

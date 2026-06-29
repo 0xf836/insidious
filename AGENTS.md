@@ -135,6 +135,7 @@ Current MVP fullscreen behavior:
 - EXIF autorotate is a viewer setting and a synced checkable `View`/toolbar action. It must flow through `DecodeRequest` and the decoded image cache key so autorotated and non-autorotated rasters never collide.
 - If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
 - The left `Files` panel is split into a folder tree and an active-folder image list. Selecting a folder changes the active viewer collection to direct images in that folder only.
+- File sorting is runtime-only and applies only to the active-folder image list: default on app start is natural name ascending; users can switch name/type/size/date asc/desc for the current process; the selected runtime mode also applies to newly opened sources, but it must not be persisted in settings.
 - Next/previous navigation should traverse source-tree folders at active-folder boundaries; first/last remain scoped to the active folder.
 - Filesystem folder nodes should be loaded lazily on selection/expansion. Do not reintroduce full recursive filesystem scans for normal folder opening.
 - Archive folder trees are built from async header enumeration; do not extract archives to disk or read image data before decode.

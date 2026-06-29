@@ -3,6 +3,7 @@
 #include "core/folder_collection_source.h"
 #include "core/image_entry_validation.h"
 #include "core/image_formats.h"
+#include "core/image_sort.h"
 #include "core/memory_image_cache.h"
 #include "core/natural_sort.h"
 #include "core/render_memory_budget.h"
@@ -38,6 +39,7 @@ private slots:
     void archiveExtensionsAreSupportedSeparately();
     void entryLoadValidationReportsMissingAndDirectory();
     void folderScanIsNonRecursiveAndSorted();
+    void imageSortOrdersByNameTypeSizeAndDate();
     void fileSystemSourceTreeLoadsFoldersLazily();
     void archiveScanFiltersImagesAndSorts();
     void archiveSourceTreeGroupsImagesByFolder();
@@ -250,6 +252,72 @@ void CoreTests::folderScanIsNonRecursiveAndSorted()
     QCOMPARE(result.entries.at(1).displayName, QStringLiteral("10.png"));
 }
 
+void CoreTests::imageSortOrdersByNameTypeSizeAndDate()
+{
+    QVector<ImageEntry> entries;
+
+    ImageEntry png10;
+    png10.displayName = QStringLiteral("10.png");
+    png10.formatHint = QStringLiteral("PNG");
+    png10.fileSize = 10;
+    png10.modifiedTime = QDateTime::fromSecsSinceEpoch(100);
+    entries.append(png10);
+
+    ImageEntry jpeg2;
+    jpeg2.displayName = QStringLiteral("2.jpg");
+    jpeg2.formatHint = QStringLiteral("JPEG");
+    jpeg2.fileSize = 20;
+    jpeg2.modifiedTime = QDateTime::fromSecsSinceEpoch(200);
+    entries.append(jpeg2);
+
+    ImageEntry webp1;
+    webp1.displayName = QStringLiteral("1.webp");
+    webp1.formatHint = QStringLiteral("WebP");
+    webp1.fileSize = 20;
+    webp1.modifiedTime = {};
+    entries.append(webp1);
+
+    auto names = [](const QVector<ImageEntry> &values) {
+        QStringList result;
+        for (const ImageEntry &entry : values) {
+            result.append(entry.displayName);
+        }
+        return result;
+    };
+
+    QVector<ImageEntry> sorted = entries;
+    sortImageEntries(&sorted, { ImageSortKey::Name, SortDirection::Ascending });
+    QCOMPARE(names(sorted), QStringList({ QStringLiteral("1.webp"), QStringLiteral("2.jpg"), QStringLiteral("10.png") }));
+
+    sorted = entries;
+    sortImageEntries(&sorted, { ImageSortKey::Name, SortDirection::Descending });
+    QCOMPARE(names(sorted), QStringList({ QStringLiteral("10.png"), QStringLiteral("2.jpg"), QStringLiteral("1.webp") }));
+
+    sorted = entries;
+    sortImageEntries(&sorted, { ImageSortKey::Type, SortDirection::Ascending });
+    QCOMPARE(names(sorted), QStringList({ QStringLiteral("2.jpg"), QStringLiteral("10.png"), QStringLiteral("1.webp") }));
+
+    sorted = entries;
+    sortImageEntries(&sorted, { ImageSortKey::Type, SortDirection::Descending });
+    QCOMPARE(names(sorted), QStringList({ QStringLiteral("1.webp"), QStringLiteral("10.png"), QStringLiteral("2.jpg") }));
+
+    sorted = entries;
+    sortImageEntries(&sorted, { ImageSortKey::Size, SortDirection::Ascending });
+    QCOMPARE(names(sorted), QStringList({ QStringLiteral("10.png"), QStringLiteral("1.webp"), QStringLiteral("2.jpg") }));
+
+    sorted = entries;
+    sortImageEntries(&sorted, { ImageSortKey::Size, SortDirection::Descending });
+    QCOMPARE(names(sorted), QStringList({ QStringLiteral("2.jpg"), QStringLiteral("1.webp"), QStringLiteral("10.png") }));
+
+    sorted = entries;
+    sortImageEntries(&sorted, { ImageSortKey::Date, SortDirection::Ascending });
+    QCOMPARE(names(sorted), QStringList({ QStringLiteral("10.png"), QStringLiteral("2.jpg"), QStringLiteral("1.webp") }));
+
+    sorted = entries;
+    sortImageEntries(&sorted, { ImageSortKey::Date, SortDirection::Descending });
+    QCOMPARE(names(sorted), QStringList({ QStringLiteral("2.jpg"), QStringLiteral("10.png"), QStringLiteral("1.webp") }));
+}
+
 void CoreTests::fileSystemSourceTreeLoadsFoldersLazily()
 {
     QTemporaryDir tempDir;
@@ -435,6 +503,14 @@ void CoreTests::viewerRotationNormalizesAndResetsOnImageSwitch()
 
     controller.rotateLeft();
     QCOMPARE(controller.rotationDegrees(), 270);
+
+    controller.setPanOffset(QPointF(3.0, 4.0));
+    QVector<ImageEntry> reordered = entries;
+    std::reverse(reordered.begin(), reordered.end());
+    controller.setCollectionPreservingView(reordered, 0);
+    QCOMPARE(controller.currentIndex(), 0);
+    QCOMPARE(controller.rotationDegrees(), 270);
+    QCOMPARE(controller.panOffset(), QPointF(3.0, 4.0));
 
     QVERIFY(controller.goNext());
     QCOMPARE(controller.currentIndex(), 1);

@@ -19,6 +19,7 @@ enum class ZoomMode {
 class ViewerController {
 public:
     void setCollection(QVector<ImageEntry> entries, int selectedIndex);
+    void setCollectionPreservingView(QVector<ImageEntry> entries, int selectedIndex);
     void clearCollection();
 
     [[nodiscard]] bool hasCollection() const;

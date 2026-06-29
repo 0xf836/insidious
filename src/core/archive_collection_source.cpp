@@ -1,6 +1,7 @@
 #include "core/archive_collection_source.h"
 
 #include "core/image_formats.h"
+#include "core/image_sort.h"
 #include "core/natural_sort.h"
 
 #include <QDateTime>
@@ -193,9 +194,7 @@ void sortArchiveFolderTree(const std::shared_ptr<CollectionFolderNode> &folder)
     std::stable_sort(folder->children.begin(), folder->children.end(), [](const auto &left, const auto &right) {
         return naturalLess(left->displayName, right->displayName);
     });
-    std::stable_sort(folder->images.begin(), folder->images.end(), [](const ImageEntry &left, const ImageEntry &right) {
-        return naturalLess(left.displayName, right.displayName);
-    });
+    sortImageEntries(&folder->images);
     for (const auto &child : folder->children) {
         sortArchiveFolderTree(child);
     }
@@ -348,9 +347,7 @@ ScanResult scanArchive(const QString &archivePath, const QString &password)
         return result;
     }
 
-    std::stable_sort(result.entries.begin(), result.entries.end(), [](const ImageEntry &left, const ImageEntry &right) {
-        return naturalLess(left.displayName, right.displayName);
-    });
+    sortImageEntries(&result.entries);
 
     if (result.entries.isEmpty()) {
         result.errorMessage = QObject::tr("Archive contains no supported images.");

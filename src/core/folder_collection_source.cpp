@@ -1,6 +1,7 @@
 #include "core/folder_collection_source.h"
 
 #include "core/image_formats.h"
+#include "core/image_sort.h"
 #include "core/natural_sort.h"
 
 #include <QDir>
@@ -44,13 +45,6 @@ void sortFolderNodes(QVector<std::shared_ptr<CollectionFolderNode>> *nodes)
 {
     std::stable_sort(nodes->begin(), nodes->end(), [](const auto &left, const auto &right) {
         return naturalLess(left->displayName, right->displayName);
-    });
-}
-
-void sortImageEntries(QVector<ImageEntry> *entries)
-{
-    std::stable_sort(entries->begin(), entries->end(), [](const ImageEntry &left, const ImageEntry &right) {
-        return naturalLess(left.displayName, right.displayName);
     });
 }
 
@@ -111,9 +105,7 @@ ScanResult scanFolder(const QString &folderPath, const QString &selectedPath)
         }
     }
 
-    std::stable_sort(result.entries.begin(), result.entries.end(), [](const ImageEntry &left, const ImageEntry &right) {
-        return naturalLess(left.displayName, right.displayName);
-    });
+    sortImageEntries(&result.entries);
 
     if (result.entries.isEmpty()) {
         result.errorMessage = QObject::tr("Folder contains no supported images.");

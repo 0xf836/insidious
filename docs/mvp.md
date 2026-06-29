@@ -27,7 +27,7 @@ MVP не должен пытаться сразу закрыть все треб
 - Fullscreen.
 - Базовый drag'n'drop одного файла, папки или архива.
 - Базовая статусная строка.
-- Левая панель `Files` с деревом папок и списком изображений выбранной папки без thumbnails.
+- Левая панель `Files` с деревом папок и списком изображений выбранной папки без thumbnails, с runtime-сортировкой файлов по name/type/size/date asc/desc.
 - Правая панель `Info` с базовой информацией и компактным EXIF.
 - Быстрый переход по имени файла.
 - Базовое окно настроек для viewer/input defaults, режима ЛКМ zoom, wheel actions, zoom step, core viewer keyboard/mouse shortcuts, fullscreen edge trigger zones и запоминания layout без истории просмотра.

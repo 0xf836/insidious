@@ -2,6 +2,7 @@
 
 #include "core/decoded_image.h"
 #include "core/folder_collection_source.h"
+#include "core/image_sort.h"
 #include "core/memory_image_cache.h"
 #include "core/app_settings.h"
 #include "core/viewer_controller.h"
@@ -28,11 +29,13 @@
 
 class QAction;
 class QCloseEvent;
+class QComboBox;
 class QDockWidget;
 class QListView;
 class QModelIndex;
 class QSplitter;
 class QToolBar;
+class QToolButton;
 class QTreeView;
 
 namespace insidious::ui {
@@ -200,9 +203,23 @@ private:
     void zoomOutAt(QPointF anchorPosition);
     [[nodiscard]] core::WheelAction wheelActionForModifiers(Qt::KeyboardModifiers modifiers) const;
     void clearSourceTree();
-    void activateFolder(const QString &folderRelativePath, int selectedImageIndex = 0, bool loadCurrent = true);
+    void activateFolder(
+        const QString &folderRelativePath,
+        int selectedImageIndex = 0,
+        bool loadCurrent = true,
+        const QString &selectedIdentityKey = {});
     bool navigateToAdjacentFolder(bool forward);
     [[nodiscard]] bool hasAdjacentFolder(bool forward) const;
+    [[nodiscard]] QVector<core::ImageEntry> sortedImagesForFolder(
+        const core::CollectionFolderNode &folder,
+        int selectedImageIndex,
+        const QString &selectedIdentityKey,
+        int *sortedSelectedIndex) const;
+    [[nodiscard]] QString identityKeyForSelectedPath(
+        const core::CollectionFolderNode &folder,
+        const QString &selectedPath) const;
+    void applyImageSortMode(core::ImageSortMode mode);
+    void syncFileSortControls();
     void refreshFileList();
     void syncFileListSelection();
     void syncFolderTreeSelection();
@@ -230,6 +247,8 @@ private:
     ImageViewWidget *m_imageView = nullptr;
     QDockWidget *m_fileListDock = nullptr;
     QSplitter *m_filePanelSplitter = nullptr;
+    QComboBox *m_fileSortKeyCombo = nullptr;
+    QToolButton *m_fileSortDirectionButton = nullptr;
     QTreeView *m_fileTreeView = nullptr;
     QListView *m_fileListView = nullptr;
     CollectionTreeModel *m_fileTreeModel = nullptr;
@@ -243,6 +262,8 @@ private:
     QToolBar *m_fullscreenTopPanel = nullptr;
     QWidget *m_fullscreenBottomPanel = nullptr;
     QSplitter *m_fullscreenFilePanelSplitter = nullptr;
+    QComboBox *m_fullscreenFileSortKeyCombo = nullptr;
+    QToolButton *m_fullscreenFileSortDirectionButton = nullptr;
     QTreeView *m_fullscreenFileTreeView = nullptr;
     QListView *m_fullscreenFileListView = nullptr;
     ImageInfoPanel *m_fullscreenInfoPanel = nullptr;
@@ -274,6 +295,7 @@ private:
     core::ZoomMode m_baseZoomMode = core::ZoomMode::FitToWindow;
     core::ImageSwitchPolicy m_imageSwitchPolicy = core::ImageSwitchPolicy::ResetToBaseMode;
     core::ClickZoomBehavior m_clickZoomBehavior = core::ClickZoomBehavior::ToggleOnClick;
+    core::ImageSortMode m_imageSortMode = core::defaultImageSortMode();
     std::optional<core::ZoomMode> m_temporaryZoomReturnMode;
     core::AppSettings m_settings;
     double m_clickZoomMultiplier = 2.0;

@@ -93,6 +93,7 @@ Left file list:
 - `MainWindow` owns a left `QDockWidget` named `Files` with a vertical `QSplitter`: `QTreeView` above and `QListView` below.
 - The tree uses `CollectionTreeModel` and represents folders for the current filesystem/archive source.
 - The list uses `ImageListModel` and is reset from `ViewerController::entries()` whenever the active folder changes.
+- File sorting is runtime-only state in `MainWindow`: active-folder images are copied, sorted by `core::sortImageEntries()`, and then installed into `ViewerController`. Folder tree order and stored `CollectionFolderNode::images` stay in natural source order.
 - Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
 - Programmatic navigation syncs the selected file row and the selected/expanded folder in both normal and fullscreen panels.
 - `next/previous` first navigate inside the active folder collection. At folder boundaries, `MainWindow` walks the source tree in preorder to activate the next/previous loaded folder with images or unloaded filesystem folder; true source boundaries keep the existing reset-and-rerender behavior.

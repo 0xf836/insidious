@@ -29,6 +29,8 @@ set(CORE_SOURCES
     src/core/image_entry_validation.h
     src/core/image_formats.cpp
     src/core/image_formats.h
+    src/core/image_sort.cpp
+    src/core/image_sort.h
     src/core/memory_image_cache.cpp
     src/core/memory_image_cache.h
     src/core/natural_sort.cpp
