@@ -18,7 +18,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - `Info` panel с компактной информацией об entry и полезными EXIF-полями из libvips metadata.
 - Quick Jump по имени файла в активной папке, включая fullscreen in-window overlay.
 - True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.
-- Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, fullscreen trigger zones, layout persistence.
+- Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, configurable core viewer shortcuts with conflict detection and restore defaults, fullscreen trigger zones, layout persistence.
 
 ## Ближайшее / small stabilization
 
@@ -71,10 +71,10 @@ Roadmap — живой backlog реализации, а не обещание р
   - JPEG XL;
   - TIFF, если libvips support надёжен в target environments;
   - RAW как отдельный research-heavy milestone.
-- Configurable hotkeys:
-  - shortcut editor;
-  - conflict detection;
-  - restore defaults.
+- Advanced shortcut features:
+  - expand customization beyond core viewer commands to every useful `QAction`;
+  - profiles/import-export if real user demand appears;
+  - configurable shortcut scopes if global/window/widget ambiguity becomes a problem.
 - Packaging:
   - документировать runtime dependencies по дистрибутивам;
   - подготовить Linux packaging path после стабилизации viewer behavior.

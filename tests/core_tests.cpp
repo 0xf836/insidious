@@ -57,6 +57,7 @@ private slots:
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
     void decodeRequestCacheKeyIncludesExifAutorotate();
+    void shortcutSettingsDefaultsAndCustomization();
     void appSettingsRoundTripsThroughQSettings();
     void appSettingsFallbacksAndClampsInvalidValues();
 };
@@ -648,6 +649,23 @@ void CoreTests::decodeRequestCacheKeyIncludesExifAutorotate()
     QVERIFY(enabled.cacheKeySuffix() != disabled.cacheKeySuffix());
 }
 
+void CoreTests::shortcutSettingsDefaultsAndCustomization()
+{
+    AppSettings values = AppSettings::defaults();
+
+    QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::PreviousImage), defaultShortcutSequences(ShortcutCommand::PreviousImage));
+    QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::ExifAutorotate), QStringList());
+
+    setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList { QStringLiteral("N") });
+    QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextImage), QStringList({ QStringLiteral("N") }));
+
+    setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList());
+    QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextImage), QStringList());
+
+    resetShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage);
+    QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextImage), defaultShortcutSequences(ShortcutCommand::NextImage));
+}
+
 void CoreTests::appSettingsRoundTripsThroughQSettings()
 {
     QTemporaryDir tempDir;
@@ -671,6 +689,8 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.interface.mainWindowState = QByteArray("state");
     values.interface.fileSplitterState = QByteArray("files");
     values.interface.fullscreenFileSplitterState = QByteArray("fullscreen-files");
+    setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList { QStringLiteral("N") });
+    setShortcutSequences(&values.shortcuts, ShortcutCommand::ExifAutorotate, QStringList());
 
     QSettings writeSettings(settingsPath, QSettings::IniFormat);
     values.write(writeSettings);
@@ -695,6 +715,8 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.interface.mainWindowState, QByteArray("state"));
     QCOMPARE(loaded.interface.fileSplitterState, QByteArray("files"));
     QCOMPARE(loaded.interface.fullscreenFileSplitterState, QByteArray("fullscreen-files"));
+    QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::NextImage), QStringList({ QStringLiteral("N") }));
+    QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::ExifAutorotate), QStringList());
 }
 
 void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
@@ -718,6 +740,16 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     writeSettings.setValue(QStringLiteral("sideTriggerRatio"), -1.0);
     writeSettings.setValue(QStringLiteral("verticalTriggerRatio"), 99.0);
     writeSettings.endGroup();
+    writeSettings.beginGroup(QStringLiteral("shortcuts"));
+    writeSettings.beginGroup(QStringLiteral("nextImage"));
+    writeSettings.setValue(QStringLiteral("customized"), true);
+    writeSettings.setValue(QStringLiteral("sequences"), QStringList { QString() });
+    writeSettings.endGroup();
+    writeSettings.beginGroup(QStringLiteral("previousImage"));
+    writeSettings.setValue(QStringLiteral("customized"), true);
+    writeSettings.setValue(QStringLiteral("sequences"), QStringList());
+    writeSettings.endGroup();
+    writeSettings.endGroup();
     writeSettings.sync();
 
     QSettings readSettings(settingsPath, QSettings::IniFormat);
@@ -734,6 +766,8 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     QCOMPARE(loaded.viewer.zoomStepPercent, 100.0);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.01);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.30);
+    QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::NextImage), defaultShortcutSequences(ShortcutCommand::NextImage));
+    QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::PreviousImage), QStringList());
 
     writeSettings.beginGroup(QStringLiteral("viewer"));
     writeSettings.setValue(QStringLiteral("zoomStepPercent"), 1.0);

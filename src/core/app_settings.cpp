@@ -1,5 +1,6 @@
 #include "core/app_settings.h"
 
+#include <QKeySequence>
 #include <QSettings>
 #include <QVariant>
 
@@ -16,6 +17,11 @@ constexpr double MaxZoomStepPercent = 100.0;
 constexpr double MinFullscreenTriggerRatio = 0.01;
 constexpr double MaxFullscreenTriggerRatio = 0.30;
 
+QString keySequenceToSettingsString(const QKeySequence &sequence)
+{
+    return sequence.toString(QKeySequence::PortableText);
+}
+
 double clampedDouble(const QVariant &value, double fallback, double minimum, double maximum)
 {
     bool ok = false;
@@ -26,11 +32,44 @@ double clampedDouble(const QVariant &value, double fallback, double minimum, dou
     return std::clamp(parsed, minimum, maximum);
 }
 
+bool isValidShortcutSequence(const QString &value)
+{
+    return !value.isEmpty()
+        && !QKeySequence::fromString(value, QKeySequence::PortableText).isEmpty();
+}
+
+QStringList validatedShortcutSequences(const QVariant &value, const QStringList &fallback, bool *valid)
+{
+    QStringList parsed = value.toStringList();
+    if (parsed.isEmpty() && value.canConvert<QString>()) {
+        const QString singleValue = value.toString();
+        if (!singleValue.isEmpty()) {
+            parsed = QStringList { singleValue };
+        }
+    }
+
+    for (const QString &sequence : parsed) {
+        if (!isValidShortcutSequence(sequence)) {
+            if (valid != nullptr) {
+                *valid = false;
+            }
+            return fallback;
+        }
+    }
+
+    if (valid != nullptr) {
+        *valid = true;
+    }
+    return parsed;
+}
+
 } // namespace
 
 AppSettings AppSettings::defaults()
 {
-    return {};
+    AppSettings settings;
+    settings.shortcuts = defaultShortcutSettings();
+    return settings;
 }
 
 AppSettings AppSettings::read(QSettings &settings)
@@ -83,6 +122,30 @@ AppSettings AppSettings::read(QSettings &settings)
         MaxFullscreenTriggerRatio);
     settings.endGroup();
 
+    result.shortcuts = defaultShortcutSettings();
+    settings.beginGroup(QStringLiteral("shortcuts"));
+    for (ShortcutCommand command : shortcutCommands()) {
+        const QString id = shortcutCommandId(command);
+        settings.beginGroup(id);
+        const bool customized = settings.value(QStringLiteral("customized"), false).toBool();
+        if (customized) {
+            bool validSequences = true;
+            ShortcutBinding binding;
+            binding.customized = true;
+            binding.sequences = validatedShortcutSequences(
+                settings.value(QStringLiteral("sequences"), QStringList()),
+                defaultShortcutSequences(command),
+                &validSequences);
+            if (!validSequences) {
+                binding.customized = false;
+                binding.sequences = defaultShortcutSequences(command);
+            }
+            result.shortcuts.bindings.insert(id, binding);
+        }
+        settings.endGroup();
+    }
+    settings.endGroup();
+
     settings.beginGroup(QStringLiteral("interface"));
     result.interface.rememberLayout = settings.value(QStringLiteral("rememberLayout"), defaults.interface.rememberLayout).toBool();
     result.interface.mainWindowGeometry = settings.value(QStringLiteral("mainWindowGeometry")).toByteArray();
@@ -117,6 +180,23 @@ void AppSettings::write(QSettings &settings) const
     settings.setValue(QStringLiteral("verticalTriggerRatio"), std::clamp(fullscreen.verticalTriggerRatio, MinFullscreenTriggerRatio, MaxFullscreenTriggerRatio));
     settings.endGroup();
 
+    settings.beginGroup(QStringLiteral("shortcuts"));
+    for (ShortcutCommand command : shortcutCommands()) {
+        const QString id = shortcutCommandId(command);
+        const ShortcutBinding binding = shortcuts.bindings.value(
+            id,
+            ShortcutBinding { false, defaultShortcutSequences(command) });
+        settings.beginGroup(id);
+        settings.setValue(QStringLiteral("customized"), binding.customized);
+        if (binding.customized) {
+            settings.setValue(QStringLiteral("sequences"), binding.sequences);
+        } else {
+            settings.remove(QStringLiteral("sequences"));
+        }
+        settings.endGroup();
+    }
+    settings.endGroup();
+
     settings.beginGroup(QStringLiteral("interface"));
     settings.setValue(QStringLiteral("rememberLayout"), interface.rememberLayout);
     if (interface.rememberLayout) {
@@ -145,6 +225,9 @@ void AppSettings::resetCategory(SettingsCategory category)
         break;
     case SettingsCategory::Interface:
         interface = defaults.interface;
+        break;
+    case SettingsCategory::Shortcuts:
+        shortcuts = defaults.shortcuts;
         break;
     }
 }
@@ -246,6 +329,149 @@ WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fall
         return WheelAction::NoAction;
     }
     return fallback;
+}
+
+QVector<ShortcutCommand> shortcutCommands()
+{
+    return {
+        ShortcutCommand::OpenFile,
+        ShortcutCommand::OpenFolder,
+        ShortcutCommand::PreviousImage,
+        ShortcutCommand::NextImage,
+        ShortcutCommand::FirstImage,
+        ShortcutCommand::LastImage,
+        ShortcutCommand::QuickJump,
+        ShortcutCommand::Preferences,
+        ShortcutCommand::ZoomIn,
+        ShortcutCommand::ZoomOut,
+        ShortcutCommand::FitToWindow,
+        ShortcutCommand::ActualSize,
+        ShortcutCommand::RotateLeft,
+        ShortcutCommand::RotateRight,
+        ShortcutCommand::ExifAutorotate,
+        ShortcutCommand::Fullscreen,
+    };
+}
+
+QString shortcutCommandId(ShortcutCommand command)
+{
+    switch (command) {
+    case ShortcutCommand::OpenFile:
+        return QStringLiteral("openFile");
+    case ShortcutCommand::OpenFolder:
+        return QStringLiteral("openFolder");
+    case ShortcutCommand::PreviousImage:
+        return QStringLiteral("previousImage");
+    case ShortcutCommand::NextImage:
+        return QStringLiteral("nextImage");
+    case ShortcutCommand::FirstImage:
+        return QStringLiteral("firstImage");
+    case ShortcutCommand::LastImage:
+        return QStringLiteral("lastImage");
+    case ShortcutCommand::QuickJump:
+        return QStringLiteral("quickJump");
+    case ShortcutCommand::Preferences:
+        return QStringLiteral("preferences");
+    case ShortcutCommand::ZoomIn:
+        return QStringLiteral("zoomIn");
+    case ShortcutCommand::ZoomOut:
+        return QStringLiteral("zoomOut");
+    case ShortcutCommand::FitToWindow:
+        return QStringLiteral("fitToWindow");
+    case ShortcutCommand::ActualSize:
+        return QStringLiteral("actualSize");
+    case ShortcutCommand::RotateLeft:
+        return QStringLiteral("rotateLeft");
+    case ShortcutCommand::RotateRight:
+        return QStringLiteral("rotateRight");
+    case ShortcutCommand::ExifAutorotate:
+        return QStringLiteral("exifAutorotate");
+    case ShortcutCommand::Fullscreen:
+        return QStringLiteral("fullscreen");
+    }
+    return QString();
+}
+
+QStringList defaultShortcutSequences(ShortcutCommand command)
+{
+    switch (command) {
+    case ShortcutCommand::OpenFile:
+        return { keySequenceToSettingsString(QKeySequence::Open) };
+    case ShortcutCommand::OpenFolder:
+        return { keySequenceToSettingsString(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O)) };
+    case ShortcutCommand::PreviousImage:
+        return {
+            keySequenceToSettingsString(QKeySequence(Qt::Key_Left)),
+            keySequenceToSettingsString(QKeySequence(Qt::Key_PageUp)),
+        };
+    case ShortcutCommand::NextImage:
+        return {
+            keySequenceToSettingsString(QKeySequence(Qt::Key_Right)),
+            keySequenceToSettingsString(QKeySequence(Qt::Key_PageDown)),
+        };
+    case ShortcutCommand::FirstImage:
+        return { keySequenceToSettingsString(QKeySequence(Qt::Key_Home)) };
+    case ShortcutCommand::LastImage:
+        return { keySequenceToSettingsString(QKeySequence(Qt::Key_End)) };
+    case ShortcutCommand::QuickJump:
+        return { keySequenceToSettingsString(QKeySequence::Find) };
+    case ShortcutCommand::Preferences:
+        return { keySequenceToSettingsString(QKeySequence::Preferences) };
+    case ShortcutCommand::ZoomIn:
+        return { keySequenceToSettingsString(QKeySequence::ZoomIn) };
+    case ShortcutCommand::ZoomOut:
+        return { keySequenceToSettingsString(QKeySequence::ZoomOut) };
+    case ShortcutCommand::FitToWindow:
+        return { keySequenceToSettingsString(QKeySequence(Qt::Key_0)) };
+    case ShortcutCommand::ActualSize:
+        return { keySequenceToSettingsString(QKeySequence(Qt::Key_1)) };
+    case ShortcutCommand::RotateLeft:
+        return { keySequenceToSettingsString(QKeySequence(Qt::Key_BracketLeft)) };
+    case ShortcutCommand::RotateRight:
+        return { keySequenceToSettingsString(QKeySequence(Qt::Key_BracketRight)) };
+    case ShortcutCommand::ExifAutorotate:
+        return {};
+    case ShortcutCommand::Fullscreen:
+        return { keySequenceToSettingsString(QKeySequence(Qt::Key_F11)) };
+    }
+    return {};
+}
+
+ShortcutSettings defaultShortcutSettings()
+{
+    ShortcutSettings settings;
+    for (ShortcutCommand command : shortcutCommands()) {
+        settings.bindings.insert(shortcutCommandId(command), ShortcutBinding { false, defaultShortcutSequences(command) });
+    }
+    return settings;
+}
+
+QStringList shortcutSequences(const ShortcutSettings &settings, ShortcutCommand command)
+{
+    const QString id = shortcutCommandId(command);
+    const ShortcutBinding binding = settings.bindings.value(
+        id,
+        ShortcutBinding { false, defaultShortcutSequences(command) });
+    if (!binding.customized) {
+        return defaultShortcutSequences(command);
+    }
+    return binding.sequences;
+}
+
+void setShortcutSequences(ShortcutSettings *settings, ShortcutCommand command, const QStringList &sequences)
+{
+    if (settings == nullptr) {
+        return;
+    }
+    settings->bindings.insert(shortcutCommandId(command), ShortcutBinding { true, sequences });
+}
+
+void resetShortcutSequences(ShortcutSettings *settings, ShortcutCommand command)
+{
+    if (settings == nullptr) {
+        return;
+    }
+    settings->bindings.insert(shortcutCommandId(command), ShortcutBinding { false, defaultShortcutSequences(command) });
 }
 
 } // namespace insidious::core

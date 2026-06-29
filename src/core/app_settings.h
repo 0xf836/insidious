@@ -3,7 +3,10 @@
 #include "core/viewer_controller.h"
 
 #include <QByteArray>
+#include <QHash>
 #include <QString>
+#include <QStringList>
+#include <QVector>
 
 class QSettings;
 
@@ -25,10 +28,30 @@ enum class ClickZoomBehavior {
     HoldToZoomPan,
 };
 
+enum class ShortcutCommand {
+    OpenFile,
+    OpenFolder,
+    PreviousImage,
+    NextImage,
+    FirstImage,
+    LastImage,
+    QuickJump,
+    Preferences,
+    ZoomIn,
+    ZoomOut,
+    FitToWindow,
+    ActualSize,
+    RotateLeft,
+    RotateRight,
+    ExifAutorotate,
+    Fullscreen,
+};
+
 enum class SettingsCategory {
     Viewer,
     Fullscreen,
     Interface,
+    Shortcuts,
 };
 
 struct ViewerSettings {
@@ -56,10 +79,20 @@ struct InterfaceSettings {
     QByteArray fullscreenFileSplitterState;
 };
 
+struct ShortcutBinding {
+    bool customized = false;
+    QStringList sequences;
+};
+
+struct ShortcutSettings {
+    QHash<QString, ShortcutBinding> bindings;
+};
+
 struct AppSettings {
     ViewerSettings viewer;
     FullscreenSettings fullscreen;
     InterfaceSettings interface;
+    ShortcutSettings shortcuts;
 
     [[nodiscard]] static AppSettings defaults();
     [[nodiscard]] static AppSettings read(QSettings &settings);
@@ -76,5 +109,12 @@ struct AppSettings {
 [[nodiscard]] ClickZoomBehavior clickZoomBehaviorFromSettingsString(const QString &value, ClickZoomBehavior fallback);
 [[nodiscard]] QString wheelActionToSettingsString(WheelAction action);
 [[nodiscard]] WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fallback);
+[[nodiscard]] QVector<ShortcutCommand> shortcutCommands();
+[[nodiscard]] QString shortcutCommandId(ShortcutCommand command);
+[[nodiscard]] QStringList defaultShortcutSequences(ShortcutCommand command);
+[[nodiscard]] ShortcutSettings defaultShortcutSettings();
+[[nodiscard]] QStringList shortcutSequences(const ShortcutSettings &settings, ShortcutCommand command);
+void setShortcutSequences(ShortcutSettings *settings, ShortcutCommand command, const QStringList &sequences);
+void resetShortcutSequences(ShortcutSettings *settings, ShortcutCommand command);
 
 } // namespace insidious::core

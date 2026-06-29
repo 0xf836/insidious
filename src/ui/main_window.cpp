@@ -78,6 +78,18 @@ bool isNavigableFolder(const core::CollectionFolderNode *node)
         && (!node->images.isEmpty() || (node->canLoadChildren && !node->loaded));
 }
 
+QList<QKeySequence> keySequencesFromSettings(const QStringList &values)
+{
+    QList<QKeySequence> sequences;
+    for (const QString &value : values) {
+        const QKeySequence sequence = QKeySequence::fromString(value, QKeySequence::PortableText);
+        if (!sequence.isEmpty()) {
+            sequences.append(sequence);
+        }
+    }
+    return sequences;
+}
+
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent)
@@ -635,13 +647,11 @@ void MainWindow::setupActions()
     m_mainToolBar->setMovable(false);
 
     m_openFileAction = new QAction(tr("Open File"), this);
-    m_openFileAction->setShortcut(QKeySequence::Open);
     connect(m_openFileAction, &QAction::triggered, this, &MainWindow::openFileDialog);
     fileMenu->addAction(m_openFileAction);
     m_mainToolBar->addAction(m_openFileAction);
 
     m_openFolderAction = new QAction(tr("Open Folder"), this);
-    m_openFolderAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
     connect(m_openFolderAction, &QAction::triggered, this, &MainWindow::openFolderDialog);
     fileMenu->addAction(m_openFolderAction);
     m_mainToolBar->addAction(m_openFolderAction);
@@ -655,71 +665,59 @@ void MainWindow::setupActions()
     m_mainToolBar->addSeparator();
 
     m_previousAction = new QAction(tr("Previous"), this);
-    m_previousAction->setShortcuts(QList<QKeySequence> { QKeySequence(Qt::Key_Left), QKeySequence(Qt::Key_PageUp) });
     connect(m_previousAction, &QAction::triggered, this, &MainWindow::showPreviousImage);
     navigateMenu->addAction(m_previousAction);
     m_mainToolBar->addAction(m_previousAction);
 
     m_nextAction = new QAction(tr("Next"), this);
-    m_nextAction->setShortcuts(QList<QKeySequence> { QKeySequence(Qt::Key_Right), QKeySequence(Qt::Key_PageDown) });
     connect(m_nextAction, &QAction::triggered, this, &MainWindow::showNextImage);
     navigateMenu->addAction(m_nextAction);
     m_mainToolBar->addAction(m_nextAction);
 
     m_firstAction = new QAction(tr("First"), this);
-    m_firstAction->setShortcut(QKeySequence(Qt::Key_Home));
     connect(m_firstAction, &QAction::triggered, this, &MainWindow::showFirstImage);
     navigateMenu->addAction(m_firstAction);
 
     m_lastAction = new QAction(tr("Last"), this);
-    m_lastAction->setShortcut(QKeySequence(Qt::Key_End));
     connect(m_lastAction, &QAction::triggered, this, &MainWindow::showLastImage);
     navigateMenu->addAction(m_lastAction);
 
     m_quickJumpAction = new QAction(tr("Quick Jump"), this);
-    m_quickJumpAction->setShortcut(QKeySequence::Find);
     m_quickJumpAction->setShortcutContext(Qt::WindowShortcut);
     connect(m_quickJumpAction, &QAction::triggered, this, &MainWindow::showQuickJumpDialog);
     navigateMenu->addAction(m_quickJumpAction);
 
     m_preferencesAction = new QAction(tr("Preferences"), this);
-    m_preferencesAction->setShortcut(QKeySequence::Preferences);
     connect(m_preferencesAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
     editMenu->addAction(m_preferencesAction);
 
     m_mainToolBar->addSeparator();
 
     m_zoomInAction = new QAction(tr("Zoom In"), this);
-    m_zoomInAction->setShortcut(QKeySequence::ZoomIn);
     connect(m_zoomInAction, &QAction::triggered, this, &MainWindow::zoomIn);
     viewMenu->addAction(m_zoomInAction);
     m_mainToolBar->addAction(m_zoomInAction);
 
     m_zoomOutAction = new QAction(tr("Zoom Out"), this);
-    m_zoomOutAction->setShortcut(QKeySequence::ZoomOut);
     connect(m_zoomOutAction, &QAction::triggered, this, &MainWindow::zoomOut);
     viewMenu->addAction(m_zoomOutAction);
     m_mainToolBar->addAction(m_zoomOutAction);
 
     m_fitAction = new QAction(tr("Fit"), this);
-    m_fitAction->setShortcut(QKeySequence(Qt::Key_0));
     connect(m_fitAction, &QAction::triggered, this, &MainWindow::setFitToWindow);
     viewMenu->addAction(m_fitAction);
     m_mainToolBar->addAction(m_fitAction);
 
     m_actualSizeAction = new QAction(tr("Actual Size"), this);
-    m_actualSizeAction->setShortcut(QKeySequence(Qt::Key_1));
     connect(m_actualSizeAction, &QAction::triggered, this, &MainWindow::setActualSize);
     viewMenu->addAction(m_actualSizeAction);
     m_mainToolBar->addAction(m_actualSizeAction);
 
     m_rotateLeftAction = new QAction(tr("Rotate Left"), this);
-    m_rotateLeftAction->setShortcut(QKeySequence(Qt::Key_BracketLeft));
     connect(m_rotateLeftAction, &QAction::triggered, this, &MainWindow::rotateLeft);
     viewMenu->addAction(m_rotateLeftAction);
 
     m_rotateRightAction = new QAction(tr("Rotate Right"), this);
-    m_rotateRightAction->setShortcut(QKeySequence(Qt::Key_BracketRight));
     connect(m_rotateRightAction, &QAction::triggered, this, &MainWindow::rotateRight);
     viewMenu->addAction(m_rotateRightAction);
 
@@ -730,7 +728,6 @@ void MainWindow::setupActions()
     m_mainToolBar->addAction(m_exifAutorotateAction);
 
     m_fullscreenAction = new QAction(tr("Fullscreen"), this);
-    m_fullscreenAction->setShortcut(QKeySequence(Qt::Key_F11));
     connect(m_fullscreenAction, &QAction::triggered, this, &MainWindow::toggleFullscreen);
     viewMenu->addAction(m_fullscreenAction);
     m_mainToolBar->addAction(m_fullscreenAction);
@@ -743,6 +740,8 @@ void MainWindow::setupActions()
     QAction *infoAction = m_infoDock->toggleViewAction();
     infoAction->setText(tr("Info"));
     viewMenu->addAction(infoAction);
+
+    applyShortcutSettings();
 }
 
 void MainWindow::setupConnections()
@@ -1075,6 +1074,7 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
     const bool exifAutorotateChanged = settings.viewer.exifAutorotate != m_settings.viewer.exifAutorotate;
 
     m_settings = settings;
+    applyShortcutSettings();
     if (defaultZoomChanged) {
         m_baseZoomMode = m_settings.viewer.defaultZoomMode == core::ZoomMode::ActualSize
             ? core::ZoomMode::ActualSize
@@ -1118,6 +1118,56 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
     updateFullscreenOverlayGeometry();
     updateFullscreenOverlayVisibility();
     updateActionState();
+}
+
+QAction *MainWindow::actionForShortcutCommand(core::ShortcutCommand command) const
+{
+    switch (command) {
+    case core::ShortcutCommand::OpenFile:
+        return m_openFileAction;
+    case core::ShortcutCommand::OpenFolder:
+        return m_openFolderAction;
+    case core::ShortcutCommand::PreviousImage:
+        return m_previousAction;
+    case core::ShortcutCommand::NextImage:
+        return m_nextAction;
+    case core::ShortcutCommand::FirstImage:
+        return m_firstAction;
+    case core::ShortcutCommand::LastImage:
+        return m_lastAction;
+    case core::ShortcutCommand::QuickJump:
+        return m_quickJumpAction;
+    case core::ShortcutCommand::Preferences:
+        return m_preferencesAction;
+    case core::ShortcutCommand::ZoomIn:
+        return m_zoomInAction;
+    case core::ShortcutCommand::ZoomOut:
+        return m_zoomOutAction;
+    case core::ShortcutCommand::FitToWindow:
+        return m_fitAction;
+    case core::ShortcutCommand::ActualSize:
+        return m_actualSizeAction;
+    case core::ShortcutCommand::RotateLeft:
+        return m_rotateLeftAction;
+    case core::ShortcutCommand::RotateRight:
+        return m_rotateRightAction;
+    case core::ShortcutCommand::ExifAutorotate:
+        return m_exifAutorotateAction;
+    case core::ShortcutCommand::Fullscreen:
+        return m_fullscreenAction;
+    }
+    return nullptr;
+}
+
+void MainWindow::applyShortcutSettings()
+{
+    for (core::ShortcutCommand command : core::shortcutCommands()) {
+        QAction *action = actionForShortcutCommand(command);
+        if (action == nullptr) {
+            continue;
+        }
+        action->setShortcuts(keySequencesFromSettings(core::shortcutSequences(m_settings.shortcuts, command)));
+    }
 }
 
 void MainWindow::captureLayoutSettings()

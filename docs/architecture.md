@@ -112,10 +112,11 @@ Render-memory budget считается отдельной core-логикой �
 - click zoom multiplier;
 - wheel / Ctrl+wheel / Shift+wheel actions;
 - shared zoom step percent;
+- core viewer shortcuts;
 - fullscreen edge trigger ratios;
 - window/dock/splitter layout, если включено.
 
-Позже сюда можно добавить default sort mode, hotkeys, rendering preferences и настройку status/fullscreen info line. Даже будущие настройки не должны хранить историю просмотра, recent paths, archive passwords, thumbnails или decoded cache.
+Позже сюда можно добавить default sort mode, advanced shortcut preferences, rendering preferences и настройку status/fullscreen info line. Даже будущие настройки не должны хранить историю просмотра, recent paths, archive passwords, thumbnails или decoded cache.
 
 ## Поток открытия файла
 

@@ -204,6 +204,8 @@ private:
     [[nodiscard]] core::DecodeRequest currentDecodeRequest() const;
     [[nodiscard]] QString currentCacheKey(const core::DecodeRequest &request) const;
     [[nodiscard]] QString imageDialogFilter() const;
+    [[nodiscard]] QAction *actionForShortcutCommand(core::ShortcutCommand command) const;
+    void applyShortcutSettings();
 
     ImageViewWidget *m_imageView = nullptr;
     QDockWidget *m_fileListDock = nullptr;

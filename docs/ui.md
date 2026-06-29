@@ -131,12 +131,15 @@ Trigger zones:
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
 - `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), EXIF autorotate, multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
+- `Shortcuts` — настройка core viewer shortcuts: открыть файл/папку, навигация, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen.
 - `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей.
 - `Interface` — запоминание layout окна, dock-панелей и splitter sizes.
 
 EXIF autorotate также доступен как быстрый checkable action в меню `View`, обычной верхней панели и fullscreen top overlay. Переключение сразу сохраняет настройку и перерендеривает текущий image, если он открыт.
 
-Настройки сохраняются через стандартный механизм Qt `QSettings`. Они не должны содержать историю открытых файлов, пути к просмотренным источникам, пароли архивов, thumbnails или decoded cache.
+Shortcut editor разрешает очистить shortcut у команды и сбросить команду к default. Apply/OK блокирует дублирующиеся non-empty shortcuts в редактируемом наборе. В текущем срезе не редактируются `Quit`, dock toggles `Files`/`Info`, profiles/import-export и shortcut scopes.
+
+Настройки сохраняются через стандартный механизм Qt `QSettings`. Они не должны содержать историю открытых файлов, пути к просмотренным источникам, пароли архивов, thumbnails или decoded cache. Shortcut settings содержат только stable command ids и key sequence strings.
 
 ## Мышь
 
@@ -157,26 +160,21 @@ EXIF autorotate также доступен как быстрый checkable acti
 - drag'n'drop в окно: открыть соответствующий источник.
 - double click - переход в Fullscreen/выход из него; временный zoom по простому клику при double click не срабатывает
 
-Настройка горячих клавиш пока не входит в текущий MVP.
-
 ## Клавиатура
 
-Базовые действия:
+Базовые shortcuts по умолчанию:
 
-- next image;
-- previous image;
-- first image;
-- last image;
-- zoom in;
-- zoom out;
-- fit to window;
-- actual size;
-- rotate left/right;
-- fullscreen;
-- show/hide side panels;
-- open file;
-- open folder;
-- open archive;
-- close app.
+- open file: `Ctrl+O`;
+- open folder: `Ctrl+Shift+O`;
+- previous image: `Left`, `PageUp`;
+- next image: `Right`, `PageDown`;
+- first/last image: `Home`, `End`;
+- quick jump: `Ctrl+F`;
+- preferences: toolkit default Preferences shortcut;
+- zoom in/out: toolkit default Zoom In / Zoom Out shortcuts;
+- fit to window / actual size: `0`, `1`;
+- rotate left/right: `[`, `]`;
+- fullscreen: `F11`;
+- exit fullscreen: `Esc`.
 
-Конкретные shortcuts лучше зафиксировать отдельным документом после выбора toolkit.
+Core viewer shortcuts кроме `Esc` редактируются в `Edit -> Preferences -> Shortcuts`.

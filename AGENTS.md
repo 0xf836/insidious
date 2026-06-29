@@ -85,9 +85,9 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 ## MVP boundaries
 
-Current implementation should stay focused on a stable viewer pipeline for regular filesystem images, folders, archives, navigation, fullscreen, metadata, and privacy-safe settings. RAW support, advanced metadata, configurable hotkeys, password persistence, and thumbnail panels are later milestones unless explicitly requested.
+Current implementation should stay focused on a stable viewer pipeline for regular filesystem images, folders, archives, navigation, fullscreen, metadata, configurable core viewer shortcuts, and privacy-safe settings. RAW support, advanced metadata, advanced shortcut features, password persistence, and thumbnail panels are later milestones unless explicitly requested.
 
-Current MVP supports regular filesystem images, filesystem folder trees with lazy per-folder loading, ZIP/7z/RAR archive trees through libarchive without disk extraction, and a basic Preferences dialog. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, configurable hotkeys, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
+Current MVP supports regular filesystem images, filesystem folder trees with lazy per-folder loading, ZIP/7z/RAR archive trees through libarchive without disk extraction, and a basic Preferences dialog. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, advanced shortcut features, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
 
 Use `docs/roadmap.md` as the living backlog. Keep completed work, next stabilization tasks, mid-term features, later milestones, and explicit non-goals sorted there when product direction changes.
 
@@ -100,6 +100,7 @@ Current MVP mouse behavior:
 - Left button zoom behavior is configurable. The default `ToggleOnClick` mode uses simple left click to enter temporary zoom relative to the current displayed scale, centered on the clicked image point; the next click after click/rectangle zoom restores fit or actual size. `HoldToZoomPan` starts temporary zoom immediately on left press, left-drag pans the zoomed raster, and release restores the exact previous view.
 - In left-button zoom modes, show the idle magnifier cursor only while zoom/restore or hold-to-zoom is available: a decoded image is visible, no render is pending, and hold zoom is not active.
 - Toolbar, shortcut, and wheel zoom use the same configurable zoom step. The default is 25%. Toolbar and shortcut zoom anchor at the viewport center.
+- Core viewer shortcuts are configurable in Preferences through stable command ids stored in `AppSettings`. The first supported set covers open file/folder, navigation, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation, and fullscreen. Empty shortcuts are allowed, duplicate non-empty shortcuts must be rejected before save, and `Quit` plus dock toggles remain static for now.
 - In default left-button mode, hold left mouse button and drag pans the image only outside base `fit to window`.
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
 - Double click toggles fullscreen and must not also trigger temporary click zoom.
