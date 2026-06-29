@@ -57,6 +57,8 @@ private slots:
     void loadCurrentImage();
     void showNextImage();
     void showPreviousImage();
+    void showNextFolder();
+    void showPreviousFolder();
     void showFirstImage();
     void showLastImage();
     void zoomIn();
@@ -234,6 +236,8 @@ private:
     QAction *m_openFolderAction = nullptr;
     QAction *m_previousAction = nullptr;
     QAction *m_nextAction = nullptr;
+    QAction *m_previousFolderAction = nullptr;
+    QAction *m_nextFolderAction = nullptr;
     QAction *m_firstAction = nullptr;
     QAction *m_lastAction = nullptr;
     QAction *m_quickJumpAction = nullptr;

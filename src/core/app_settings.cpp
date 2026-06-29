@@ -354,6 +354,8 @@ QVector<ShortcutCommand> shortcutCommands()
         ShortcutCommand::OpenFolder,
         ShortcutCommand::PreviousImage,
         ShortcutCommand::NextImage,
+        ShortcutCommand::PreviousFolder,
+        ShortcutCommand::NextFolder,
         ShortcutCommand::FirstImage,
         ShortcutCommand::LastImage,
         ShortcutCommand::QuickJump,
@@ -380,6 +382,10 @@ QString shortcutCommandId(ShortcutCommand command)
         return QStringLiteral("previousImage");
     case ShortcutCommand::NextImage:
         return QStringLiteral("nextImage");
+    case ShortcutCommand::PreviousFolder:
+        return QStringLiteral("previousFolder");
+    case ShortcutCommand::NextFolder:
+        return QStringLiteral("nextFolder");
     case ShortcutCommand::FirstImage:
         return QStringLiteral("firstImage");
     case ShortcutCommand::LastImage:
@@ -425,6 +431,10 @@ QStringList defaultShortcutSequences(ShortcutCommand command)
             keySequenceToSettingsString(QKeySequence(Qt::Key_Right)),
             keySequenceToSettingsString(QKeySequence(Qt::Key_PageDown)),
         };
+    case ShortcutCommand::PreviousFolder:
+        return { QStringLiteral("MouseForward") };
+    case ShortcutCommand::NextFolder:
+        return { QStringLiteral("MouseBack") };
     case ShortcutCommand::FirstImage:
         return { keySequenceToSettingsString(QKeySequence(Qt::Key_Home)) };
     case ShortcutCommand::LastImage:

@@ -360,6 +360,10 @@ QString SettingsDialog::shortcutCommandLabel(core::ShortcutCommand command) cons
         return tr("Previous");
     case core::ShortcutCommand::NextImage:
         return tr("Next");
+    case core::ShortcutCommand::PreviousFolder:
+        return tr("Previous Folder");
+    case core::ShortcutCommand::NextFolder:
+        return tr("Next Folder");
     case core::ShortcutCommand::FirstImage:
         return tr("First");
     case core::ShortcutCommand::LastImage:

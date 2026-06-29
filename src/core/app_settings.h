@@ -34,6 +34,8 @@ enum class ShortcutCommand {
     OpenFolder,
     PreviousImage,
     NextImage,
+    PreviousFolder,
+    NextFolder,
     FirstImage,
     LastImage,
     QuickJump,

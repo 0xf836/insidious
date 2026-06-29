@@ -131,7 +131,7 @@ Trigger zones:
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
 - `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), EXIF autorotate, multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
-- `Shortcuts` — настройка core viewer shortcuts: открыть файл/папку, навигация, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen. Команду можно назначить на keyboard shortcut и/или mouse button shortcut с optional modifiers.
+- `Shortcuts` — настройка core viewer shortcuts: открыть файл/папку, навигация по изображениям и папкам, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen. Команду можно назначить на keyboard shortcut и/или mouse button shortcut с optional modifiers.
 - `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей.
 - `Interface` — запоминание layout окна, dock-панелей и splitter sizes.
 
@@ -149,7 +149,7 @@ Shortcut editor разрешает очистить shortcut у команды �
 - `Ctrl + wheel`: zoom in / zoom out относительно текущего отображаемого масштаба, включая текущий `fit` scale, с опорой на позицию курсора;
 - `Shift + wheel`: no action по умолчанию;
 - действия wheel / `Ctrl+wheel` / `Shift+wheel` можно настроить как navigation, zoom или no action;
-- mouse button shortcut, назначенный в `Preferences -> Shortcuts`, срабатывает на press и имеет приоритет над встроенным mouse gesture для той же кнопки; это позволяет явно переназначить, например, `MouseBack`/`MouseForward` на навигацию, а при назначении ЛКМ/ПКМ заменить click zoom или rectangle zoom для этой кнопки;
+- mouse button shortcut, назначенный в `Preferences -> Shortcuts`, срабатывает на press и имеет приоритет над встроенным mouse gesture для той же кнопки; по умолчанию `MouseBack` переходит к предыдущей подходящей папке source tree, а `MouseForward` к следующей;
 - toolbar, shortcuts и wheel zoom используют общий настраиваемый zoom step, по умолчанию 25%; toolbar и shortcuts масштабируют вокруг центра viewport;
 - next/previous через toolbar, shortcuts или wheel по умолчанию сбрасывает zoom и pan в установленный базовый режим `fit` или `actual size`; в настройках можно переключить это на сохранение текущего view. Если в активной папке достигнута граница, но дальше по дереву есть подходящая папка, viewer переходит к ней; если переходить некуда, текущий entry перерендеривается с тем же сбросом;
 - ЛКМ по умолчанию: простой клик включает временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика; multiplier настраивается;
@@ -169,6 +169,7 @@ Shortcut editor разрешает очистить shortcut у команды �
 - open folder: `Ctrl+Shift+O`;
 - previous image: `Left`, `PageUp`;
 - next image: `Right`, `PageDown`;
+- previous/next folder: `MouseBack`, `MouseForward`;
 - first/last image: `Home`, `End`;
 - quick jump: `Ctrl+F`;
 - preferences: toolkit default Preferences shortcut;

@@ -424,6 +424,22 @@ void MainWindow::showPreviousImage()
     reloadAfterImageSwitch();
 }
 
+void MainWindow::showNextFolder()
+{
+    if (navigateToAdjacentFolder(true)) {
+        return;
+    }
+    updateActionState();
+}
+
+void MainWindow::showPreviousFolder()
+{
+    if (navigateToAdjacentFolder(false)) {
+        return;
+    }
+    updateActionState();
+}
+
 void MainWindow::showFirstImage()
 {
     if (m_controller.goFirst()) {
@@ -689,6 +705,16 @@ void MainWindow::setupActions()
     connect(m_nextAction, &QAction::triggered, this, &MainWindow::showNextImage);
     navigateMenu->addAction(m_nextAction);
     m_mainToolBar->addAction(m_nextAction);
+
+    m_previousFolderAction = new QAction(tr("Previous Folder"), this);
+    connect(m_previousFolderAction, &QAction::triggered, this, &MainWindow::showPreviousFolder);
+    navigateMenu->addAction(m_previousFolderAction);
+
+    m_nextFolderAction = new QAction(tr("Next Folder"), this);
+    connect(m_nextFolderAction, &QAction::triggered, this, &MainWindow::showNextFolder);
+    navigateMenu->addAction(m_nextFolderAction);
+
+    navigateMenu->addSeparator();
 
     m_firstAction = new QAction(tr("First"), this);
     connect(m_firstAction, &QAction::triggered, this, &MainWindow::showFirstImage);
@@ -1036,6 +1062,8 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenTopPanel->addSeparator();
     m_fullscreenTopPanel->addAction(m_previousAction);
     m_fullscreenTopPanel->addAction(m_nextAction);
+    m_fullscreenTopPanel->addAction(m_previousFolderAction);
+    m_fullscreenTopPanel->addAction(m_nextFolderAction);
     m_fullscreenTopPanel->addAction(m_firstAction);
     m_fullscreenTopPanel->addAction(m_lastAction);
     m_fullscreenTopPanel->addAction(m_quickJumpAction);
@@ -1148,6 +1176,10 @@ QAction *MainWindow::actionForShortcutCommand(core::ShortcutCommand command) con
         return m_previousAction;
     case core::ShortcutCommand::NextImage:
         return m_nextAction;
+    case core::ShortcutCommand::PreviousFolder:
+        return m_previousFolderAction;
+    case core::ShortcutCommand::NextFolder:
+        return m_nextFolderAction;
     case core::ShortcutCommand::FirstImage:
         return m_firstAction;
     case core::ShortcutCommand::LastImage:
@@ -1672,6 +1704,8 @@ void MainWindow::updateActionState()
 
     m_previousAction->setEnabled(hasPrevious || hasImage);
     m_nextAction->setEnabled(hasNext || hasImage);
+    m_previousFolderAction->setEnabled(hasAdjacentFolder(false));
+    m_nextFolderAction->setEnabled(hasAdjacentFolder(true));
     m_firstAction->setEnabled(hasPreviousInFolder);
     m_lastAction->setEnabled(hasNextInFolder);
     m_quickJumpAction->setEnabled(hasImage);
