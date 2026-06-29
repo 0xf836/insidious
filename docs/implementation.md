@@ -130,11 +130,11 @@ Settings:
 - `Edit -> Preferences` opens `SettingsDialog`.
 - Settings are loaded in `MainWindow` construction and saved on Apply/OK and window close through `QSettings` using the application/organization name `Insidious`.
 - Viewer settings currently include default zoom mode, image-switch view policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, shared zoom step, and wheel / Ctrl+wheel / Shift+wheel actions. EXIF autorotate is also exposed as a synced checkable action in the `View` menu, main toolbar, and fullscreen top overlay.
-- Shortcut settings currently include core viewer commands only. `AppSettings` owns stable command ids, defaults, QSettings read/write, reset behavior, and invalid-sequence fallback. `MainWindow` maps those command ids onto existing `QAction` objects so menus, the normal toolbar, and the fullscreen top overlay share the same configured shortcuts.
-- `SettingsDialog` exposes a `Shortcuts` page where a command can be changed to one key sequence, cleared, or reset to defaults. Apply/OK rejects duplicate non-empty shortcuts across the editable command set.
+- Shortcut settings currently include core viewer commands only. `AppSettings` owns stable command ids, keyboard/mouse input strings, defaults, QSettings read/write, reset behavior, and invalid-input fallback. `MainWindow` maps keyboard inputs onto existing `QAction` shortcuts and triggers the same actions for matching mouse button inputs, so menus, the normal toolbar, and the fullscreen top overlay share command routing.
+- `SettingsDialog` exposes a `Shortcuts` page where a command can have keyboard and mouse inputs at the same time, be cleared, or reset to defaults. `Set Keyboard` replaces only keyboard inputs for that command, while `Set Mouse` replaces only mouse inputs. Apply/OK rejects duplicate non-empty inputs across the editable command set.
 - Fullscreen settings currently include side and top/bottom edge trigger ratios.
 - Interface settings currently include whether to remember layout plus window geometry/state and normal/fullscreen Files splitter state.
-- Settings must stay privacy-safe: do not store recent files, source paths, archive paths, default image folders, archive passwords, thumbnails, decoded image data, or file logs. Shortcut settings store only command ids and key sequence strings.
+- Settings must stay privacy-safe: do not store recent files, source paths, archive paths, default image folders, archive passwords, thumbnails, decoded image data, or file logs. Shortcut settings store only command ids and portable keyboard/mouse input strings.
 - `AppSettings::read()` clamps numeric values and falls back on defaults for unknown enum strings so older or manually edited config files remain safe.
 
 Navigation:

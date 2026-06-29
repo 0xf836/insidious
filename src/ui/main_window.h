@@ -72,6 +72,7 @@ private slots:
     void showQuickJumpDialog();
     void showSettingsDialog();
     void handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDeltaY, QPoint position);
+    void handleMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button, bool *handled);
 
 private:
     struct DecodeJobResult {
@@ -206,6 +207,7 @@ private:
     [[nodiscard]] QString imageDialogFilter() const;
     [[nodiscard]] QAction *actionForShortcutCommand(core::ShortcutCommand command) const;
     void applyShortcutSettings();
+    [[nodiscard]] bool triggerMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button);
 
     ImageViewWidget *m_imageView = nullptr;
     QDockWidget *m_fileListDock = nullptr;

@@ -131,15 +131,15 @@ Trigger zones:
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
 - `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), EXIF autorotate, multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
-- `Shortcuts` — настройка core viewer shortcuts: открыть файл/папку, навигация, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen.
+- `Shortcuts` — настройка core viewer shortcuts: открыть файл/папку, навигация, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen. Команду можно назначить на keyboard shortcut и/или mouse button shortcut с optional modifiers.
 - `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей.
 - `Interface` — запоминание layout окна, dock-панелей и splitter sizes.
 
 EXIF autorotate также доступен как быстрый checkable action в меню `View`, обычной верхней панели и fullscreen top overlay. Переключение сразу сохраняет настройку и перерендеривает текущий image, если он открыт.
 
-Shortcut editor разрешает очистить shortcut у команды и сбросить команду к default. Apply/OK блокирует дублирующиеся non-empty shortcuts в редактируемом наборе. В текущем срезе не редактируются `Quit`, dock toggles `Files`/`Info`, profiles/import-export и shortcut scopes.
+Shortcut editor разрешает очистить shortcut у команды и сбросить команду к default. Apply/OK блокирует дублирующиеся non-empty keyboard или mouse shortcuts в редактируемом наборе. В текущем срезе не редактируются `Quit`, dock toggles `Files`/`Info`, profiles/import-export и shortcut scopes.
 
-Настройки сохраняются через стандартный механизм Qt `QSettings`. Они не должны содержать историю открытых файлов, пути к просмотренным источникам, пароли архивов, thumbnails или decoded cache. Shortcut settings содержат только stable command ids и key sequence strings.
+Настройки сохраняются через стандартный механизм Qt `QSettings`. Они не должны содержать историю открытых файлов, пути к просмотренным источникам, пароли архивов, thumbnails или decoded cache. Shortcut settings содержат только stable command ids и portable input strings, например `Ctrl+O` или `MouseBack`.
 
 ## Мышь
 
@@ -149,6 +149,7 @@ Shortcut editor разрешает очистить shortcut у команды �
 - `Ctrl + wheel`: zoom in / zoom out относительно текущего отображаемого масштаба, включая текущий `fit` scale, с опорой на позицию курсора;
 - `Shift + wheel`: no action по умолчанию;
 - действия wheel / `Ctrl+wheel` / `Shift+wheel` можно настроить как navigation, zoom или no action;
+- mouse button shortcut, назначенный в `Preferences -> Shortcuts`, срабатывает на press и имеет приоритет над встроенным mouse gesture для той же кнопки; это позволяет явно переназначить, например, `MouseBack`/`MouseForward` на навигацию, а при назначении ЛКМ/ПКМ заменить click zoom или rectangle zoom для этой кнопки;
 - toolbar, shortcuts и wheel zoom используют общий настраиваемый zoom step, по умолчанию 25%; toolbar и shortcuts масштабируют вокруг центра viewport;
 - next/previous через toolbar, shortcuts или wheel по умолчанию сбрасывает zoom и pan в установленный базовый режим `fit` или `actual size`; в настройках можно переключить это на сохранение текущего view. Если в активной папке достигнута граница, но дальше по дереву есть подходящая папка, viewer переходит к ней; если переходить некуда, текущий entry перерендеривается с тем же сбросом;
 - ЛКМ по умолчанию: простой клик включает временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика; multiplier настраивается;

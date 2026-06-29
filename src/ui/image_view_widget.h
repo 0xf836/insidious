@@ -38,6 +38,7 @@ signals:
     void zoomInRequested();
     void zoomOutRequested();
     void wheelActionRequested(Qt::KeyboardModifiers modifiers, int angleDeltaY, QPoint position);
+    void mouseShortcutRequested(Qt::KeyboardModifiers modifiers, Qt::MouseButton button, bool *handled);
     void imageClicked(QPoint position);
     void holdZoomStarted(QPoint position);
     void holdZoomMoved(QPoint delta);

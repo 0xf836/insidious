@@ -55,6 +55,28 @@ void addWheelActionItems(QComboBox *combo)
     combo->addItem(QObject::tr("No action"), static_cast<int>(core::WheelAction::NoAction));
 }
 
+QStringList mouseShortcutSequences(const QStringList &values)
+{
+    QStringList result;
+    for (const QString &value : values) {
+        if (core::shortcutSequenceIsMouseInput(value)) {
+            result.append(value);
+        }
+    }
+    return result;
+}
+
+QStringList keyboardShortcutSequences(const QStringList &values)
+{
+    QStringList result;
+    for (const QString &value : values) {
+        if (!core::shortcutSequenceIsMouseInput(value)) {
+            result.append(value);
+        }
+    }
+    return result;
+}
+
 } // namespace
 
 SettingsDialog::SettingsDialog(QWidget *parent)
@@ -212,14 +234,23 @@ void SettingsDialog::setupShortcutsPage()
     auto *buttonLayout = new QHBoxLayout;
     buttonLayout->addStretch(1);
 
-    auto *changeButton = new QPushButton(tr("Set"), page);
+    auto *changeButton = new QPushButton(tr("Set Keyboard"), page);
     connect(changeButton, &QPushButton::clicked, this, [this]() {
         core::ShortcutCommand command;
         if (selectedShortcutCommand(&command)) {
-            changeShortcut(command);
+            changeKeyboardShortcut(command);
         }
     });
     buttonLayout->addWidget(changeButton);
+
+    auto *mouseButton = new QPushButton(tr("Set Mouse"), page);
+    connect(mouseButton, &QPushButton::clicked, this, [this]() {
+        core::ShortcutCommand command;
+        if (selectedShortcutCommand(&command)) {
+            changeMouseShortcut(command);
+        }
+    });
+    buttonLayout->addWidget(mouseButton);
 
     auto *clearButton = new QPushButton(tr("Clear"), page);
     connect(clearButton, &QPushButton::clicked, this, [this]() {
@@ -366,8 +397,7 @@ QString SettingsDialog::shortcutDisplayText(core::ShortcutCommand command) const
 
     QStringList displayValues;
     for (const QString &value : values) {
-        const QKeySequence sequence = QKeySequence::fromString(value, QKeySequence::PortableText);
-        displayValues.append(sequence.isEmpty() ? value : sequence.toString(QKeySequence::NativeText));
+        displayValues.append(core::shortcutSequenceDisplayString(value));
     }
     return displayValues.join(tr(", "));
 }
@@ -378,18 +408,27 @@ bool SettingsDialog::validateShortcutConflicts()
     for (core::ShortcutCommand command : m_shortcutCommands) {
         const QString commandLabel = shortcutCommandLabel(command);
         for (const QString &value : core::shortcutSequences(m_settings.shortcuts, command)) {
-            const QKeySequence sequence = QKeySequence::fromString(value, QKeySequence::PortableText);
-            if (sequence.isEmpty()) {
-                continue;
+            QString portable;
+            QString display;
+            core::MouseShortcut mouseShortcut;
+            if (core::mouseShortcutFromSettingsString(value, &mouseShortcut)) {
+                portable = core::mouseShortcutToSettingsString(mouseShortcut);
+                display = core::shortcutSequenceDisplayString(portable);
+            } else {
+                const QKeySequence sequence = QKeySequence::fromString(value, QKeySequence::PortableText);
+                if (sequence.isEmpty()) {
+                    continue;
+                }
+                portable = sequence.toString(QKeySequence::PortableText);
+                display = sequence.toString(QKeySequence::NativeText);
             }
-            const QString portable = sequence.toString(QKeySequence::PortableText);
             const auto existing = commandBySequence.constFind(portable);
             if (existing != commandBySequence.constEnd()) {
                 QMessageBox::warning(
                     this,
                     tr("Shortcut conflict"),
                     tr("%1 is assigned to both %2 and %3. Choose a unique shortcut or clear one of them.")
-                        .arg(sequence.toString(QKeySequence::NativeText), existing.value(), commandLabel));
+                        .arg(display, existing.value(), commandLabel));
                 return false;
             }
             commandBySequence.insert(portable, commandLabel);
@@ -441,20 +480,25 @@ void SettingsDialog::refreshShortcutsTable()
     }
 }
 
-void SettingsDialog::changeShortcut(core::ShortcutCommand command)
+void SettingsDialog::changeKeyboardShortcut(core::ShortcutCommand command)
 {
     QDialog dialog(this);
-    dialog.setWindowTitle(tr("Change Shortcut"));
+    dialog.setWindowTitle(tr("Change Keyboard Shortcut"));
 
     auto *layout = new QVBoxLayout(&dialog);
-    auto *label = new QLabel(tr("Press a new shortcut for %1.").arg(shortcutCommandLabel(command)), &dialog);
+    auto *label = new QLabel(tr("Press a new keyboard shortcut for %1.").arg(shortcutCommandLabel(command)), &dialog);
     label->setWordWrap(true);
     layout->addWidget(label);
 
     auto *editor = new QKeySequenceEdit(&dialog);
     const QStringList currentSequences = core::shortcutSequences(m_settings.shortcuts, command);
     if (!currentSequences.isEmpty()) {
-        editor->setKeySequence(QKeySequence::fromString(currentSequences.first(), QKeySequence::PortableText));
+        for (const QString &sequenceValue : currentSequences) {
+            if (!core::shortcutSequenceIsMouseInput(sequenceValue)) {
+                editor->setKeySequence(QKeySequence::fromString(sequenceValue, QKeySequence::PortableText));
+                break;
+            }
+        }
     }
     layout->addWidget(editor);
 
@@ -468,11 +512,93 @@ void SettingsDialog::changeShortcut(core::ShortcutCommand command)
     }
 
     const QString sequence = editor->keySequence().toString(QKeySequence::PortableText);
+    QStringList sequences = mouseShortcutSequences(core::shortcutSequences(m_settings.shortcuts, command));
     if (sequence.isEmpty()) {
-        core::setShortcutSequences(&m_settings.shortcuts, command, QStringList());
+        core::setShortcutSequences(&m_settings.shortcuts, command, sequences);
     } else {
-        core::setShortcutSequences(&m_settings.shortcuts, command, QStringList { sequence });
+        sequences.prepend(sequence);
+        core::setShortcutSequences(&m_settings.shortcuts, command, sequences);
     }
+    refreshShortcutsTable();
+}
+
+void SettingsDialog::changeMouseShortcut(core::ShortcutCommand command)
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Change Mouse Shortcut"));
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *label = new QLabel(tr("Choose a mouse button for %1.").arg(shortcutCommandLabel(command)), &dialog);
+    label->setWordWrap(true);
+    layout->addWidget(label);
+
+    auto *form = new QFormLayout;
+    auto *buttonCombo = new QComboBox(&dialog);
+    buttonCombo->addItem(tr("Left button"), static_cast<int>(Qt::LeftButton));
+    buttonCombo->addItem(tr("Middle button"), static_cast<int>(Qt::MiddleButton));
+    buttonCombo->addItem(tr("Right button"), static_cast<int>(Qt::RightButton));
+    buttonCombo->addItem(tr("Back button"), static_cast<int>(Qt::BackButton));
+    buttonCombo->addItem(tr("Forward button"), static_cast<int>(Qt::ForwardButton));
+    buttonCombo->addItem(tr("Extra button 1"), static_cast<int>(Qt::ExtraButton1));
+    buttonCombo->addItem(tr("Extra button 2"), static_cast<int>(Qt::ExtraButton2));
+    form->addRow(tr("Mouse button:"), buttonCombo);
+    layout->addLayout(form);
+
+    auto *modifiersLayout = new QHBoxLayout;
+    auto *ctrlCheck = new QCheckBox(tr("Ctrl"), &dialog);
+    auto *shiftCheck = new QCheckBox(tr("Shift"), &dialog);
+    auto *altCheck = new QCheckBox(tr("Alt"), &dialog);
+    auto *metaCheck = new QCheckBox(tr("Meta"), &dialog);
+    modifiersLayout->addWidget(ctrlCheck);
+    modifiersLayout->addWidget(shiftCheck);
+    modifiersLayout->addWidget(altCheck);
+    modifiersLayout->addWidget(metaCheck);
+    modifiersLayout->addStretch(1);
+    form->addRow(tr("Modifiers:"), modifiersLayout);
+
+    for (const QString &sequenceValue : core::shortcutSequences(m_settings.shortcuts, command)) {
+        core::MouseShortcut shortcut;
+        if (!core::mouseShortcutFromSettingsString(sequenceValue, &shortcut)) {
+            continue;
+        }
+        setComboToData(buttonCombo, static_cast<int>(shortcut.button));
+        ctrlCheck->setChecked(shortcut.modifiers.testFlag(Qt::ControlModifier));
+        shiftCheck->setChecked(shortcut.modifiers.testFlag(Qt::ShiftModifier));
+        altCheck->setChecked(shortcut.modifiers.testFlag(Qt::AltModifier));
+        metaCheck->setChecked(shortcut.modifiers.testFlag(Qt::MetaModifier));
+        break;
+    }
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+    if (ctrlCheck->isChecked()) {
+        modifiers |= Qt::ControlModifier;
+    }
+    if (shiftCheck->isChecked()) {
+        modifiers |= Qt::ShiftModifier;
+    }
+    if (altCheck->isChecked()) {
+        modifiers |= Qt::AltModifier;
+    }
+    if (metaCheck->isChecked()) {
+        modifiers |= Qt::MetaModifier;
+    }
+
+    const core::MouseShortcut shortcut {
+        modifiers,
+        static_cast<Qt::MouseButton>(buttonCombo->currentData().toInt()),
+    };
+    QStringList sequences = keyboardShortcutSequences(core::shortcutSequences(m_settings.shortcuts, command));
+    sequences.append(core::mouseShortcutToSettingsString(shortcut));
+    core::setShortcutSequences(&m_settings.shortcuts, command, sequences);
     refreshShortcutsTable();
 }
 

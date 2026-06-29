@@ -6,6 +6,7 @@
 #include <QHash>
 #include <QString>
 #include <QStringList>
+#include <Qt>
 #include <QVector>
 
 class QSettings;
@@ -84,6 +85,11 @@ struct ShortcutBinding {
     QStringList sequences;
 };
 
+struct MouseShortcut {
+    Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+    Qt::MouseButton button = Qt::NoButton;
+};
+
 struct ShortcutSettings {
     QHash<QString, ShortcutBinding> bindings;
 };
@@ -114,6 +120,10 @@ struct AppSettings {
 [[nodiscard]] QStringList defaultShortcutSequences(ShortcutCommand command);
 [[nodiscard]] ShortcutSettings defaultShortcutSettings();
 [[nodiscard]] QStringList shortcutSequences(const ShortcutSettings &settings, ShortcutCommand command);
+[[nodiscard]] bool shortcutSequenceIsMouseInput(const QString &value);
+[[nodiscard]] bool mouseShortcutFromSettingsString(const QString &value, MouseShortcut *shortcut);
+[[nodiscard]] QString mouseShortcutToSettingsString(const MouseShortcut &shortcut);
+[[nodiscard]] QString shortcutSequenceDisplayString(const QString &value);
 void setShortcutSequences(ShortcutSettings *settings, ShortcutCommand command, const QStringList &sequences);
 void resetShortcutSequences(ShortcutSettings *settings, ShortcutCommand command);
 

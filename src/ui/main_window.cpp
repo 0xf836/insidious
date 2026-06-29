@@ -82,12 +82,20 @@ QList<QKeySequence> keySequencesFromSettings(const QStringList &values)
 {
     QList<QKeySequence> sequences;
     for (const QString &value : values) {
+        if (core::shortcutSequenceIsMouseInput(value)) {
+            continue;
+        }
         const QKeySequence sequence = QKeySequence::fromString(value, QKeySequence::PortableText);
         if (!sequence.isEmpty()) {
             sequences.append(sequence);
         }
     }
     return sequences;
+}
+
+Qt::KeyboardModifiers shortcutRelevantModifiers(Qt::KeyboardModifiers modifiers)
+{
+    return modifiers & (Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier);
 }
 
 } // namespace
@@ -636,6 +644,14 @@ void MainWindow::handleWheelAction(Qt::KeyboardModifiers modifiers, int angleDel
     applyWheelAction(wheelActionForModifiers(modifiers), angleDeltaY, position);
 }
 
+void MainWindow::handleMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button, bool *handled)
+{
+    if (handled == nullptr) {
+        return;
+    }
+    *handled = triggerMouseShortcut(modifiers, button);
+}
+
 void MainWindow::setupActions()
 {
     auto *fileMenu = menuBar()->addMenu(tr("&File"));
@@ -751,6 +767,7 @@ void MainWindow::setupConnections()
     connect(m_imageView, &ImageViewWidget::zoomInRequested, this, &MainWindow::zoomIn);
     connect(m_imageView, &ImageViewWidget::zoomOutRequested, this, &MainWindow::zoomOut);
     connect(m_imageView, &ImageViewWidget::wheelActionRequested, this, &MainWindow::handleWheelAction);
+    connect(m_imageView, &ImageViewWidget::mouseShortcutRequested, this, &MainWindow::handleMouseShortcut);
     connect(m_imageView, &ImageViewWidget::imageClicked, this, &MainWindow::handleImageClick);
     connect(m_imageView, &ImageViewWidget::holdZoomStarted, this, &MainWindow::handleHoldZoomStarted);
     connect(m_imageView, &ImageViewWidget::holdZoomMoved, this, &MainWindow::handleHoldZoomMoved);
@@ -1168,6 +1185,29 @@ void MainWindow::applyShortcutSettings()
         }
         action->setShortcuts(keySequencesFromSettings(core::shortcutSequences(m_settings.shortcuts, command)));
     }
+}
+
+bool MainWindow::triggerMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button)
+{
+    const Qt::KeyboardModifiers normalizedModifiers = shortcutRelevantModifiers(modifiers);
+    for (core::ShortcutCommand command : core::shortcutCommands()) {
+        QAction *action = actionForShortcutCommand(command);
+        if (action == nullptr || !action->isEnabled()) {
+            continue;
+        }
+
+        for (const QString &value : core::shortcutSequences(m_settings.shortcuts, command)) {
+            core::MouseShortcut shortcut;
+            if (!core::mouseShortcutFromSettingsString(value, &shortcut)) {
+                continue;
+            }
+            if (shortcut.button == button && shortcut.modifiers == normalizedModifiers) {
+                action->trigger();
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void MainWindow::captureLayoutSettings()

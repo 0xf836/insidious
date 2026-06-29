@@ -41,7 +41,8 @@ private:
     [[nodiscard]] bool validateShortcutConflicts();
     [[nodiscard]] bool selectedShortcutCommand(core::ShortcutCommand *command) const;
     void refreshShortcutsTable();
-    void changeShortcut(core::ShortcutCommand command);
+    void changeKeyboardShortcut(core::ShortcutCommand command);
+    void changeMouseShortcut(core::ShortcutCommand command);
     void clearShortcut(core::ShortcutCommand command);
     void resetShortcut(core::ShortcutCommand command);
 

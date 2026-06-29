@@ -659,6 +659,21 @@ void CoreTests::shortcutSettingsDefaultsAndCustomization()
     setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList { QStringLiteral("N") });
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextImage), QStringList({ QStringLiteral("N") }));
 
+    const MouseShortcut mouseShortcut { Qt::ControlModifier, Qt::BackButton };
+    QCOMPARE(mouseShortcutToSettingsString(mouseShortcut), QStringLiteral("Ctrl+MouseBack"));
+    QVERIFY(shortcutSequenceIsMouseInput(QStringLiteral("Ctrl+MouseBack")));
+    MouseShortcut parsedMouseShortcut;
+    QVERIFY(mouseShortcutFromSettingsString(QStringLiteral("Ctrl+MouseBack"), &parsedMouseShortcut));
+    QCOMPARE(parsedMouseShortcut.modifiers, Qt::KeyboardModifiers(Qt::ControlModifier));
+    QCOMPARE(parsedMouseShortcut.button, Qt::BackButton);
+    QCOMPARE(shortcutSequenceDisplayString(QStringLiteral("Ctrl+MouseBack")), QStringLiteral("Ctrl+Mouse Back"));
+
+    setShortcutSequences(&values.shortcuts, ShortcutCommand::PreviousImage, QStringList { QStringLiteral("Ctrl+MouseBack") });
+    QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::PreviousImage), QStringList({ QStringLiteral("Ctrl+MouseBack") }));
+
+    setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList { QStringLiteral("Down"), QStringLiteral("MouseBack") });
+    QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextImage), QStringList({ QStringLiteral("Down"), QStringLiteral("MouseBack") }));
+
     setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList());
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextImage), QStringList());
 
@@ -689,7 +704,8 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.interface.mainWindowState = QByteArray("state");
     values.interface.fileSplitterState = QByteArray("files");
     values.interface.fullscreenFileSplitterState = QByteArray("fullscreen-files");
-    setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList { QStringLiteral("N") });
+    setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList { QStringLiteral("N"), QStringLiteral("MouseBack") });
+    setShortcutSequences(&values.shortcuts, ShortcutCommand::PreviousImage, QStringList { QStringLiteral("MouseForward") });
     setShortcutSequences(&values.shortcuts, ShortcutCommand::ExifAutorotate, QStringList());
 
     QSettings writeSettings(settingsPath, QSettings::IniFormat);
@@ -715,7 +731,8 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.interface.mainWindowState, QByteArray("state"));
     QCOMPARE(loaded.interface.fileSplitterState, QByteArray("files"));
     QCOMPARE(loaded.interface.fullscreenFileSplitterState, QByteArray("fullscreen-files"));
-    QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::NextImage), QStringList({ QStringLiteral("N") }));
+    QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::NextImage), QStringList({ QStringLiteral("N"), QStringLiteral("MouseBack") }));
+    QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::PreviousImage), QStringList({ QStringLiteral("MouseForward") }));
     QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::ExifAutorotate), QStringList());
 }
 

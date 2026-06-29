@@ -217,6 +217,13 @@ void ImageViewWidget::wheelEvent(QWheelEvent *event)
 
 void ImageViewWidget::mousePressEvent(QMouseEvent *event)
 {
+    bool mouseShortcutHandled = false;
+    emit mouseShortcutRequested(event->modifiers(), event->button(), &mouseShortcutHandled);
+    if (mouseShortcutHandled) {
+        event->accept();
+        return;
+    }
+
     if (!m_imageInteractionEnabled && (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)) {
         event->accept();
         return;

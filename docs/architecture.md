@@ -112,7 +112,7 @@ Render-memory budget считается отдельной core-логикой �
 - click zoom multiplier;
 - wheel / Ctrl+wheel / Shift+wheel actions;
 - shared zoom step percent;
-- core viewer shortcuts;
+- core viewer keyboard/mouse shortcuts;
 - fullscreen edge trigger ratios;
 - window/dock/splitter layout, если включено.
 

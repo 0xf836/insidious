@@ -17,6 +17,21 @@ constexpr double MaxZoomStepPercent = 100.0;
 constexpr double MinFullscreenTriggerRatio = 0.01;
 constexpr double MaxFullscreenTriggerRatio = 0.30;
 
+struct MouseButtonName {
+    Qt::MouseButton button;
+    const char *name;
+};
+
+constexpr MouseButtonName MouseButtonNames[] = {
+    { Qt::LeftButton, "MouseLeft" },
+    { Qt::MiddleButton, "MouseMiddle" },
+    { Qt::RightButton, "MouseRight" },
+    { Qt::BackButton, "MouseBack" },
+    { Qt::ForwardButton, "MouseForward" },
+    { Qt::ExtraButton1, "MouseExtra1" },
+    { Qt::ExtraButton2, "MouseExtra2" },
+};
+
 QString keySequenceToSettingsString(const QKeySequence &sequence)
 {
     return sequence.toString(QKeySequence::PortableText);
@@ -35,7 +50,8 @@ double clampedDouble(const QVariant &value, double fallback, double minimum, dou
 bool isValidShortcutSequence(const QString &value)
 {
     return !value.isEmpty()
-        && !QKeySequence::fromString(value, QKeySequence::PortableText).isEmpty();
+        && (shortcutSequenceIsMouseInput(value)
+            || !QKeySequence::fromString(value, QKeySequence::PortableText).isEmpty());
 }
 
 QStringList validatedShortcutSequences(const QVariant &value, const QStringList &fallback, bool *valid)
@@ -456,6 +472,100 @@ QStringList shortcutSequences(const ShortcutSettings &settings, ShortcutCommand 
         return defaultShortcutSequences(command);
     }
     return binding.sequences;
+}
+
+bool shortcutSequenceIsMouseInput(const QString &value)
+{
+    MouseShortcut shortcut;
+    return mouseShortcutFromSettingsString(value, &shortcut);
+}
+
+bool mouseShortcutFromSettingsString(const QString &value, MouseShortcut *shortcut)
+{
+    if (shortcut == nullptr) {
+        return false;
+    }
+
+    Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+    QString mouseButtonName;
+    const QStringList parts = value.split(QLatin1Char('+'), Qt::SkipEmptyParts);
+    if (parts.isEmpty()) {
+        return false;
+    }
+
+    for (const QString &part : parts) {
+        const QString normalized = part.trimmed().toCaseFolded();
+        if (normalized == QLatin1String("ctrl") || normalized == QLatin1String("control")) {
+            modifiers |= Qt::ControlModifier;
+        } else if (normalized == QLatin1String("shift")) {
+            modifiers |= Qt::ShiftModifier;
+        } else if (normalized == QLatin1String("alt")) {
+            modifiers |= Qt::AltModifier;
+        } else if (normalized == QLatin1String("meta")) {
+            modifiers |= Qt::MetaModifier;
+        } else if (mouseButtonName.isEmpty()) {
+            mouseButtonName = part.trimmed();
+        } else {
+            return false;
+        }
+    }
+
+    if (mouseButtonName.isEmpty()) {
+        return false;
+    }
+
+    for (const MouseButtonName &buttonName : MouseButtonNames) {
+        if (mouseButtonName.compare(QLatin1String(buttonName.name), Qt::CaseInsensitive) == 0) {
+            shortcut->modifiers = modifiers;
+            shortcut->button = buttonName.button;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+QString mouseShortcutToSettingsString(const MouseShortcut &shortcut)
+{
+    if (shortcut.button == Qt::NoButton) {
+        return QString();
+    }
+
+    QStringList parts;
+    if (shortcut.modifiers.testFlag(Qt::ControlModifier)) {
+        parts.append(QStringLiteral("Ctrl"));
+    }
+    if (shortcut.modifiers.testFlag(Qt::ShiftModifier)) {
+        parts.append(QStringLiteral("Shift"));
+    }
+    if (shortcut.modifiers.testFlag(Qt::AltModifier)) {
+        parts.append(QStringLiteral("Alt"));
+    }
+    if (shortcut.modifiers.testFlag(Qt::MetaModifier)) {
+        parts.append(QStringLiteral("Meta"));
+    }
+
+    for (const MouseButtonName &buttonName : MouseButtonNames) {
+        if (shortcut.button == buttonName.button) {
+            parts.append(QLatin1String(buttonName.name));
+            return parts.join(QLatin1Char('+'));
+        }
+    }
+
+    return QString();
+}
+
+QString shortcutSequenceDisplayString(const QString &value)
+{
+    MouseShortcut mouseShortcut;
+    if (mouseShortcutFromSettingsString(value, &mouseShortcut)) {
+        QString display = mouseShortcutToSettingsString(mouseShortcut);
+        display.replace(QStringLiteral("Mouse"), QStringLiteral("Mouse "));
+        return display;
+    }
+
+    const QKeySequence sequence = QKeySequence::fromString(value, QKeySequence::PortableText);
+    return sequence.isEmpty() ? value : sequence.toString(QKeySequence::NativeText);
 }
 
 void setShortcutSequences(ShortcutSettings *settings, ShortcutCommand command, const QStringList &sequences)

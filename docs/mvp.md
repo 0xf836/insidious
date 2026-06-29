@@ -30,7 +30,7 @@ MVP не должен пытаться сразу закрыть все треб
 - Левая панель `Files` с деревом папок и списком изображений выбранной папки без thumbnails.
 - Правая панель `Info` с базовой информацией и компактным EXIF.
 - Быстрый переход по имени файла.
-- Базовое окно настроек для viewer/input defaults, режима ЛКМ zoom, wheel actions, zoom step, core viewer shortcuts, fullscreen edge trigger zones и запоминания layout без истории просмотра.
+- Базовое окно настроек для viewer/input defaults, режима ЛКМ zoom, wheel actions, zoom step, core viewer keyboard/mouse shortcuts, fullscreen edge trigger zones и запоминания layout без истории просмотра.
 - Асинхронная загрузка изображения или загрузка без блокировки UI.
 - Memory cache для текущего, предыдущего и следующего изображения.
 - Понятные сообщения об ошибках без сброса текущей коллекции и навигации.
