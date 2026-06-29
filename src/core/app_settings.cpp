@@ -1,5 +1,6 @@
 #include "core/app_settings.h"
 
+#include <QColor>
 #include <QKeySequence>
 #include <QSettings>
 #include <QVariant>
@@ -16,6 +17,8 @@ constexpr double MinZoomStepPercent = 5.0;
 constexpr double MaxZoomStepPercent = 100.0;
 constexpr double MinFullscreenTriggerRatio = 0.01;
 constexpr double MaxFullscreenTriggerRatio = 0.30;
+constexpr int MinFullscreenInfoLineFontPointSize = 8;
+constexpr int MaxFullscreenInfoLineFontPointSize = 32;
 
 struct MouseButtonName {
     Qt::MouseButton button;
@@ -45,6 +48,25 @@ double clampedDouble(const QVariant &value, double fallback, double minimum, dou
         return fallback;
     }
     return std::clamp(parsed, minimum, maximum);
+}
+
+int clampedInt(const QVariant &value, int fallback, int minimum, int maximum)
+{
+    bool ok = false;
+    const int parsed = value.toInt(&ok);
+    if (!ok) {
+        return fallback;
+    }
+    return std::clamp(parsed, minimum, maximum);
+}
+
+QString validColorName(const QVariant &value, const QString &fallback)
+{
+    const QColor color(value.toString());
+    if (!color.isValid()) {
+        return fallback;
+    }
+    return color.name(QColor::HexRgb);
 }
 
 bool isValidShortcutSequence(const QString &value)
@@ -136,6 +158,16 @@ AppSettings AppSettings::read(QSettings &settings)
         defaults.fullscreen.verticalTriggerRatio,
         MinFullscreenTriggerRatio,
         MaxFullscreenTriggerRatio);
+    result.fullscreen.infoLineEnabled = settings.value(QStringLiteral("infoLineEnabled"), defaults.fullscreen.infoLineEnabled).toBool();
+    result.fullscreen.infoLineFontFamily = settings.value(QStringLiteral("infoLineFontFamily"), defaults.fullscreen.infoLineFontFamily).toString();
+    result.fullscreen.infoLineFontPointSize = clampedInt(
+        settings.value(QStringLiteral("infoLineFontPointSize"), defaults.fullscreen.infoLineFontPointSize),
+        defaults.fullscreen.infoLineFontPointSize,
+        MinFullscreenInfoLineFontPointSize,
+        MaxFullscreenInfoLineFontPointSize);
+    result.fullscreen.infoLineColor = validColorName(
+        settings.value(QStringLiteral("infoLineColor"), defaults.fullscreen.infoLineColor),
+        defaults.fullscreen.infoLineColor);
     settings.endGroup();
 
     result.shortcuts = defaultShortcutSettings();
@@ -194,6 +226,10 @@ void AppSettings::write(QSettings &settings) const
     settings.beginGroup(QStringLiteral("fullscreen"));
     settings.setValue(QStringLiteral("sideTriggerRatio"), std::clamp(fullscreen.sideTriggerRatio, MinFullscreenTriggerRatio, MaxFullscreenTriggerRatio));
     settings.setValue(QStringLiteral("verticalTriggerRatio"), std::clamp(fullscreen.verticalTriggerRatio, MinFullscreenTriggerRatio, MaxFullscreenTriggerRatio));
+    settings.setValue(QStringLiteral("infoLineEnabled"), fullscreen.infoLineEnabled);
+    settings.setValue(QStringLiteral("infoLineFontFamily"), fullscreen.infoLineFontFamily);
+    settings.setValue(QStringLiteral("infoLineFontPointSize"), std::clamp(fullscreen.infoLineFontPointSize, MinFullscreenInfoLineFontPointSize, MaxFullscreenInfoLineFontPointSize));
+    settings.setValue(QStringLiteral("infoLineColor"), validColorName(fullscreen.infoLineColor, AppSettings::defaults().fullscreen.infoLineColor));
     settings.endGroup();
 
     settings.beginGroup(QStringLiteral("shortcuts"));

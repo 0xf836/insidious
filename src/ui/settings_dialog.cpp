@@ -2,10 +2,13 @@
 
 #include <QAbstractItemView>
 #include <QCheckBox>
+#include <QColor>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QFontComboBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeySequenceEdit>
@@ -13,6 +16,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -46,6 +50,12 @@ void setComboToData(QComboBox *combo, int value)
 {
     const int index = combo->findData(value);
     combo->setCurrentIndex(index < 0 ? 0 : index);
+}
+
+void setFontComboFamily(QFontComboBox *combo, const QString &family)
+{
+    const QFont font(family.isEmpty() ? QFont().family() : family);
+    combo->setCurrentFont(font);
 }
 
 void addWheelActionItems(QComboBox *combo)
@@ -298,6 +308,22 @@ void SettingsDialog::setupFullscreenPage()
     m_fullscreenVerticalTriggerSpin->setSuffix(QStringLiteral("%"));
     form->addRow(tr("Top/bottom trigger:"), m_fullscreenVerticalTriggerSpin);
 
+    m_fullscreenInfoLineCheck = new QCheckBox(tr("Show pinned info line"), page);
+    form->addRow(QString(), m_fullscreenInfoLineCheck);
+
+    m_fullscreenInfoLineFontCombo = new QFontComboBox(page);
+    form->addRow(tr("Info line font:"), m_fullscreenInfoLineFontCombo);
+
+    m_fullscreenInfoLineSizeSpin = new QSpinBox(page);
+    m_fullscreenInfoLineSizeSpin->setRange(8, 32);
+    m_fullscreenInfoLineSizeSpin->setSingleStep(1);
+    m_fullscreenInfoLineSizeSpin->setSuffix(tr(" pt"));
+    form->addRow(tr("Info line size:"), m_fullscreenInfoLineSizeSpin);
+
+    m_fullscreenInfoLineColorButton = new QPushButton(page);
+    connect(m_fullscreenInfoLineColorButton, &QPushButton::clicked, this, &SettingsDialog::chooseFullscreenInfoLineColor);
+    form->addRow(tr("Info line color:"), m_fullscreenInfoLineColorButton);
+
     m_pages->addWidget(page);
 }
 
@@ -330,6 +356,10 @@ void SettingsDialog::updateControlsFromSettings()
     refreshShortcutsTable();
     m_fullscreenSideTriggerSpin->setValue(m_settings.fullscreen.sideTriggerRatio * 100.0);
     m_fullscreenVerticalTriggerSpin->setValue(m_settings.fullscreen.verticalTriggerRatio * 100.0);
+    m_fullscreenInfoLineCheck->setChecked(m_settings.fullscreen.infoLineEnabled);
+    setFontComboFamily(m_fullscreenInfoLineFontCombo, m_settings.fullscreen.infoLineFontFamily);
+    m_fullscreenInfoLineSizeSpin->setValue(m_settings.fullscreen.infoLineFontPointSize);
+    updateFullscreenInfoLineColorButton();
     m_rememberLayoutCheck->setChecked(m_settings.interface.rememberLayout);
 }
 
@@ -346,6 +376,10 @@ void SettingsDialog::updateSettingsFromControls()
     m_settings.viewer.shiftWheelAction = static_cast<core::WheelAction>(m_shiftWheelActionCombo->currentData().toInt());
     m_settings.fullscreen.sideTriggerRatio = m_fullscreenSideTriggerSpin->value() / 100.0;
     m_settings.fullscreen.verticalTriggerRatio = m_fullscreenVerticalTriggerSpin->value() / 100.0;
+    m_settings.fullscreen.infoLineEnabled = m_fullscreenInfoLineCheck->isChecked();
+    m_settings.fullscreen.infoLineFontFamily = m_fullscreenInfoLineFontCombo->currentFont().family();
+    m_settings.fullscreen.infoLineFontPointSize = m_fullscreenInfoLineSizeSpin->value();
+    m_settings.fullscreen.infoLineColor = m_fullscreenInfoLineColorButton->property("colorName").toString();
     m_settings.interface.rememberLayout = m_rememberLayoutCheck->isChecked();
 }
 
@@ -616,6 +650,35 @@ void SettingsDialog::resetShortcut(core::ShortcutCommand command)
 {
     core::resetShortcutSequences(&m_settings.shortcuts, command);
     refreshShortcutsTable();
+}
+
+void SettingsDialog::chooseFullscreenInfoLineColor()
+{
+    const QColor currentColor(m_fullscreenInfoLineColorButton->property("colorName").toString());
+    const QColor selectedColor = QColorDialog::getColor(
+        currentColor.isValid() ? currentColor : QColor(core::AppSettings::defaults().fullscreen.infoLineColor),
+        this,
+        tr("Choose Info Line Color"));
+    if (!selectedColor.isValid()) {
+        return;
+    }
+
+    m_settings.fullscreen.infoLineColor = selectedColor.name(QColor::HexRgb);
+    m_fullscreenInfoLineColorButton->setProperty("colorName", m_settings.fullscreen.infoLineColor);
+    updateFullscreenInfoLineColorButton();
+}
+
+void SettingsDialog::updateFullscreenInfoLineColorButton()
+{
+    const QColor color(m_settings.fullscreen.infoLineColor);
+    const QString colorName = color.isValid()
+        ? color.name(QColor::HexRgb)
+        : core::AppSettings::defaults().fullscreen.infoLineColor;
+    m_fullscreenInfoLineColorButton->setProperty("colorName", colorName);
+    m_fullscreenInfoLineColorButton->setText(colorName);
+    m_fullscreenInfoLineColorButton->setStyleSheet(
+        QStringLiteral("QPushButton { color: %1; background-color: #202020; border: 1px solid #6a6a6a; padding: 3px 8px; }")
+            .arg(colorName));
 }
 
 void SettingsDialog::restoreCurrentPageDefaults()

@@ -701,6 +701,10 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.viewer.zoomStepPercent = 40.0;
     values.fullscreen.sideTriggerRatio = 0.12;
     values.fullscreen.verticalTriggerRatio = 0.08;
+    values.fullscreen.infoLineEnabled = false;
+    values.fullscreen.infoLineFontFamily = QStringLiteral("Serif");
+    values.fullscreen.infoLineFontPointSize = 18;
+    values.fullscreen.infoLineColor = QStringLiteral("#aabbcc");
     values.interface.rememberLayout = true;
     values.interface.mainWindowGeometry = QByteArray("geometry");
     values.interface.mainWindowState = QByteArray("state");
@@ -728,6 +732,10 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.viewer.zoomStepPercent, 40.0);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.12);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.08);
+    QVERIFY(!loaded.fullscreen.infoLineEnabled);
+    QCOMPARE(loaded.fullscreen.infoLineFontFamily, QStringLiteral("Serif"));
+    QCOMPARE(loaded.fullscreen.infoLineFontPointSize, 18);
+    QCOMPARE(loaded.fullscreen.infoLineColor, QStringLiteral("#aabbcc"));
     QVERIFY(loaded.interface.rememberLayout);
     QCOMPARE(loaded.interface.mainWindowGeometry, QByteArray("geometry"));
     QCOMPARE(loaded.interface.mainWindowState, QByteArray("state"));
@@ -758,6 +766,8 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     writeSettings.beginGroup(QStringLiteral("fullscreen"));
     writeSettings.setValue(QStringLiteral("sideTriggerRatio"), -1.0);
     writeSettings.setValue(QStringLiteral("verticalTriggerRatio"), 99.0);
+    writeSettings.setValue(QStringLiteral("infoLineFontPointSize"), 99);
+    writeSettings.setValue(QStringLiteral("infoLineColor"), QStringLiteral("not-a-color"));
     writeSettings.endGroup();
     writeSettings.beginGroup(QStringLiteral("shortcuts"));
     writeSettings.beginGroup(QStringLiteral("nextImage"));
@@ -785,6 +795,9 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     QCOMPARE(loaded.viewer.zoomStepPercent, 100.0);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.01);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.30);
+    QVERIFY(loaded.fullscreen.infoLineEnabled);
+    QCOMPARE(loaded.fullscreen.infoLineFontPointSize, 32);
+    QCOMPARE(loaded.fullscreen.infoLineColor, AppSettings::defaults().fullscreen.infoLineColor);
     QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::NextImage), defaultShortcutSequences(ShortcutCommand::NextImage));
     QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::PreviousImage), QStringList());
 

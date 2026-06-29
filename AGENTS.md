@@ -110,7 +110,7 @@ Current MVP fullscreen behavior:
 
 - Fullscreen hides the normal menu bar, toolbar, statusbar, `Files` dock, and `Info` dock by default, leaving only the image area visible.
 - Edge panels appear as overlays over the image: left `Files`, right `Info`, top actions toolbar, bottom status text.
-- Normal statusbar and fullscreen bottom status text share the compact `status_line_formatter` output: labelled dimensions/MP, file size, modified date, taken date, display path, zoom, and index/count. Future pinned fullscreen info line should be a separate overlay with its own field set.
+- Normal statusbar and fullscreen bottom status text share the compact `status_line_formatter` output: labelled dimensions/MP, file size, modified date, taken date, display path, zoom, and index/count. The pinned fullscreen info line is a separate overlay with the `name (resolution | filesize) [index/count] zoom` field set and configurable visibility/font/size/color.
 - Default fullscreen trigger zones are 7% of window width for side panels and 5% of window height for top/bottom panels. They are stored in app settings.
 - Side panels have priority in fullscreen corners.
 - Showing or hiding fullscreen overlays must not resize the image viewport, alter zoom/pan, call image reload/decode, or cause visible image flicker.

@@ -75,6 +75,16 @@ QString formattedDimensions(const core::DecodedImage *decoded)
         .arg(QLocale::system().toString(megapixels, 'f', 1));
 }
 
+QString formattedResolution(const core::DecodedImage *decoded)
+{
+    if (decoded == nullptr || !decoded->ok() || decoded->sourceSize.isEmpty()) {
+        return QObject::tr("N/A");
+    }
+
+    const QSize sourceSize = decoded->sourceSize;
+    return QObject::tr("%1 x %2").arg(sourceSize.width()).arg(sourceSize.height());
+}
+
 QString exifDate(const core::DecodedImage *decoded)
 {
     if (decoded == nullptr || !decoded->ok()) {
@@ -179,6 +189,21 @@ QString formatStatusLine(const StatusLineContext &context)
     };
 
     return fields.join(fieldSeparator());
+}
+
+QString formatFullscreenInfoLine(const StatusLineContext &context)
+{
+    if (context.entry == nullptr) {
+        return {};
+    }
+
+    const core::ImageEntry &entry = *context.entry;
+    return QObject::tr("%1 (%2 | %3) [%4] %5")
+        .arg(escaped(displayPath(entry)),
+             escaped(formattedResolution(context.decoded)),
+             escaped(formattedFileSize(entry.fileSize)),
+             escaped(indexText(context.currentIndex, context.totalCount)),
+             escaped(zoomText(context.decoded, context.zoomMode, context.zoomFactor)));
 }
 
 } // namespace insidious::ui

@@ -19,5 +19,6 @@ struct StatusLineContext {
 };
 
 [[nodiscard]] QString formatStatusLine(const StatusLineContext &context);
+[[nodiscard]] QString formatFullscreenInfoLine(const StatusLineContext &context);
 
 } // namespace insidious::ui

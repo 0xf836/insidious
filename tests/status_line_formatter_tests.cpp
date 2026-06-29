@@ -13,6 +13,8 @@ class StatusLineFormatterTests : public QObject {
 private slots:
     void formatsDecodedStatusLine();
     void formatsFitScaleAsPercentage();
+    void formatsFullscreenInfoLine();
+    void escapesFullscreenInfoLineName();
     void prefersDateTakenOverGenericExifDate();
     void marksMissingExifDateAsUnavailable();
     void messageBypassesFieldFormatting();
@@ -100,6 +102,34 @@ void StatusLineFormatterTests::formatsFitScaleAsPercentage()
 
     QVERIFY(line.contains(QStringLiteral("25%")));
     QVERIFY(!line.contains(QStringLiteral("fit")));
+}
+
+void StatusLineFormatterTests::formatsFullscreenInfoLine()
+{
+    const core::ImageEntry entry = sampleEntry();
+    core::DecodedImage decoded = sampleDecoded();
+    decoded.effectiveScale = 0.352;
+
+    const QString line = ui::formatFullscreenInfoLine(sampleContext(entry, decoded, core::ZoomMode::FitToWindow, 0.42));
+
+    QVERIFY(line.contains(QStringLiteral("folder/image &amp; one.jpg")));
+    QVERIFY(line.contains(QStringLiteral("(4000 x 3000 |")));
+    QVERIFY(line.contains(QLocale::system().formattedDataSize(entry.fileSize)));
+    QVERIFY(line.contains(QStringLiteral("[5 / 12]")));
+    QVERIFY(line.contains(QLocale::system().toString(35.2, 'f', 1) + QStringLiteral("%")));
+    QVERIFY(!line.contains(QStringLiteral("image:")));
+}
+
+void StatusLineFormatterTests::escapesFullscreenInfoLineName()
+{
+    core::ImageEntry entry = sampleEntry();
+    entry.sourceRelativePath = QStringLiteral("folder/<script>.jpg");
+    const core::DecodedImage decoded = sampleDecoded();
+
+    const QString line = ui::formatFullscreenInfoLine(sampleContext(entry, decoded));
+
+    QVERIFY(line.contains(QStringLiteral("folder/&lt;script&gt;.jpg")));
+    QVERIFY(!line.contains(QStringLiteral("folder/<script>.jpg")));
 }
 
 void StatusLineFormatterTests::prefersDateTakenOverGenericExifDate()

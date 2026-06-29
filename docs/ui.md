@@ -70,7 +70,7 @@
 image: 3412 x 2188 = 7.5 MP | size: 1.8 MB | modified: 2026.6.29 12:34:00 | taken: 2024.5.4 10:20:30 | name: folder/image.jpg | zoom: 42% | pos: 12 / 240
 ```
 
-Fullscreen bottom overlay использует тот же formatter и тот же состав полей, что обычная статусная строка. Будущая pinned fullscreen info line будет отдельным overlay с собственным составом полей.
+Fullscreen bottom overlay использует тот же formatter и тот же состав полей, что обычная статусная строка. Pinned fullscreen info line — отдельный нескрываемый overlay в левом верхнем углу области изображения. Он включён по умолчанию, не имеет labels и использует формат `name (resolution | filesize) [index/count] zoom`. Если edge panels перекрывают эту строку, дополнительный layout avoidance не выполняется.
 EXIF date в status/fullscreen line показывается только как `YYYY.M.D HH:MM:SS`, без timezone/extension suffixes.
 
 ## Левая панель
@@ -122,6 +122,7 @@ Edge behavior:
 - правый край показывает overlay `Info`;
 - верхний край показывает overlay с основными actions;
 - нижний край показывает overlay со status text;
+- левый верхний угол показывает pinned info line, если она включена в настройках;
 - боковые зоны имеют приоритет в углах;
 - панели появляются и скрываются сразу, без animation;
 - `Ctrl+F` в fullscreen открывает quick jump поверх изображения и временно скрывает edge overlays;
@@ -133,13 +134,19 @@ Trigger zones:
 - верхняя и нижняя панели: 5% высоты окна по умолчанию;
 - значения настраиваются в `Edit -> Preferences -> Fullscreen`.
 
+Pinned fullscreen info line:
+
+- формат: `name (resolution | filesize) [index/count] zoom`;
+- default: enabled, small readable system font, light color, shadow for readability on dark background and images;
+- в настройках можно включить/выключить строку, выбрать font family, font size и color.
+
 ## Настройки
 
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
 - `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), EXIF autorotate, multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
 - `Shortcuts` — настройка core viewer shortcuts: открыть файл/папку, навигация по изображениям и папкам, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen. Команду можно назначить на keyboard shortcut и/или mouse button shortcut с optional modifiers.
-- `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей.
+- `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей, включение и presentation settings для pinned fullscreen info line.
 - `Interface` — запоминание layout окна, dock-панелей и splitter sizes.
 
 EXIF autorotate также доступен как быстрый checkable action в меню `View`, обычной верхней панели и fullscreen top overlay. Переключение сразу сохраняет настройку и перерендеривает текущий image, если он открыт.

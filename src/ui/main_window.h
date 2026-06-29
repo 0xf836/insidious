@@ -204,6 +204,8 @@ private:
     void updateFullscreenOverlayVisibility();
     void syncFullscreenFileListSelection();
     void updateFullscreenStatusText();
+    void applyFullscreenInfoLineSettings();
+    void updateFullscreenInfoLine();
     [[nodiscard]] core::DecodeRequest currentDecodeRequest() const;
     [[nodiscard]] QString currentCacheKey(const core::DecodeRequest &request) const;
     [[nodiscard]] QString imageDialogFilter() const;
@@ -231,6 +233,7 @@ private:
     QListView *m_fullscreenFileListView = nullptr;
     ImageInfoPanel *m_fullscreenInfoPanel = nullptr;
     QLabel *m_fullscreenStatusLabel = nullptr;
+    QLabel *m_fullscreenInfoLineLabel = nullptr;
 
     QAction *m_openFileAction = nullptr;
     QAction *m_openFolderAction = nullptr;

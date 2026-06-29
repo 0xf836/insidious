@@ -8,7 +8,10 @@ class QCheckBox;
 class QComboBox;
 class QDialogButtonBox;
 class QDoubleSpinBox;
+class QFontComboBox;
 class QListWidget;
+class QPushButton;
+class QSpinBox;
 class QStackedWidget;
 class QTableWidget;
 
@@ -45,6 +48,8 @@ private:
     void changeMouseShortcut(core::ShortcutCommand command);
     void clearShortcut(core::ShortcutCommand command);
     void resetShortcut(core::ShortcutCommand command);
+    void chooseFullscreenInfoLineColor();
+    void updateFullscreenInfoLineColorButton();
 
     core::AppSettings m_settings;
     QListWidget *m_categoryList = nullptr;
@@ -64,6 +69,10 @@ private:
     QVector<core::ShortcutCommand> m_shortcutCommands;
     QDoubleSpinBox *m_fullscreenSideTriggerSpin = nullptr;
     QDoubleSpinBox *m_fullscreenVerticalTriggerSpin = nullptr;
+    QCheckBox *m_fullscreenInfoLineCheck = nullptr;
+    QFontComboBox *m_fullscreenInfoLineFontCombo = nullptr;
+    QSpinBox *m_fullscreenInfoLineSizeSpin = nullptr;
+    QPushButton *m_fullscreenInfoLineColorButton = nullptr;
     QCheckBox *m_rememberLayoutCheck = nullptr;
 };
 

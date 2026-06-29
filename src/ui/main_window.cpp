@@ -12,6 +12,7 @@
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QColor>
 #include <QCursor>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -22,6 +23,7 @@
 #include <QFileInfo>
 #include <QFrame>
 #include <QFont>
+#include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
@@ -1092,9 +1094,22 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenStatusLabel->installEventFilter(this);
     bottomLayout->addWidget(m_fullscreenStatusLabel, 1);
 
+    m_fullscreenInfoLineLabel = new QLabel(this);
+    m_fullscreenInfoLineLabel->setObjectName(QStringLiteral("fullscreenInfoLine"));
+    m_fullscreenInfoLineLabel->setTextFormat(Qt::RichText);
+    m_fullscreenInfoLineLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_fullscreenInfoLineLabel->setAutoFillBackground(false);
+    m_fullscreenInfoLineLabel->hide();
+    auto *shadow = new QGraphicsDropShadowEffect(m_fullscreenInfoLineLabel);
+    shadow->setBlurRadius(5.0);
+    shadow->setOffset(1.0, 1.0);
+    shadow->setColor(QColor(0, 0, 0, 220));
+    m_fullscreenInfoLineLabel->setGraphicsEffect(shadow);
+
     refreshFileList();
     updateInfoPanelForCurrentImage();
     updateFullscreenStatusText();
+    applyFullscreenInfoLineSettings();
 }
 
 void MainWindow::loadSettings()
@@ -1130,6 +1145,7 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
     m_fullscreenOverlaySettings.sideTriggerRatio = m_settings.fullscreen.sideTriggerRatio;
     m_fullscreenOverlaySettings.verticalTriggerRatio = m_settings.fullscreen.verticalTriggerRatio;
     m_imageView->setClickZoomBehavior(m_clickZoomBehavior);
+    applyFullscreenInfoLineSettings();
     if (m_exifAutorotateAction != nullptr) {
         const QSignalBlocker blocker(m_exifAutorotateAction);
         m_exifAutorotateAction->setChecked(m_settings.viewer.exifAutorotate);
@@ -1160,6 +1176,7 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
 
     updateFullscreenOverlayGeometry();
     updateFullscreenOverlayVisibility();
+    updateFullscreenInfoLine();
     updateActionState();
 }
 
@@ -1659,6 +1676,7 @@ void MainWindow::updateStatus(const QString &message)
 
     m_statusLabel->setText(statusText);
     updateFullscreenStatusText();
+    updateFullscreenInfoLine();
 }
 
 void MainWindow::updateActionState()
@@ -2297,6 +2315,7 @@ void MainWindow::enterFullscreenMode()
     updateFullscreenOverlayGeometry();
     syncFullscreenFileListSelection();
     updateFullscreenStatusText();
+    updateFullscreenInfoLine();
     updateFullscreenOverlayVisibility();
 }
 
@@ -2306,6 +2325,7 @@ void MainWindow::exitFullscreenMode()
 
     const bool shouldRestoreUi = m_fullscreenUiActive;
     m_fullscreenUiActive = false;
+    updateFullscreenInfoLine();
     showNormal();
 
     if (!shouldRestoreUi) {
@@ -2364,6 +2384,10 @@ void MainWindow::updateFullscreenOverlayGeometry()
     m_fullscreenRightPanel->setGeometry(windowRect.width() - sidePanelWidth, 0, sidePanelWidth, windowRect.height());
     m_fullscreenTopPanel->setGeometry(0, 0, windowRect.width(), topPanelHeight);
     m_fullscreenBottomPanel->setGeometry(0, windowRect.height() - bottomPanelHeight, windowRect.width(), bottomPanelHeight);
+
+    if (m_fullscreenInfoLineLabel != nullptr) {
+        m_fullscreenInfoLineLabel->move(16, 14);
+    }
 }
 
 void MainWindow::updateFullscreenOverlayVisibility()
@@ -2418,6 +2442,7 @@ void MainWindow::updateFullscreenOverlayVisibility()
             panel->raise();
         }
     }
+    updateFullscreenInfoLine();
 }
 
 void MainWindow::syncFullscreenFileListSelection()
@@ -2451,6 +2476,59 @@ void MainWindow::updateFullscreenStatusText()
     if (m_fullscreenStatusLabel != nullptr && m_statusLabel != nullptr) {
         m_fullscreenStatusLabel->setText(m_statusLabel->text());
     }
+}
+
+void MainWindow::applyFullscreenInfoLineSettings()
+{
+    if (m_fullscreenInfoLineLabel == nullptr) {
+        return;
+    }
+
+    QFont font = m_fullscreenInfoLineLabel->font();
+    if (!m_settings.fullscreen.infoLineFontFamily.isEmpty()) {
+        font.setFamily(m_settings.fullscreen.infoLineFontFamily);
+    } else {
+        font.setFamily(QFont().family());
+    }
+    font.setPointSize(m_settings.fullscreen.infoLineFontPointSize);
+    m_fullscreenInfoLineLabel->setFont(font);
+
+    const QColor color(m_settings.fullscreen.infoLineColor);
+    const QString colorName = color.isValid()
+        ? color.name(QColor::HexRgb)
+        : core::AppSettings::defaults().fullscreen.infoLineColor;
+    m_fullscreenInfoLineLabel->setStyleSheet(QStringLiteral(
+        "#fullscreenInfoLine { color: %1; background: transparent; padding: 0; }").arg(colorName));
+}
+
+void MainWindow::updateFullscreenInfoLine()
+{
+    if (m_fullscreenInfoLineLabel == nullptr) {
+        return;
+    }
+
+    const bool shouldShow = m_fullscreenUiActive
+        && isFullScreen()
+        && m_settings.fullscreen.infoLineEnabled
+        && m_controller.currentEntry() != nullptr;
+    if (!shouldShow) {
+        m_fullscreenInfoLineLabel->hide();
+        return;
+    }
+
+    const StatusLineContext context {
+        m_controller.currentEntry(),
+        &m_currentDecoded,
+        m_controller.zoomMode(),
+        m_controller.zoomFactor(),
+        m_controller.currentIndex(),
+        m_controller.count(),
+        {},
+    };
+    m_fullscreenInfoLineLabel->setText(formatFullscreenInfoLine(context));
+    m_fullscreenInfoLineLabel->adjustSize();
+    m_fullscreenInfoLineLabel->move(16, 14);
+    m_fullscreenInfoLineLabel->show();
 }
 
 core::DecodeRequest MainWindow::currentDecodeRequest() const
