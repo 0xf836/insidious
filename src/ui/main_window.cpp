@@ -15,7 +15,6 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QColor>
-#include <QComboBox>
 #include <QCursor>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -37,6 +36,7 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QMenuBar>
+#include <QMenu>
 #include <QMimeData>
 #include <QScopedValueRollback>
 #include <QSettings>
@@ -68,33 +68,53 @@ struct OriginalImageReadResult {
     QString errorMessage;
 };
 
-core::ImageSortKey sortKeyFromComboIndex(int index)
-{
-    switch (index) {
-    case 1:
-        return core::ImageSortKey::Type;
-    case 2:
-        return core::ImageSortKey::Size;
-    case 3:
-        return core::ImageSortKey::Date;
-    default:
-        return core::ImageSortKey::Name;
-    }
-}
-
-int comboIndexForSortKey(core::ImageSortKey key)
+QString sortKeyLabel(core::ImageSortKey key)
 {
     switch (key) {
     case core::ImageSortKey::Name:
-        return 0;
+        return QObject::tr("Name");
     case core::ImageSortKey::Type:
-        return 1;
+        return QObject::tr("Type");
     case core::ImageSortKey::Size:
-        return 2;
+        return QObject::tr("Size");
     case core::ImageSortKey::Date:
-        return 3;
+        return QObject::tr("Date");
     }
-    return 0;
+    return QObject::tr("Name");
+}
+
+QString sortModeLabel(core::ImageSortMode mode)
+{
+    return QStringLiteral("%1 %2").arg(
+        sortKeyLabel(mode.key),
+        mode.direction == core::SortDirection::Descending ? QStringLiteral("↓") : QStringLiteral("↑"));
+}
+
+QString sortModeMenuLabel(core::ImageSortMode mode)
+{
+    return QStringLiteral("%1\t%2").arg(
+        sortKeyLabel(mode.key),
+        mode.direction == core::SortDirection::Descending ? QStringLiteral("↓") : QStringLiteral("↑"));
+}
+
+void updateSortMenuSelection(QMenu *menu, core::ImageSortMode mode)
+{
+    if (menu == nullptr) {
+        return;
+    }
+
+    for (QAction *action : menu->actions()) {
+        if (!action->property("sortKey").isValid() || !action->property("sortDirection").isValid()) {
+            continue;
+        }
+        const auto key = static_cast<core::ImageSortKey>(action->property("sortKey").toInt());
+        const auto direction = static_cast<core::SortDirection>(action->property("sortDirection").toInt());
+        const bool selected = key == mode.key && direction == mode.direction;
+        QFont font = action->font();
+        font.setBold(selected);
+        action->setFont(font);
+        action->setEnabled(!selected);
+    }
 }
 
 QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
@@ -860,6 +880,11 @@ void MainWindow::setupActions()
     connect(m_copyOriginalImageAction, &QAction::triggered, this, &MainWindow::copyOriginalImageToClipboard);
     editMenu->addAction(m_copyOriginalImageAction);
 
+    m_sortingButton = new QToolButton(this);
+    setupFileSortButton(m_sortingButton, false);
+    m_mainToolBar->addWidget(m_sortingButton);
+    syncFileSortControls();
+
     editMenu->addSeparator();
     m_preferencesAction = new QAction(tr("Preferences"), this);
     connect(m_preferencesAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
@@ -1072,21 +1097,6 @@ void MainWindow::setupFileListPanel()
     auto *fileListLayout = new QVBoxLayout(fileListContainer);
     fileListLayout->setContentsMargins(0, 0, 0, 0);
     fileListLayout->setSpacing(4);
-
-    auto *sortLayout = new QHBoxLayout;
-    sortLayout->setContentsMargins(0, 0, 0, 0);
-    sortLayout->setSpacing(4);
-    m_fileSortKeyCombo = new QComboBox(fileListContainer);
-    m_fileSortKeyCombo->addItem(tr("Name"));
-    m_fileSortKeyCombo->addItem(tr("Type"));
-    m_fileSortKeyCombo->addItem(tr("Size"));
-    m_fileSortKeyCombo->addItem(tr("Date"));
-    m_fileSortKeyCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    m_fileSortDirectionButton = new QToolButton(fileListContainer);
-    m_fileSortDirectionButton->setAutoRaise(true);
-    sortLayout->addWidget(m_fileSortKeyCombo, 1);
-    sortLayout->addWidget(m_fileSortDirectionButton);
-    fileListLayout->addLayout(sortLayout);
     fileListLayout->addWidget(m_fileListView, 1);
 
     m_filePanelSplitter = new QSplitter(Qt::Vertical, this);
@@ -1103,19 +1113,6 @@ void MainWindow::setupFileListPanel()
     m_fileListDock->setWidget(m_filePanelSplitter);
     addDockWidget(Qt::LeftDockWidgetArea, m_fileListDock);
 
-    connect(m_fileSortKeyCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
-        core::ImageSortMode mode = m_imageSortMode;
-        mode.key = sortKeyFromComboIndex(index);
-        applyImageSortMode(mode);
-    });
-    connect(m_fileSortDirectionButton, &QToolButton::clicked, this, [this]() {
-        core::ImageSortMode mode = m_imageSortMode;
-        mode.direction = mode.direction == core::SortDirection::Ascending
-            ? core::SortDirection::Descending
-            : core::SortDirection::Ascending;
-        applyImageSortMode(mode);
-    });
-    syncFileSortControls();
 }
 
 void MainWindow::setupInfoPanel()
@@ -1202,25 +1199,6 @@ void MainWindow::setupFullscreenOverlayPanels()
     auto *fullscreenFileListLayout = new QVBoxLayout(fullscreenFileListContainer);
     fullscreenFileListLayout->setContentsMargins(0, 0, 0, 0);
     fullscreenFileListLayout->setSpacing(4);
-    auto *fullscreenSortLayout = new QHBoxLayout;
-    fullscreenSortLayout->setContentsMargins(0, 0, 0, 0);
-    fullscreenSortLayout->setSpacing(4);
-    m_fullscreenFileSortKeyCombo = new QComboBox(fullscreenFileListContainer);
-    m_fullscreenFileSortKeyCombo->addItem(tr("Name"));
-    m_fullscreenFileSortKeyCombo->addItem(tr("Type"));
-    m_fullscreenFileSortKeyCombo->addItem(tr("Size"));
-    m_fullscreenFileSortKeyCombo->addItem(tr("Date"));
-    m_fullscreenFileSortKeyCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    m_fullscreenFileSortKeyCombo->setMouseTracking(true);
-    m_fullscreenFileSortKeyCombo->installEventFilter(this);
-    m_fullscreenFileSortDirectionButton = new QToolButton(fullscreenFileListContainer);
-    m_fullscreenFileSortDirectionButton->setAutoRaise(true);
-    m_fullscreenFileSortDirectionButton->setMouseTracking(true);
-    m_fullscreenFileSortDirectionButton->installEventFilter(this);
-    fullscreenSortLayout->addWidget(m_fullscreenFileSortKeyCombo, 1);
-    fullscreenSortLayout->addWidget(m_fullscreenFileSortDirectionButton);
-    fullscreenFileListLayout->addLayout(fullscreenSortLayout);
-
     m_fullscreenFileListView = new QListView(m_fullscreenLeftPanel);
     m_fullscreenFileListView->setModel(m_fileListModel);
     m_fullscreenFileListView->setFrameShape(QFrame::NoFrame);
@@ -1240,20 +1218,6 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenFilePanelSplitter->addWidget(fullscreenFileListContainer);
     m_fullscreenFilePanelSplitter->setSizes(QList<int> { 220, 340 });
     leftLayout->addWidget(m_fullscreenFilePanelSplitter, 1);
-
-    connect(m_fullscreenFileSortKeyCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
-        core::ImageSortMode mode = m_imageSortMode;
-        mode.key = sortKeyFromComboIndex(index);
-        applyImageSortMode(mode);
-    });
-    connect(m_fullscreenFileSortDirectionButton, &QToolButton::clicked, this, [this]() {
-        core::ImageSortMode mode = m_imageSortMode;
-        mode.direction = mode.direction == core::SortDirection::Ascending
-            ? core::SortDirection::Descending
-            : core::SortDirection::Ascending;
-        applyImageSortMode(mode);
-    });
-    syncFileSortControls();
 
     connect(m_fullscreenFileTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFolderTreeSelection) {
@@ -1310,6 +1274,10 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenTopPanel->addAction(m_lastAction);
     m_fullscreenTopPanel->addAction(m_quickJumpAction);
     m_fullscreenTopPanel->addAction(m_copyOriginalImageAction);
+    m_fullscreenSortingButton = new QToolButton(m_fullscreenTopPanel);
+    setupFileSortButton(m_fullscreenSortingButton, true);
+    m_fullscreenTopPanel->addWidget(m_fullscreenSortingButton);
+    syncFileSortControls();
     m_fullscreenTopPanel->addSeparator();
     m_fullscreenTopPanel->addAction(m_zoomInAction);
     m_fullscreenTopPanel->addAction(m_zoomOutAction);
@@ -2512,30 +2480,70 @@ void MainWindow::applyImageSortMode(core::ImageSortMode mode)
     }
 }
 
+void MainWindow::setupFileSortButton(QToolButton *button, bool fullscreen)
+{
+    if (button == nullptr) {
+        return;
+    }
+
+    button->setAutoRaise(!fullscreen);
+    button->setPopupMode(QToolButton::InstantPopup);
+    button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    button->setText(tr("Sorting"));
+    button->setToolTip(tr("Sort files"));
+    button->setMouseTracking(true);
+    button->installEventFilter(this);
+    if (!fullscreen) {
+        button->setStyleSheet(QStringLiteral(
+            "QToolButton {"
+            "  border: 1px solid transparent;"
+            "  border-radius: 3px;"
+            "  padding: 2px 8px;"
+            "}"
+            "QToolButton:hover {"
+            "  background-color: rgba(0, 0, 0, 18);"
+            "  border-color: rgba(0, 0, 0, 28);"
+            "}"
+            "QToolButton::menu-indicator { image: none; width: 0; }"));
+    }
+
+    auto *menu = new QMenu(button);
+    auto addModeAction = [this, menu](core::ImageSortKey key, core::SortDirection direction) {
+        const core::ImageSortMode mode { key, direction };
+        QAction *action = menu->addAction(sortModeMenuLabel(mode));
+        action->setProperty("sortKey", static_cast<int>(key));
+        action->setProperty("sortDirection", static_cast<int>(direction));
+        connect(action, &QAction::triggered, this, [this, mode]() {
+            applyImageSortMode(mode);
+        });
+    };
+
+    addModeAction(core::ImageSortKey::Name, core::SortDirection::Ascending);
+    addModeAction(core::ImageSortKey::Name, core::SortDirection::Descending);
+    menu->addSeparator();
+    addModeAction(core::ImageSortKey::Type, core::SortDirection::Ascending);
+    addModeAction(core::ImageSortKey::Type, core::SortDirection::Descending);
+    menu->addSeparator();
+    addModeAction(core::ImageSortKey::Size, core::SortDirection::Ascending);
+    addModeAction(core::ImageSortKey::Size, core::SortDirection::Descending);
+    menu->addSeparator();
+    addModeAction(core::ImageSortKey::Date, core::SortDirection::Ascending);
+    addModeAction(core::ImageSortKey::Date, core::SortDirection::Descending);
+
+    button->setMenu(menu);
+}
+
 void MainWindow::syncFileSortControls()
 {
-    const int keyIndex = comboIndexForSortKey(m_imageSortMode.key);
-    const bool descending = m_imageSortMode.direction == core::SortDirection::Descending;
-    const QString directionText = descending ? tr("Desc") : tr("Asc");
-    const QString directionToolTip = descending ? tr("Sort descending") : tr("Sort ascending");
+    const QString toolTip = tr("Sort files: %1").arg(sortModeLabel(m_imageSortMode));
 
-    if (m_fileSortKeyCombo != nullptr) {
-        const QSignalBlocker blocker(m_fileSortKeyCombo);
-        m_fileSortKeyCombo->setCurrentIndex(keyIndex);
+    if (m_sortingButton != nullptr) {
+        m_sortingButton->setToolTip(toolTip);
+        updateSortMenuSelection(m_sortingButton->menu(), m_imageSortMode);
     }
-    if (m_fileSortDirectionButton != nullptr) {
-        const QSignalBlocker blocker(m_fileSortDirectionButton);
-        m_fileSortDirectionButton->setText(directionText);
-        m_fileSortDirectionButton->setToolTip(directionToolTip);
-    }
-    if (m_fullscreenFileSortKeyCombo != nullptr) {
-        const QSignalBlocker blocker(m_fullscreenFileSortKeyCombo);
-        m_fullscreenFileSortKeyCombo->setCurrentIndex(keyIndex);
-    }
-    if (m_fullscreenFileSortDirectionButton != nullptr) {
-        const QSignalBlocker blocker(m_fullscreenFileSortDirectionButton);
-        m_fullscreenFileSortDirectionButton->setText(directionText);
-        m_fullscreenFileSortDirectionButton->setToolTip(directionToolTip);
+    if (m_fullscreenSortingButton != nullptr) {
+        m_fullscreenSortingButton->setToolTip(toolTip);
+        updateSortMenuSelection(m_fullscreenSortingButton->menu(), m_imageSortMode);
     }
 }
 

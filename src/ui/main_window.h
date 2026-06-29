@@ -29,7 +29,6 @@
 
 class QAction;
 class QCloseEvent;
-class QComboBox;
 class QDockWidget;
 class QListView;
 class QModelIndex;
@@ -219,6 +218,7 @@ private:
         const core::CollectionFolderNode &folder,
         const QString &selectedPath) const;
     void applyImageSortMode(core::ImageSortMode mode);
+    void setupFileSortButton(QToolButton *button, bool fullscreen);
     void syncFileSortControls();
     void refreshFileList();
     void syncFileListSelection();
@@ -247,8 +247,6 @@ private:
     ImageViewWidget *m_imageView = nullptr;
     QDockWidget *m_fileListDock = nullptr;
     QSplitter *m_filePanelSplitter = nullptr;
-    QComboBox *m_fileSortKeyCombo = nullptr;
-    QToolButton *m_fileSortDirectionButton = nullptr;
     QTreeView *m_fileTreeView = nullptr;
     QListView *m_fileListView = nullptr;
     CollectionTreeModel *m_fileTreeModel = nullptr;
@@ -260,10 +258,9 @@ private:
     QWidget *m_fullscreenLeftPanel = nullptr;
     QWidget *m_fullscreenRightPanel = nullptr;
     QToolBar *m_fullscreenTopPanel = nullptr;
+    QToolButton *m_fullscreenSortingButton = nullptr;
     QWidget *m_fullscreenBottomPanel = nullptr;
     QSplitter *m_fullscreenFilePanelSplitter = nullptr;
-    QComboBox *m_fullscreenFileSortKeyCombo = nullptr;
-    QToolButton *m_fullscreenFileSortDirectionButton = nullptr;
     QTreeView *m_fullscreenFileTreeView = nullptr;
     QListView *m_fullscreenFileListView = nullptr;
     ImageInfoPanel *m_fullscreenInfoPanel = nullptr;
@@ -281,6 +278,7 @@ private:
     QAction *m_quickJumpAction = nullptr;
     QAction *m_copyOriginalImageAction = nullptr;
     QAction *m_preferencesAction = nullptr;
+    QToolButton *m_sortingButton = nullptr;
     QAction *m_zoomInAction = nullptr;
     QAction *m_zoomOutAction = nullptr;
     QAction *m_fitAction = nullptr;

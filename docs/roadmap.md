@@ -21,7 +21,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Compact status/fullscreen line formatter: labelled dimensions/MP, file size, file date, EXIF date, filename, zoom, index/count.
 - Optional pinned fullscreen info line: `name (resolution | filesize) [index/count] zoom`, separate from edge overlays, with fullscreen settings for visibility, font, size, and color.
 - Clipboard: copy current original image bytes to clipboard with the source image MIME type.
-- Runtime file sorting in `Files`: name natural order, type, size, and date; each supports ascending/descending without persistent settings.
+- Runtime file sorting from the toolbar: name natural order, type, size, and date; each supports ascending/descending without persistent settings.
 - Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, explicit previous/next folder actions, configurable core viewer keyboard/mouse shortcuts with conflict detection and restore defaults, fullscreen trigger zones, layout persistence.
 
 ## Ближайшее / small stabilization
