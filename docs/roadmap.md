@@ -18,6 +18,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - `Info` panel с компактной информацией об entry и полезными EXIF-полями из libvips metadata.
 - Quick Jump по имени файла в активной папке, включая fullscreen in-window overlay.
 - True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.
+- Compact status/fullscreen line formatter: dimensions/MP, file size, file date, EXIF date, filename, zoom, index/count.
 - Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, explicit previous/next folder actions, configurable core viewer keyboard/mouse shortcuts with conflict detection and restore defaults, fullscreen trigger zones, layout persistence.
 
 ## Ближайшее / small stabilization
@@ -29,8 +30,7 @@ Roadmap — живой backlog реализации, а не обещание р
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
 - Status/fullscreen presentation settings:
   - настройка состава statusbar/fullscreen info line;
-  - компактное и локализуемое форматирование.
-  - сделать опциональный нескрываемый fullscreen info line в области вывода изображения
+  - сделать опциональный нескрываемый fullscreen info line в области вывода изображения с отдельным набором полей;
 - Quick Jump fullscreen polish:
   - сделать fullscreen search dialog компактнее;
   - когда focus в поле поиска, Up/Down должны двигать выделение в result list.

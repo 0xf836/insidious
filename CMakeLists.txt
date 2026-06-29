@@ -68,6 +68,8 @@ add_executable(insidious
     src/ui/quick_jump_dialog.h
     src/ui/settings_dialog.cpp
     src/ui/settings_dialog.h
+    src/ui/status_line_formatter.cpp
+    src/ui/status_line_formatter.h
 )
 target_link_libraries(insidious
     PRIVATE
@@ -87,5 +89,21 @@ target_link_libraries(insidious_core_tests
 )
 add_test(NAME insidious_core_tests COMMAND insidious_core_tests)
 set_tests_properties(insidious_core_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
+add_executable(insidious_ui_tests
+    tests/status_line_formatter_tests.cpp
+    src/ui/status_line_formatter.cpp
+    src/ui/status_line_formatter.h
+)
+target_link_libraries(insidious_ui_tests
+    PRIVATE
+        insidious_core
+        Qt6::Test
+        Qt6::Widgets
+)
+add_test(NAME insidious_ui_tests COMMAND insidious_ui_tests)
+set_tests_properties(insidious_ui_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )

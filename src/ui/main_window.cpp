@@ -6,6 +6,7 @@
 #include "core/vips_image_decoder.h"
 #include "ui/quick_jump_dialog.h"
 #include "ui/settings_dialog.h"
+#include "ui/status_line_formatter.h"
 
 #include <QAction>
 #include <QAbstractItemView>
@@ -47,11 +48,6 @@
 
 namespace insidious::ui {
 namespace {
-
-QString formattedFileSize(qint64 bytes)
-{
-    return QLocale::system().formattedDataSize(bytes);
-}
 
 QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
 {
@@ -112,6 +108,7 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(m_imageView);
 
     m_statusLabel = new QLabel(this);
+    m_statusLabel->setTextFormat(Qt::RichText);
     statusBar()->addPermanentWidget(m_statusLabel, 1);
 
     setupFileListPanel();
@@ -1089,6 +1086,7 @@ void MainWindow::setupFullscreenOverlayPanels()
     bottomLayout->setContentsMargins(12, 6, 12, 6);
     bottomLayout->setSpacing(0);
     m_fullscreenStatusLabel = new QLabel(m_fullscreenBottomPanel);
+    m_fullscreenStatusLabel->setTextFormat(Qt::RichText);
     m_fullscreenStatusLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_fullscreenStatusLabel->setMouseTracking(true);
     m_fullscreenStatusLabel->installEventFilter(this);
@@ -1648,46 +1646,16 @@ void MainWindow::showImageLoadError(const core::ImageEntry &entry, const QString
 
 void MainWindow::updateStatus(const QString &message)
 {
-    QString statusText;
-    if (!message.isEmpty()) {
-        statusText = message;
-    } else {
-        const core::ImageEntry *entry = m_controller.currentEntry();
-        if (entry == nullptr) {
-            statusText = tr("No image loaded.");
-        } else {
-            const QString displayPath = entry->sourceRelativePath.isEmpty()
-                ? entry->displayName
-                : entry->sourceRelativePath;
-            const QString zoomText = m_controller.zoomMode() == core::ZoomMode::FitToWindow
-                ? tr("fit")
-                : tr("%1%").arg(std::lround(m_controller.zoomFactor() * 100.0));
-
-            const QString indexText = tr("%1 / %2").arg(m_controller.currentIndex() + 1).arg(m_controller.count());
-            if (m_currentDecoded.ok() && !m_currentDecoded.sourceSize.isEmpty()) {
-                const QSize sourceSize = m_currentDecoded.sourceSize;
-                const double megapixels = static_cast<double>(sourceSize.width()) * static_cast<double>(sourceSize.height()) / 1'000'000.0;
-                const QString dimensionsText = tr("%1 x %2 · %3 MP")
-                                                   .arg(sourceSize.width())
-                                                   .arg(sourceSize.height())
-                                                   .arg(QLocale::system().toString(megapixels, 'f', 2));
-                statusText = tr("%1 · %2 · %3 · %4 · %5 · %6")
-                                 .arg(displayPath,
-                                      entry->formatHint,
-                                      formattedFileSize(entry->fileSize),
-                                      dimensionsText,
-                                      zoomText,
-                                      indexText);
-            } else {
-                statusText = tr("%1 · %2 · %3 · %4 · %5")
-                                 .arg(displayPath,
-                                      entry->formatHint,
-                                      formattedFileSize(entry->fileSize),
-                                      zoomText,
-                                      indexText);
-            }
-        }
-    }
+    const StatusLineContext context {
+        m_controller.currentEntry(),
+        &m_currentDecoded,
+        m_controller.zoomMode(),
+        m_controller.zoomFactor(),
+        m_controller.currentIndex(),
+        m_controller.count(),
+        message,
+    };
+    const QString statusText = formatStatusLine(context);
 
     m_statusLabel->setText(statusText);
     updateFullscreenStatusText();

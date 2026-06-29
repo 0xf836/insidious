@@ -97,7 +97,7 @@ Current MVP mouse behavior:
 - `Ctrl+wheel` zooms in/out relative to the current displayed scale by default, including the current fit scale, anchored at the cursor position.
 - `Shift+wheel` has no action by default and is reserved for explicit user configuration.
 - Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. At an active-folder boundary, they continue to the next/previous suitable source-tree folder before treating the source as exhausted. The basic settings UI can switch image navigation to preserve the current view instead.
-- Explicit previous/next folder actions jump to the previous/next suitable source-tree folder when one exists. They use the same adjacent-folder traversal as image navigation at folder boundaries and default to `MouseForward` / `MouseBack`.
+- Explicit previous/next folder actions jump to the previous/next suitable source-tree folder when one exists. They use the same adjacent-folder traversal as image navigation at folder boundaries and default to `MouseBack` / `MouseForward`.
 - Left button zoom behavior is configurable. The default `ToggleOnClick` mode uses simple left click to enter temporary zoom relative to the current displayed scale, centered on the clicked image point; the next click after click/rectangle zoom restores fit or actual size. `HoldToZoomPan` starts temporary zoom immediately on left press, left-drag pans the zoomed raster, and release restores the exact previous view.
 - In left-button zoom modes, show the idle magnifier cursor only while zoom/restore or hold-to-zoom is available: a decoded image is visible, no render is pending, and hold zoom is not active.
 - Toolbar, shortcut, and wheel zoom use the same configurable zoom step. The default is 25%. Toolbar and shortcut zoom anchor at the viewport center.
@@ -110,6 +110,7 @@ Current MVP fullscreen behavior:
 
 - Fullscreen hides the normal menu bar, toolbar, statusbar, `Files` dock, and `Info` dock by default, leaving only the image area visible.
 - Edge panels appear as overlays over the image: left `Files`, right `Info`, top actions toolbar, bottom status text.
+- Normal statusbar and fullscreen bottom status text share the compact `status_line_formatter` output: dimensions/MP, file size, file modified date, EXIF date, display path, zoom, and index/count. Future pinned fullscreen info line should be a separate overlay with its own field set.
 - Default fullscreen trigger zones are 7% of window width for side panels and 5% of window height for top/bottom panels. They are stored in app settings.
 - Side panels have priority in fullscreen corners.
 - Showing or hiding fullscreen overlays must not resize the image viewport, alter zoom/pan, call image reload/decode, or cause visible image flicker.

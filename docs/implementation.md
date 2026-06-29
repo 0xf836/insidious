@@ -28,6 +28,7 @@ The build creates:
 - `src/ui/collection_tree_model.*` exposes the current source folder tree to `QTreeView` instances in the normal and fullscreen `Files` panels.
 - `src/ui/image_list_model.*` exposes the active folder's image entries to `QListView` instances in the left `Files` panel. It is UI-only and does not scan sources, decode images, or build thumbnails.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
+- `src/ui/status_line_formatter.*` formats the compact statusbar/fullscreen bottom text from current entry, decode metadata, zoom state, and collection index. It keeps file and EXIF dates distinguishable, normalizes them to `YYYY.M.D HH:MM:SS`, shows zoom as a percentage, and leaves future presentation changes out of `MainWindow`.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys, including filesystem and archive-backed entries.
 - `src/core/image_entry_validation.*` validates that a filesystem image or owning archive is still loadable before decode.
 - `src/core/image_formats.*` contains the MVP image extension allowlist: JPEG, PNG, WebP, BMP, DIB, plus archive extension detection for ZIP, 7z, and RAR.
@@ -95,7 +96,7 @@ Left file list:
 - Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
 - Programmatic navigation syncs the selected file row and the selected/expanded folder in both normal and fullscreen panels.
 - `next/previous` first navigate inside the active folder collection. At folder boundaries, `MainWindow` walks the source tree in preorder to activate the next/previous loaded folder with images or unloaded filesystem folder; true source boundaries keep the existing reset-and-rerender behavior.
-- Explicit previous/next folder commands use the same adjacent-folder traversal directly and are exposed as configurable shortcuts. Defaults are `MouseForward` for previous folder and `MouseBack` for next folder.
+- Explicit previous/next folder commands use the same adjacent-folder traversal directly and are exposed as configurable shortcuts. Defaults are `MouseBack` for previous folder and `MouseForward` for next folder.
 
 Quick filename jump:
 
@@ -112,7 +113,7 @@ Fullscreen overlay UI:
 - The left overlay owns a second `QTreeView` and `QListView` backed by the same tree/list models as the normal `Files` dock. The views have separate selection models and are synchronized from the active folder and `ViewerController::currentIndex()`.
 - The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.
 - The top overlay is a `QToolBar` using the same `QAction` objects as the normal menu/toolbar flow, so shortcuts, enabled state, checkable state, and command routing remain centralized.
-- The bottom overlay mirrors the normal statusbar text.
+- The bottom overlay mirrors the normal statusbar text. Both use `status_line_formatter` and currently share the same field set: decoded dimensions/MP, file size, file modified date, EXIF date, display path, zoom percentage, and index/count; in `fit` mode the zoom field shows the actual displayed scale rather than the literal word `fit`.
 - Hover detection uses settings-backed `FullscreenOverlaySettings`: side triggers are 7% of window width by default, top/bottom triggers are 5% of window height by default. Side overlays have priority in corners.
 - `Ctrl+F` quick jump suppresses fullscreen edge overlays while its in-window modal overlay is open.
 - Exiting fullscreen hides all edge overlays, returns to normal window mode, and restores the stored normal UI visibility.

@@ -432,9 +432,9 @@ QStringList defaultShortcutSequences(ShortcutCommand command)
             keySequenceToSettingsString(QKeySequence(Qt::Key_PageDown)),
         };
     case ShortcutCommand::PreviousFolder:
-        return { QStringLiteral("MouseForward") };
-    case ShortcutCommand::NextFolder:
         return { QStringLiteral("MouseBack") };
+    case ShortcutCommand::NextFolder:
+        return { QStringLiteral("MouseForward") };
     case ShortcutCommand::FirstImage:
         return { keySequenceToSettingsString(QKeySequence(Qt::Key_Home)) };
     case ShortcutCommand::LastImage:
