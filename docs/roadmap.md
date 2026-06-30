@@ -27,6 +27,8 @@ Roadmap — живой backlog реализации, а не обещание р
 
 ## Ближайшее / small stabilization
 
+- Добавить возможность двигать изображение в fit-режиме только после увеличения изображения. Режим руки. По умолчанию повесить это на зажатую среднюю кнопку мыши и на ctrl+зажатая ЛКМ.
+- При Previous folder сделать, чтоб не только переходило в предыдущую папку, но и на первый файл в этой папке (учитывая сортировку)
 - Memory follow-ups after total peak audit:
   - audit coverage: при появлении thumbnail panel добавить memory-audit сценарии для thumbnail generation/cache до включения больших thumbnail caches.
 - Settings polish:

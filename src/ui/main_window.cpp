@@ -59,6 +59,7 @@ namespace {
 
 constexpr int FullscreenInfoLineMarginLeft = 16;
 constexpr int FullscreenInfoLineMarginTop = 14;
+constexpr int LoadingOverlayDelayMs = 150;
 constexpr qint64 MaxOriginalClipboardBytes = 256LL * 1024LL * 1024LL;
 
 struct OriginalImageReadResult {
@@ -263,6 +264,19 @@ MainWindow::MainWindow(QWidget *parent)
         loadCurrentImage(false, captureViewRenderState());
     });
 
+    m_loadingOverlayTimer.setSingleShot(true);
+    m_loadingOverlayTimer.setInterval(LoadingOverlayDelayMs);
+    connect(&m_loadingOverlayTimer, &QTimer::timeout, this, [this]() {
+        if (m_loadingOverlayGeneration == 0
+            || m_loadingOverlayGeneration != m_decodeGeneration
+            || !m_imageRenderPending
+            || !m_imageView->hasImage()) {
+            return;
+        }
+        m_imageView->setOverlayMessage(tr("Loading image..."));
+        updateStatus(tr("Loading image..."));
+    });
+
     resize(1100, 760);
     restoreLayoutSettings();
     updateStatus();
@@ -385,6 +399,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
 void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback)
 {
     m_regionReloadTimer.stop();
+    cancelDelayedLoadingOverlay();
     if (!zoomFallback.has_value()) {
         m_activeHoldZoom.reset();
     }
@@ -444,8 +459,8 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
         m_imageView->setImageInteractionEnabled(false);
     }
     if (hasDisplayedImage && showTransientLoading) {
-        m_imageView->setOverlayMessage(tr("Loading image..."));
-        updateStatus(tr("Loading image..."));
+        m_imageView->setOverlayMessage(QString());
+        scheduleDelayedLoadingOverlay(generation);
     } else if (hasDisplayedImage) {
         m_imageView->setOverlayMessage(QString());
     } else if (!hasDisplayedImage) {
@@ -496,6 +511,26 @@ void MainWindow::startDecodeJob(const PendingDecodeRequest &request)
         job.decoded = decoder.decode(request.entry, request.request, request.archivePassword);
         return job;
     }));
+}
+
+void MainWindow::scheduleDelayedLoadingOverlay(quint64 generation)
+{
+    m_loadingOverlayGeneration = generation;
+    m_loadingOverlayTimer.start();
+}
+
+void MainWindow::cancelDelayedLoadingOverlay()
+{
+    m_loadingOverlayTimer.stop();
+    m_loadingOverlayGeneration = 0;
+}
+
+void MainWindow::cancelDelayedLoadingOverlayForGeneration(quint64 generation)
+{
+    if (generation == 0 || m_loadingOverlayGeneration != generation) {
+        return;
+    }
+    cancelDelayedLoadingOverlay();
 }
 
 bool MainWindow::startPendingDecodeJob()
@@ -1009,11 +1044,15 @@ void MainWindow::setupConnections()
         }
 
         const QFuture<DecodeJobResult> future = m_decodeWatcher.future();
+        const quint64 finishedGeneration = m_activeDecodeRequest.has_value()
+            ? m_activeDecodeRequest->generation
+            : 0;
         m_activeDecodeRequest.reset();
         if (future.isCanceled() || future.resultCount() == 0 || !future.isResultReadyAt(0)) {
             if (startPendingDecodeJob()) {
                 return;
             }
+            cancelDelayedLoadingOverlayForGeneration(finishedGeneration);
             m_imageRenderPending = false;
             m_pendingZoomRenderFallback.reset();
             updateActionState();
@@ -1030,6 +1069,7 @@ void MainWindow::setupConnections()
             if (startPendingDecodeJob()) {
                 return;
             }
+            cancelDelayedLoadingOverlayForGeneration(job.generation);
             m_imageRenderPending = false;
             updateActionState();
             updateInteractionState();
@@ -1809,6 +1849,7 @@ void MainWindow::clearArchivePassword()
 
 void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
 {
+    cancelDelayedLoadingOverlay();
     m_imageRenderPending = false;
     m_currentDecoded = decoded;
     m_imageView->setImageInteractionEnabled(true);
@@ -1832,6 +1873,7 @@ MainWindow::ViewRenderState MainWindow::captureViewRenderState() const
 
 void MainWindow::restoreViewRenderState(const ViewRenderState &state, const QString &overlayMessage)
 {
+    cancelDelayedLoadingOverlay();
     m_imageRenderPending = false;
     clearPendingDecodeRequest();
     switch (state.zoomMode) {
@@ -1875,6 +1917,7 @@ bool MainWindow::handleZoomRenderError(const DecodeJobResult &job)
 
 void MainWindow::showError(const QString &message)
 {
+    cancelDelayedLoadingOverlay();
     ++m_decodeGeneration;
     m_imageRenderPending = false;
     clearPendingDecodeRequest();

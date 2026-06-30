@@ -59,7 +59,7 @@ Opening one image:
 
 Transient loading display:
 
-- Cache misses during navigation keep the previous `ImageViewWidget` raster visible and show `Loading image...` as a translucent overlay.
+- Cache misses during navigation keep the previous `ImageViewWidget` raster visible and show `Loading image...` as a translucent overlay only after a short UI-thread timer delay, so fast decodes do not flash a loading label.
 - Cache misses during zoom keep the previous raster and decoded state visible without showing a loading label and without moving the old raster before the new decode is ready.
 - Non-fit zoom and actual-size requests use region-based rendering: `DecodeRequest` carries the viewport and pan offset, the decoder renders the visible virtual-image area plus overscan, and `ImageViewWidget` positions that tile inside the virtual full image rectangle. Region tiles are not stored in the shared decoded image cache.
 - While a stale raster is displayed, image-specific interactions such as pan, click zoom, rectangle zoom, wheel zoom, toolbar zoom, fit/actual size, and rotate are disabled; image navigation and fullscreen remain available.

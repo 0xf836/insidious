@@ -172,6 +172,9 @@ private:
     void displayDecodedImage(const core::DecodedImage &decoded);
     void loadCurrentImage(bool showTransientLoading);
     void loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback);
+    void scheduleDelayedLoadingOverlay(quint64 generation);
+    void cancelDelayedLoadingOverlay();
+    void cancelDelayedLoadingOverlayForGeneration(quint64 generation);
     void startDecodeJob(const PendingDecodeRequest &request);
     bool startPendingDecodeJob();
     void clearPendingDecodeRequest();
@@ -307,8 +310,10 @@ private:
     QHash<QString, QFutureWatcher<void> *> m_prefetchWatchers;
     QTimer m_resizeReloadTimer;
     QTimer m_regionReloadTimer;
+    QTimer m_loadingOverlayTimer;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
+    quint64 m_loadingOverlayGeneration = 0;
     quint64 m_copyOriginalImageGeneration = 0;
     std::optional<PendingDecodeRequest> m_activeDecodeRequest;
     std::optional<PendingDecodeRequest> m_pendingDecodeRequest;
