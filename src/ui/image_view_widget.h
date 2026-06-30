@@ -25,6 +25,7 @@ public:
     void setOverlayMessage(const QString &message);
     void setImageInteractionEnabled(bool enabled);
     void setPanningEnabled(bool enabled);
+    void setFitHandPanEnabled(bool enabled);
     void setClickZoomBehavior(core::ClickZoomBehavior behavior);
     void setClickZoomCursorEnabled(bool enabled);
     void setPanOffset(QPointF offset);
@@ -44,6 +45,9 @@ signals:
     void holdZoomStarted(QPoint position);
     void holdZoomMoved(QPoint delta);
     void holdZoomEnded();
+    void fitHandPanStarted(QPoint position);
+    void fitHandPanMoved(QPoint delta);
+    void fitHandPanEnded();
     void zoomToRectRequested(QRect rect);
     void toggleFullscreenRequested();
     void panChanged(QPointF offset);
@@ -59,6 +63,7 @@ protected:
 private:
     [[nodiscard]] QPointF imageTopLeft() const;
     [[nodiscard]] QRect zoomSelectionRect() const;
+    [[nodiscard]] bool isFitHandPanTrigger(Qt::MouseButton button, Qt::KeyboardModifiers modifiers) const;
     void scheduleImageClick(QPoint position);
     void cancelPendingImageClick();
     void stopImageInteraction();
@@ -77,9 +82,12 @@ private:
     QPoint m_zoomSelectionStart;
     QPoint m_zoomSelectionEnd;
     QTimer m_clickTimer;
+    Qt::MouseButton m_fitHandPanButton = Qt::NoButton;
     bool m_imageInteractionEnabled = true;
     bool m_panningEnabled = true;
+    bool m_fitHandPanEnabled = false;
     bool m_panning = false;
+    bool m_fitHandPanning = false;
     bool m_leftDragMoved = false;
     bool m_clickPending = false;
     bool m_selectingZoom = false;

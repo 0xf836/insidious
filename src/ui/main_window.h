@@ -211,7 +211,7 @@ private:
         int selectedImageIndex = 0,
         bool loadCurrent = true,
         const QString &selectedIdentityKey = {});
-    bool navigateToAdjacentFolder(bool forward);
+    bool navigateToAdjacentFolder(bool forward, int selectedImageIndex);
     [[nodiscard]] bool hasAdjacentFolder(bool forward) const;
     [[nodiscard]] QVector<core::ImageEntry> sortedImagesForFolder(
         const core::CollectionFolderNode &folder,

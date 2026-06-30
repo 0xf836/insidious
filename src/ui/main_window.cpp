@@ -565,7 +565,7 @@ void MainWindow::showNextImage()
         reloadAfterImageSwitch();
         return;
     }
-    if (navigateToAdjacentFolder(true)) {
+    if (navigateToAdjacentFolder(true, 0)) {
         return;
     }
     if (!m_controller.hasCollection()) {
@@ -585,7 +585,7 @@ void MainWindow::showPreviousImage()
         reloadAfterImageSwitch();
         return;
     }
-    if (navigateToAdjacentFolder(false)) {
+    if (navigateToAdjacentFolder(false, -1)) {
         return;
     }
     if (!m_controller.hasCollection()) {
@@ -597,7 +597,7 @@ void MainWindow::showPreviousImage()
 
 void MainWindow::showNextFolder()
 {
-    if (navigateToAdjacentFolder(true)) {
+    if (navigateToAdjacentFolder(true, 0)) {
         return;
     }
     updateActionState();
@@ -605,7 +605,7 @@ void MainWindow::showNextFolder()
 
 void MainWindow::showPreviousFolder()
 {
-    if (navigateToAdjacentFolder(false)) {
+    if (navigateToAdjacentFolder(false, 0)) {
         return;
     }
     updateActionState();
@@ -1995,12 +1995,25 @@ void MainWindow::updateInteractionState()
 {
     const bool panningEnabled = m_controller.hasCollection()
         && m_controller.zoomMode() != core::ZoomMode::FitToWindow;
+    const QSize displayedSize = m_currentDecoded.fullDisplaySize.isEmpty()
+        ? m_currentDecoded.image.size()
+        : m_currentDecoded.fullDisplaySize;
+    const bool displayedImageExceedsViewport = displayedSize.width() > m_imageView->width()
+        || displayedSize.height() > m_imageView->height();
+    const bool fitHandPanEnabled = m_controller.hasCollection()
+        && !m_imageRenderPending
+        && !m_activeHoldZoom.has_value()
+        && m_currentDecoded.ok()
+        && m_baseZoomMode == core::ZoomMode::FitToWindow
+        && m_controller.zoomMode() == core::ZoomMode::Custom
+        && displayedImageExceedsViewport;
     const bool clickZoomCursorEnabled = m_controller.hasCollection()
         && !m_imageRenderPending
         && !m_activeHoldZoom.has_value()
         && m_currentDecoded.ok()
         && m_currentDecoded.effectiveScale > 0.0;
     m_imageView->setPanningEnabled(panningEnabled);
+    m_imageView->setFitHandPanEnabled(fitHandPanEnabled);
     m_imageView->setClickZoomCursorEnabled(clickZoomCursorEnabled);
 }
 
@@ -2402,7 +2415,7 @@ void MainWindow::activateFolder(
     }
 }
 
-bool MainWindow::navigateToAdjacentFolder(bool forward)
+bool MainWindow::navigateToAdjacentFolder(bool forward, int selectedImageIndex)
 {
     if (!hasAdjacentFolder(forward)) {
         return false;
@@ -2424,7 +2437,7 @@ bool MainWindow::navigateToAdjacentFolder(bool forward)
     if (forward) {
         for (int index = activeIndex + 1; index < folders.size(); ++index) {
             if (isNavigableFolder(folders.at(index))) {
-                activateFolder(folders.at(index)->relativePath, 0, true);
+                activateFolder(folders.at(index)->relativePath, selectedImageIndex, true);
                 return true;
             }
         }
@@ -2433,7 +2446,7 @@ bool MainWindow::navigateToAdjacentFolder(bool forward)
 
     for (int index = activeIndex - 1; index >= 0; --index) {
         if (isNavigableFolder(folders.at(index))) {
-            activateFolder(folders.at(index)->relativePath, -1, true);
+            activateFolder(folders.at(index)->relativePath, selectedImageIndex, true);
             return true;
         }
     }

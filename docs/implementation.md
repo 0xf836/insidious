@@ -101,7 +101,7 @@ Left file list:
 - Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
 - Programmatic navigation syncs the selected file row and the selected/expanded folder in both normal and fullscreen panels.
 - `next/previous` first navigate inside the active folder collection. At folder boundaries, `MainWindow` walks the source tree in preorder to activate the next/previous loaded folder with images or unloaded filesystem folder; true source boundaries keep the existing reset-and-rerender behavior.
-- Explicit previous/next folder commands use the same adjacent-folder traversal directly and are exposed as configurable shortcuts. Defaults are `MouseBack` for previous folder and `MouseForward` for next folder.
+- Explicit previous/next folder commands use the same adjacent-folder traversal directly and are exposed as configurable shortcuts. Defaults are `MouseBack` for previous folder and `MouseForward` for next folder. Both explicit folder commands select the first image in the destination folder after the current runtime sort is applied; plain previous-image navigation at a folder boundary still opens the previous folder at its last sorted image for continuous reverse browsing.
 
 Quick filename jump:
 
@@ -171,6 +171,7 @@ Mouse input:
 - In the default left-button mode, simple left click calls `MainWindow::handleImageClick()`: it enters temporary 2x zoom relative to the current decoded `effectiveScale`, centered on the clicked point, or restores the saved `fit`/`actual size` base mode after click/rectangle zoom.
 - `MainWindow::updateInteractionState()` enables the idle magnifier cursor for left-button zoom modes only while the action is actually available: a decoded image is shown, no render is pending, and hold zoom is not active.
 - In the default left-button mode, left-button drag pans the current raster and stores the pan offset in `ViewerController` only outside base `FitToWindow`.
+- When the base mode is `FitToWindow` and the current decoded image is already in an enlarged custom view, `ImageViewWidget` enables a fit hand-pan gesture on middle-button hold and `Ctrl+left-button` hold. The gesture only pans the existing enlarged view through the same `panChanged` path; it does not start zoom by itself.
 - For region-based decoded images, pan keeps moving the current tile immediately and starts a debounced 120 ms region reload so the visible area catches up without launching a decode on every mouse move.
 - In `HoldToZoomPan` mode, `ImageViewWidget` emits hold begin/move/end events; `MainWindow` saves the current `ViewRenderState`, starts temporary zoom with the same multiplier, pans the zoomed raster on mouse movement, and restores the saved view on release. Releasing before decode completion invalidates the pending decode generation and restores immediately.
 - Right-button drag draws a rectangle in `ImageViewWidget`; `MainWindow::zoomToRect()` converts that widget rectangle into a custom zoom factor and pan offset.
