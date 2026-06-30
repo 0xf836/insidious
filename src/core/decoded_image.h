@@ -22,11 +22,12 @@ struct DecodeRequest {
 
     [[nodiscard]] QString cacheKeySuffix() const
     {
+        const QPointF cachePanOffset = regionRendering ? panOffset : QPointF();
         return QStringLiteral("%1x%2|pan=%3,%4|scale=%5|rot=%6|fit=%7|region=%8|autorot=%9|max=%10")
             .arg(QString::number(viewportSize.width()),
                  QString::number(viewportSize.height()),
-                 QString::number(panOffset.x(), 'f', 2),
-                 QString::number(panOffset.y(), 'f', 2),
+                 QString::number(cachePanOffset.x(), 'f', 2),
+                 QString::number(cachePanOffset.y(), 'f', 2),
                  QString::number(scaleFactor, 'f', 4),
                  QString::number(rotationDegrees),
                  fitToWindow ? QStringLiteral("1") : QStringLiteral("0"),

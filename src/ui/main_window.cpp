@@ -1405,6 +1405,7 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
 {
     const bool defaultZoomChanged = settings.viewer.defaultZoomMode != m_settings.viewer.defaultZoomMode;
     const bool exifAutorotateChanged = settings.viewer.exifAutorotate != m_settings.viewer.exifAutorotate;
+    const bool regionRenderingChanged = settings.viewer.regionRenderingEnabled != m_settings.viewer.regionRenderingEnabled;
 
     m_settings = settings;
     applyShortcutSettings();
@@ -1444,8 +1445,12 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
             m_imageView->resetPan();
             updateInteractionState();
             loadCurrentImage(false);
-        } else if (exifAutorotateChanged) {
-            loadCurrentImage(false);
+        } else if (exifAutorotateChanged || regionRenderingChanged) {
+            if (m_controller.zoomMode() == core::ZoomMode::FitToWindow) {
+                loadCurrentImage(false);
+            } else {
+                loadCurrentImage(false, captureViewRenderState());
+            }
         }
     }
 
@@ -3020,7 +3025,7 @@ core::DecodeRequest MainWindow::currentDecodeRequest() const
     request.panOffset = m_controller.panOffset();
     request.rotationDegrees = m_controller.rotationDegrees();
     request.fitToWindow = m_controller.zoomMode() == core::ZoomMode::FitToWindow;
-    request.regionRendering = !request.fitToWindow;
+    request.regionRendering = m_settings.viewer.regionRenderingEnabled && !request.fitToWindow;
     request.exifAutorotate = m_settings.viewer.exifAutorotate;
     request.scaleFactor = m_controller.zoomMode() == core::ZoomMode::ActualSize ? 1.0 : m_controller.zoomFactor();
     return request;

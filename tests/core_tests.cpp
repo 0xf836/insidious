@@ -956,6 +956,10 @@ void CoreTests::decodeRequestCacheKeyIncludesRegionAndPan()
     full.fitToWindow = false;
     full.regionRendering = false;
 
+    DecodeRequest fullPanned = full;
+    fullPanned.panOffset = QPointF(12.0, -8.0);
+    QCOMPARE(full.cacheKeySuffix(), fullPanned.cacheKeySuffix());
+
     DecodeRequest region = full;
     region.regionRendering = true;
     QVERIFY(full.cacheKeySuffix() != region.cacheKeySuffix());
@@ -996,6 +1000,7 @@ void CoreTests::shortcutSettingsDefaultsAndCustomization()
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextFolder), QStringList({ QStringLiteral("MouseForward") }));
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::CopyOriginalImage), QStringList({ QStringLiteral("Ctrl+C") }));
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::ExifAutorotate), QStringList());
+    QVERIFY(values.viewer.regionRenderingEnabled);
     QVERIFY(values.fullscreen.infoLineEnabled);
     QCOMPARE(values.fullscreen.infoLineFontFamily, QStringLiteral("DejaVu Sans"));
     QCOMPARE(values.fullscreen.infoLineFontPointSize, 10);
@@ -1042,6 +1047,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.viewer.ctrlWheelAction = WheelAction::NavigateImages;
     values.viewer.shiftWheelAction = WheelAction::Zoom;
     values.viewer.zoomStepPercent = 40.0;
+    values.viewer.regionRenderingEnabled = false;
     values.fullscreen.sideTriggerRatio = 0.12;
     values.fullscreen.verticalTriggerRatio = 0.08;
     values.fullscreen.infoLineEnabled = false;
@@ -1073,6 +1079,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::NavigateImages);
     QCOMPARE(loaded.viewer.shiftWheelAction, WheelAction::Zoom);
     QCOMPARE(loaded.viewer.zoomStepPercent, 40.0);
+    QVERIFY(!loaded.viewer.regionRenderingEnabled);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.12);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.08);
     QVERIFY(!loaded.fullscreen.infoLineEnabled);
@@ -1105,6 +1112,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     writeSettings.setValue(QStringLiteral("ctrlWheelAction"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("shiftWheelAction"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("zoomStepPercent"), 999.0);
+    writeSettings.setValue(QStringLiteral("regionRenderingEnabled"), QStringLiteral("invalid"));
     writeSettings.endGroup();
     writeSettings.beginGroup(QStringLiteral("fullscreen"));
     writeSettings.setValue(QStringLiteral("sideTriggerRatio"), -1.0);
@@ -1136,6 +1144,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::Zoom);
     QCOMPARE(loaded.viewer.shiftWheelAction, WheelAction::NoAction);
     QCOMPARE(loaded.viewer.zoomStepPercent, 100.0);
+    QVERIFY(loaded.viewer.regionRenderingEnabled);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.01);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.30);
     QVERIFY(loaded.fullscreen.infoLineEnabled);

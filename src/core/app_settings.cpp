@@ -145,6 +145,9 @@ AppSettings AppSettings::read(QSettings &settings)
         defaults.viewer.zoomStepPercent,
         MinZoomStepPercent,
         MaxZoomStepPercent);
+    result.viewer.regionRenderingEnabled = settings.value(
+        QStringLiteral("regionRenderingEnabled"),
+        defaults.viewer.regionRenderingEnabled).toBool();
     settings.endGroup();
 
     settings.beginGroup(QStringLiteral("fullscreen"));
@@ -221,6 +224,7 @@ void AppSettings::write(QSettings &settings) const
     settings.setValue(QStringLiteral("ctrlWheelAction"), wheelActionToSettingsString(viewer.ctrlWheelAction));
     settings.setValue(QStringLiteral("shiftWheelAction"), wheelActionToSettingsString(viewer.shiftWheelAction));
     settings.setValue(QStringLiteral("zoomStepPercent"), std::clamp(viewer.zoomStepPercent, MinZoomStepPercent, MaxZoomStepPercent));
+    settings.setValue(QStringLiteral("regionRenderingEnabled"), viewer.regionRenderingEnabled);
     settings.endGroup();
 
     settings.beginGroup(QStringLiteral("fullscreen"));

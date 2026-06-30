@@ -68,6 +68,7 @@ struct ViewerSettings {
     WheelAction ctrlWheelAction = WheelAction::Zoom;
     WheelAction shiftWheelAction = WheelAction::NoAction;
     double zoomStepPercent = 25.0;
+    bool regionRenderingEnabled = true;
 };
 
 struct FullscreenSettings {
