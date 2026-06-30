@@ -41,6 +41,7 @@ The build creates:
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
 - `src/core/render_memory_budget.*` estimates the memory required for the full output raster of a fit/zoom decode request and exposes the shared render-budget guard.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
+- `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
 ## Data flow
@@ -62,6 +63,7 @@ Transient loading display:
 - While a stale raster is displayed, image-specific interactions such as pan, click zoom, rectangle zoom, wheel zoom, toolbar zoom, fit/actual size, and rotate are disabled; image navigation and fullscreen remain available.
 - If a zoom-triggered decode exceeds the render budget, `VipsImageDecoder` reports `DecodeErrorReason::RenderTooLarge`; `MainWindow` restores the previous zoom/pan/raster and shows a compact `Too large to render` overlay instead of replacing the image with a full error message.
 - This budget is calculated by `render_memory_budget` and is currently applied to the entire zoomed raster, not the visible viewport region. It estimates the final display raster only; total peak memory can also include libvips working/cache memory, an archive entry buffer, the displayed raster, and decoded cache contents. Large source images can therefore hit the limit earlier than the on-screen zoom percentage suggests, even when more visual zoom would still be acceptable.
+- `docs/memory-audit.md` records the current synthetic peak RSS baseline for filesystem, archive, zoom, and prefetch scenarios.
 - Full messages still clear the image for initial loading, scanning, empty states, and current-entry errors.
 
 Current image failures:

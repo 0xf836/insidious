@@ -41,6 +41,7 @@ The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp, and 
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
 - `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive scanning, viewer state, settings schema, decode request/result types, render-memory budget estimation, memory cache, libarchive entry reading, and libvips decoding.
+- `tools/memory_audit.cpp` and `tools/memory_audit.py` are developer-only total peak memory audit tooling. They generate temporary synthetic fixtures and must not introduce persistent app data or user-facing settings.
 - `tests/core_tests.cpp` covers core behavior with Qt Test. Add tests here for non-trivial core changes.
 - `docs/implementation.md` is the longer orientation document for current code structure and data flow.
 

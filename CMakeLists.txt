@@ -79,6 +79,14 @@ target_link_libraries(insidious
         Qt6::Widgets
 )
 
+add_executable(insidious_memory_audit
+    tools/memory_audit.cpp
+)
+target_link_libraries(insidious_memory_audit
+    PRIVATE
+        insidious_core
+)
+
 enable_testing()
 
 add_executable(insidious_core_tests

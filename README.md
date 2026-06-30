@@ -100,6 +100,13 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+Developer memory audit:
+
+```sh
+cmake --build build --target insidious_memory_audit
+python3 tools/memory_audit.py --build-dir build
+```
+
 Run:
 
 ```sh

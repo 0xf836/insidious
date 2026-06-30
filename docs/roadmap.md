@@ -12,6 +12,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Magnifier cursor для режимов ЛКМ zoom показывается только когда zoom/restore или hold-to-zoom доступен.
 - Async decode pipeline через libvips: display-sized rasters, stale-result guards, same-entry render coalescing, immediate foreground decode on image switch, tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
 - Zoom render budget guard: если zoom-запрос слишком большой для decode budget, viewer откатывает предыдущий raster/zoom/pan и показывает компактный overlay вместо full-screen ошибки.
+- Total peak memory audit tooling and baseline for large filesystem image, archive image, zoom render, and prefetch scenarios.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
 - Source tree `Files`: дерево папок/архива над списком изображений активной папки, lazy filesystem folder loading, cross-folder next/previous.
 - Архивы: ZIP/7z/RAR через libarchive, password prompt, без распаковки на диск, пароль только в памяти.
@@ -26,8 +27,6 @@ Roadmap — живой backlog реализации, а не обещание р
 
 ## Ближайшее / small stabilization
 
-- Performance/memory stabilization:
-  - total peak memory audit: после централизации и тестового покрытия расчёта full-raster render budget измерить peak memory для large filesystem image, large archive image, zoom render и prefetch; учесть вместе libvips cache, archive entry buffer, displayed raster и decoded cache;
 - Settings polish:
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
 - Quick Jump fullscreen polish:
