@@ -27,6 +27,10 @@ Roadmap — живой backlog реализации, а не обещание р
 
 ## Ближайшее / small stabilization
 
+- UI polish:
+  - сделать главное меню (File, Edit, etc) по умолчанию скрытым, вызываемым только при нажатии Alt
+  - добавить темную тему для normal mode;
+  - сгруппировать и визуально привести в порядок Preferences dialog.
 - Settings polish:
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
 - Quick Jump fullscreen polish:
@@ -66,7 +70,5 @@ Roadmap — живой backlog реализации, а не обещание р
 - Packaging:
   - документировать runtime dependencies по дистрибутивам;
   - подготовить Linux packaging path после стабилизации viewer behavior.
-- UI:
-  - Переделать кнопки
 - Memory follow-ups after total peak audit:
   - audit coverage: при появлении thumbnail panel добавить memory-audit сценарии для thumbnail generation/cache до включения больших thumbnail caches.

@@ -61,6 +61,8 @@ constexpr int FullscreenInfoLineMarginLeft = 16;
 constexpr int FullscreenInfoLineMarginTop = 14;
 constexpr int LoadingOverlayDelayMs = 150;
 constexpr qint64 MaxOriginalClipboardBytes = 256LL * 1024LL * 1024LL;
+constexpr int MainToolbarButtonHeight = 28;
+constexpr int FullscreenToolbarButtonHeight = 30;
 
 struct OriginalImageReadResult {
     QByteArray data;
@@ -879,16 +881,41 @@ void MainWindow::setupActions()
     m_mainToolBar = addToolBar(tr("Main"));
     m_mainToolBar->setObjectName(QStringLiteral("mainToolBar"));
     m_mainToolBar->setMovable(false);
+    m_mainToolBar->setFloatable(false);
+    m_mainToolBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    m_mainToolBar->setStyleSheet(QStringLiteral(
+        "#mainToolBar {"
+        "  spacing: 6px;"
+        "  padding: 4px 6px;"
+        "  border-bottom: 1px solid palette(mid);"
+        "}"
+        "#mainToolBar QToolButton {"
+        "  min-height: 18px;"
+        "  padding: 2px 6px;"
+        "  border: 1px solid transparent;"
+        "  border-radius: 4px;"
+        "}"
+        "#mainToolBar QToolButton:hover {"
+        "  background: rgba(0, 0, 0, 18);"
+        "  border-color: rgba(0, 0, 0, 32);"
+        "}"
+        "#mainToolBar QToolButton:checked {"
+        "  background: rgba(64, 128, 220, 32);"
+        "  border-color: rgba(64, 128, 220, 72);"
+        "}"
+        "#mainToolBar QToolButton:disabled {"
+        "  color: palette(mid);"
+        "}"));
 
     m_openFileAction = new QAction(tr("Open File"), this);
     connect(m_openFileAction, &QAction::triggered, this, &MainWindow::openFileDialog);
     fileMenu->addAction(m_openFileAction);
-    m_mainToolBar->addAction(m_openFileAction);
+    addToolbarButton(m_mainToolBar, m_openFileAction, tr("Open"), false);
 
     m_openFolderAction = new QAction(tr("Open Folder"), this);
     connect(m_openFolderAction, &QAction::triggered, this, &MainWindow::openFolderDialog);
     fileMenu->addAction(m_openFolderAction);
-    m_mainToolBar->addAction(m_openFolderAction);
+    addToolbarButton(m_mainToolBar, m_openFolderAction, tr("Folder"), false);
 
     fileMenu->addSeparator();
     auto *quitAction = new QAction(tr("Quit"), this);
@@ -901,39 +928,47 @@ void MainWindow::setupActions()
     m_previousAction = new QAction(tr("Previous"), this);
     connect(m_previousAction, &QAction::triggered, this, &MainWindow::showPreviousImage);
     navigateMenu->addAction(m_previousAction);
-    m_mainToolBar->addAction(m_previousAction);
+    addToolbarButton(m_mainToolBar, m_previousAction, tr("Prev"), false);
 
     m_nextAction = new QAction(tr("Next"), this);
     connect(m_nextAction, &QAction::triggered, this, &MainWindow::showNextImage);
     navigateMenu->addAction(m_nextAction);
-    m_mainToolBar->addAction(m_nextAction);
+    addToolbarButton(m_mainToolBar, m_nextAction, tr("Next"), false);
 
     m_previousFolderAction = new QAction(tr("Previous Folder"), this);
     connect(m_previousFolderAction, &QAction::triggered, this, &MainWindow::showPreviousFolder);
     navigateMenu->addAction(m_previousFolderAction);
+    addToolbarButton(m_mainToolBar, m_previousFolderAction, QStringLiteral("Folder ‹"), false);
 
     m_nextFolderAction = new QAction(tr("Next Folder"), this);
     connect(m_nextFolderAction, &QAction::triggered, this, &MainWindow::showNextFolder);
     navigateMenu->addAction(m_nextFolderAction);
+    addToolbarButton(m_mainToolBar, m_nextFolderAction, QStringLiteral("Folder ›"), false);
 
     navigateMenu->addSeparator();
+    m_mainToolBar->addSeparator();
 
     m_firstAction = new QAction(tr("First"), this);
     connect(m_firstAction, &QAction::triggered, this, &MainWindow::showFirstImage);
     navigateMenu->addAction(m_firstAction);
+    addToolbarButton(m_mainToolBar, m_firstAction, tr("First"), false);
 
     m_lastAction = new QAction(tr("Last"), this);
     connect(m_lastAction, &QAction::triggered, this, &MainWindow::showLastImage);
     navigateMenu->addAction(m_lastAction);
+    addToolbarButton(m_mainToolBar, m_lastAction, tr("Last"), false);
 
     m_quickJumpAction = new QAction(tr("Quick Jump"), this);
     m_quickJumpAction->setShortcutContext(Qt::WindowShortcut);
     connect(m_quickJumpAction, &QAction::triggered, this, &MainWindow::showQuickJumpDialog);
     navigateMenu->addAction(m_quickJumpAction);
+    addToolbarButton(m_mainToolBar, m_quickJumpAction, tr("Find"), false);
 
     m_copyOriginalImageAction = new QAction(tr("Copy Original Image"), this);
     connect(m_copyOriginalImageAction, &QAction::triggered, this, &MainWindow::copyOriginalImageToClipboard);
     editMenu->addAction(m_copyOriginalImageAction);
+    m_mainToolBar->addSeparator();
+    addToolbarButton(m_mainToolBar, m_copyOriginalImageAction, tr("Copy"), false);
 
     m_sortingButton = new QToolButton(this);
     setupFileSortButton(m_sortingButton, false);
@@ -950,43 +985,43 @@ void MainWindow::setupActions()
     m_zoomInAction = new QAction(tr("Zoom In"), this);
     connect(m_zoomInAction, &QAction::triggered, this, &MainWindow::zoomIn);
     viewMenu->addAction(m_zoomInAction);
-    m_mainToolBar->addAction(m_zoomInAction);
+    addToolbarButton(m_mainToolBar, m_zoomInAction, QStringLiteral("+"), false);
 
     m_zoomOutAction = new QAction(tr("Zoom Out"), this);
     connect(m_zoomOutAction, &QAction::triggered, this, &MainWindow::zoomOut);
     viewMenu->addAction(m_zoomOutAction);
-    m_mainToolBar->addAction(m_zoomOutAction);
+    addToolbarButton(m_mainToolBar, m_zoomOutAction, QStringLiteral("−"), false);
 
     m_fitAction = new QAction(tr("Fit"), this);
     connect(m_fitAction, &QAction::triggered, this, &MainWindow::setFitToWindow);
     viewMenu->addAction(m_fitAction);
-    m_mainToolBar->addAction(m_fitAction);
+    addToolbarButton(m_mainToolBar, m_fitAction, tr("Fit"), false);
 
     m_actualSizeAction = new QAction(tr("Actual Size"), this);
     connect(m_actualSizeAction, &QAction::triggered, this, &MainWindow::setActualSize);
     viewMenu->addAction(m_actualSizeAction);
-    m_mainToolBar->addAction(m_actualSizeAction);
+    addToolbarButton(m_mainToolBar, m_actualSizeAction, tr("1:1"), false);
 
     m_rotateLeftAction = new QAction(tr("Rotate Left"), this);
     connect(m_rotateLeftAction, &QAction::triggered, this, &MainWindow::rotateLeft);
     viewMenu->addAction(m_rotateLeftAction);
-    m_mainToolBar->addAction(m_rotateLeftAction);
+    addToolbarButton(m_mainToolBar, m_rotateLeftAction, QStringLiteral("↶"), false);
 
     m_rotateRightAction = new QAction(tr("Rotate Right"), this);
     connect(m_rotateRightAction, &QAction::triggered, this, &MainWindow::rotateRight);
     viewMenu->addAction(m_rotateRightAction);
-    m_mainToolBar->addAction(m_rotateRightAction);
+    addToolbarButton(m_mainToolBar, m_rotateRightAction, QStringLiteral("↷"), false);
 
     m_exifAutorotateAction = new QAction(tr("Use EXIF Orientation"), this);
     m_exifAutorotateAction->setCheckable(true);
     connect(m_exifAutorotateAction, &QAction::toggled, this, &MainWindow::setExifAutorotateEnabled);
     viewMenu->addAction(m_exifAutorotateAction);
-    m_mainToolBar->addAction(m_exifAutorotateAction);
+    addToolbarButton(m_mainToolBar, m_exifAutorotateAction, tr("EXIF"), false);
 
     m_fullscreenAction = new QAction(tr("Fullscreen"), this);
     connect(m_fullscreenAction, &QAction::triggered, this, &MainWindow::toggleFullscreen);
     viewMenu->addAction(m_fullscreenAction);
-    m_mainToolBar->addAction(m_fullscreenAction);
+    addToolbarButton(m_mainToolBar, m_fullscreenAction, tr("Full"), false);
 
     viewMenu->addSeparator();
     QAction *fileListAction = m_fileListDock->toggleViewAction();
@@ -1325,31 +1360,57 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenTopPanel->setMouseTracking(true);
     m_fullscreenTopPanel->installEventFilter(this);
     m_fullscreenTopPanel->setStyleSheet(QStringLiteral(
-        "#fullscreenTopPanel { background-color: rgba(24, 24, 24, 224); border-bottom: 1px solid rgba(255, 255, 255, 48); spacing: 4px; }"));
-    m_fullscreenTopPanel->addAction(m_openFileAction);
-    m_fullscreenTopPanel->addAction(m_openFolderAction);
+        "#fullscreenTopPanel {"
+        "  background-color: rgba(18, 18, 18, 232);"
+        "  border-bottom: 1px solid rgba(255, 255, 255, 52);"
+        "  spacing: 6px;"
+        "  padding: 5px 8px;"
+        "}"
+        "#fullscreenTopPanel QToolButton {"
+        "  color: rgba(245, 245, 245, 236);"
+        "  background-color: transparent;"
+        "  border: 1px solid transparent;"
+        "  border-radius: 4px;"
+        "  padding: 2px 6px;"
+        "  min-height: 18px;"
+        "}"
+        "#fullscreenTopPanel QToolButton:hover {"
+        "  background-color: rgba(255, 255, 255, 36);"
+        "  border-color: rgba(255, 255, 255, 64);"
+        "}"
+        "#fullscreenTopPanel QToolButton:checked {"
+        "  background-color: rgba(80, 150, 255, 72);"
+        "  border-color: rgba(160, 205, 255, 120);"
+        "}"
+        "#fullscreenTopPanel QToolButton:disabled {"
+        "  color: rgba(245, 245, 245, 82);"
+        "}"
+        "#fullscreenTopPanel QToolButton::menu-indicator { image: none; width: 0; }"));
+    addToolbarButton(m_fullscreenTopPanel, m_openFileAction, tr("Open"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_openFolderAction, tr("Folder"), true);
     m_fullscreenTopPanel->addSeparator();
-    m_fullscreenTopPanel->addAction(m_previousAction);
-    m_fullscreenTopPanel->addAction(m_nextAction);
-    m_fullscreenTopPanel->addAction(m_previousFolderAction);
-    m_fullscreenTopPanel->addAction(m_nextFolderAction);
-    m_fullscreenTopPanel->addAction(m_firstAction);
-    m_fullscreenTopPanel->addAction(m_lastAction);
-    m_fullscreenTopPanel->addAction(m_quickJumpAction);
-    m_fullscreenTopPanel->addAction(m_copyOriginalImageAction);
+    addToolbarButton(m_fullscreenTopPanel, m_previousAction, QStringLiteral("‹"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_nextAction, QStringLiteral("›"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_previousFolderAction, QStringLiteral("Folder ‹"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_nextFolderAction, QStringLiteral("Folder ›"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_firstAction, QStringLiteral("First"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_lastAction, QStringLiteral("Last"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_quickJumpAction, tr("Find"), true);
+    m_fullscreenTopPanel->addSeparator();
+    addToolbarButton(m_fullscreenTopPanel, m_copyOriginalImageAction, tr("Copy"), true);
     m_fullscreenSortingButton = new QToolButton(m_fullscreenTopPanel);
     setupFileSortButton(m_fullscreenSortingButton, true);
     m_fullscreenTopPanel->addWidget(m_fullscreenSortingButton);
     syncFileSortControls();
     m_fullscreenTopPanel->addSeparator();
-    m_fullscreenTopPanel->addAction(m_zoomInAction);
-    m_fullscreenTopPanel->addAction(m_zoomOutAction);
-    m_fullscreenTopPanel->addAction(m_fitAction);
-    m_fullscreenTopPanel->addAction(m_actualSizeAction);
-    m_fullscreenTopPanel->addAction(m_rotateLeftAction);
-    m_fullscreenTopPanel->addAction(m_rotateRightAction);
-    m_fullscreenTopPanel->addAction(m_exifAutorotateAction);
-    m_fullscreenTopPanel->addAction(m_fullscreenAction);
+    addToolbarButton(m_fullscreenTopPanel, m_zoomInAction, QStringLiteral("+"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_zoomOutAction, QStringLiteral("−"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_fitAction, tr("Fit"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_actualSizeAction, QStringLiteral("1:1"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_rotateLeftAction, QStringLiteral("↶"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_rotateRightAction, QStringLiteral("↷"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_exifAutorotateAction, tr("EXIF"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_fullscreenAction, tr("Exit"), true);
     m_fullscreenTopPanel->hide();
 
     m_fullscreenBottomPanel = new QFrame(this);
@@ -2583,6 +2644,36 @@ void MainWindow::applyImageSortMode(core::ImageSortMode mode)
     }
 }
 
+QToolButton *MainWindow::addToolbarButton(QToolBar *toolbar, QAction *action, const QString &label, bool fullscreen)
+{
+    if (toolbar == nullptr || action == nullptr) {
+        return nullptr;
+    }
+
+    auto *button = new QToolButton(toolbar);
+    button->setDefaultAction(action);
+    button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    button->setText(label);
+    button->setAutoRaise(!fullscreen);
+    button->setMinimumHeight(fullscreen ? FullscreenToolbarButtonHeight : MainToolbarButtonHeight);
+    button->setMouseTracking(true);
+    button->installEventFilter(this);
+
+    auto applyPresentation = [button, action, label]() {
+        button->setText(label);
+        QString tooltip = action->toolTip();
+        if (tooltip.isEmpty()) {
+            tooltip = action->text();
+        }
+        button->setToolTip(tooltip.remove(QLatin1Char('&')));
+    };
+    applyPresentation();
+    connect(action, &QAction::changed, button, applyPresentation);
+
+    toolbar->addWidget(button);
+    return button;
+}
+
 void MainWindow::setupFileSortButton(QToolButton *button, bool fullscreen)
 {
     if (button == nullptr) {
@@ -2592,8 +2683,9 @@ void MainWindow::setupFileSortButton(QToolButton *button, bool fullscreen)
     button->setAutoRaise(!fullscreen);
     button->setPopupMode(QToolButton::InstantPopup);
     button->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    button->setText(tr("Sorting"));
+    button->setText(tr("Sort"));
     button->setToolTip(tr("Sort files"));
+    button->setMinimumHeight(fullscreen ? FullscreenToolbarButtonHeight : MainToolbarButtonHeight);
     button->setMouseTracking(true);
     button->installEventFilter(this);
     if (!fullscreen) {

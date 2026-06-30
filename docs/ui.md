@@ -33,24 +33,14 @@
 
 ## Верхняя панель
 
-Верхняя панель может содержать:
+Верхняя панель использует компактные кнопки поверх полноценных `QAction`, чтобы меню, shortcuts и enabled state оставались единым источником поведения. Кнопки сгруппированы логически:
 
-- открыть файл;
-- открыть папку;
-- открыть ZIP/7z/RAR архив;
-- назад / вперёд;
-- первый / последний;
-- copy original image;
-- zoom in / zoom out;
-- fit to window;
-- actual size;
-- rotate left / rotate right;
-- EXIF autorotate toggle;
-- fullscreen;
-- переключение левой панели;
-- переключение правой панели.
+- source: open file, open folder;
+- browse: previous/next image, previous/next folder, first/last, quick jump;
+- files: copy original image, runtime sorting;
+- view: zoom, fit, actual size, rotate, EXIF autorotate, fullscreen.
 
-Точный набор кнопок можно уточнять после выбора GUI toolkit.
+Normal toolbar использует короткие labels. Fullscreen top overlay использует еще более компактные labels/glyphs и всегда остаётся тёмной полупрозрачной панелью с читаемым светлым текстом.
 
 ## Нижняя статусная строка
 

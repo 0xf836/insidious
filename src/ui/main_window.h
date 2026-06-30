@@ -222,6 +222,7 @@ private:
         const core::CollectionFolderNode &folder,
         const QString &selectedPath) const;
     void applyImageSortMode(core::ImageSortMode mode);
+    QToolButton *addToolbarButton(QToolBar *toolbar, QAction *action, const QString &label, bool fullscreen);
     void setupFileSortButton(QToolButton *button, bool fullscreen);
     void syncFileSortControls();
     void refreshFileList();
