@@ -71,3 +71,8 @@ Roadmap — живой backlog реализации, а не обещание р
   - подготовить Linux packaging path после стабилизации viewer behavior.
 - Memory follow-ups after total peak audit:
   - audit coverage: при появлении thumbnail panel добавить memory-audit сценарии для thumbnail generation/cache до включения больших thumbnail caches.
+- Fullscreen exit artifact on dark theme under tiling WMs:
+  - reproduction: открыть изображение в normal mode, убедиться что артефакта нет, войти в fullscreen, выйти из него;
+  - observed behavior: в normal mode появляется лишняя нижняя полоса/артефакт под statusbar или сразу над ним;
+  - currently known scope: reliably reproduced on dark theme with i3wm, especially when window is stretched to full screen width;
+  - expectation: fullscreen enter/exit must restore the exact pre-fullscreen normal layout without stale overlay/backing-store artifacts.
