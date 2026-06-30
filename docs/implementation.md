@@ -38,9 +38,9 @@ The build creates:
 - `src/core/archive_entry_stream.*` opens one archive member as a sequential in-memory stream for display decode without extracting it to disk or buffering the full member first.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
 - `src/core/app_settings.*` defines persistent settings defaults, enum/string conversion, validation/clamping, category reset behavior, and `QSettings` read/write.
-- `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, metadata fields, and machine-readable decode error reasons.
+- `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, region-render metadata, metadata fields, and machine-readable decode error reasons.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
-- `src/core/render_memory_budget.*` estimates the memory required for the full output raster of a fit/zoom decode request and exposes the shared render-budget guard.
+- `src/core/render_memory_budget.*` estimates the memory required for an output raster and exposes the shared render-budget guard. For `fit` this is the full display-sized raster; for non-fit zoom/actual-size this is the decoded visible region plus overscan.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
@@ -61,9 +61,10 @@ Transient loading display:
 
 - Cache misses during navigation keep the previous `ImageViewWidget` raster visible and show `Loading image...` as a translucent overlay.
 - Cache misses during zoom keep the previous raster and decoded state visible without showing a loading label and without moving the old raster before the new decode is ready.
+- Non-fit zoom and actual-size requests use region-based rendering: `DecodeRequest` carries the viewport and pan offset, the decoder renders the visible virtual-image area plus overscan, and `ImageViewWidget` positions that tile inside the virtual full image rectangle. Region tiles are not stored in the shared decoded image cache.
 - While a stale raster is displayed, image-specific interactions such as pan, click zoom, rectangle zoom, wheel zoom, toolbar zoom, fit/actual size, and rotate are disabled; image navigation and fullscreen remain available.
 - If a zoom-triggered decode exceeds the render budget, `VipsImageDecoder` reports `DecodeErrorReason::RenderTooLarge`; `MainWindow` restores the previous zoom/pan/raster and shows a compact `Too large to render` overlay instead of replacing the image with a full error message.
-- This budget is calculated by `render_memory_budget` and is currently applied to the entire zoomed raster, not the visible viewport region. It estimates the final display raster only; total peak memory can also include libvips working/cache memory, source-reader buffering, the displayed raster, and decoded cache contents. Large source images can therefore hit the limit earlier than the on-screen zoom percentage suggests, even when more visual zoom would still be acceptable.
+- This budget is calculated by `render_memory_budget` and estimates the final output raster only; total peak memory can also include libvips working/cache memory, source-reader buffering, the displayed raster, and decoded cache contents.
 - `docs/memory-audit.md` records the current synthetic peak RSS baseline for filesystem, archive, zoom, and prefetch scenarios.
 - Full messages still clear the image for initial loading, scanning, empty states, and current-entry errors.
 
@@ -170,6 +171,7 @@ Mouse input:
 - In the default left-button mode, simple left click calls `MainWindow::handleImageClick()`: it enters temporary 2x zoom relative to the current decoded `effectiveScale`, centered on the clicked point, or restores the saved `fit`/`actual size` base mode after click/rectangle zoom.
 - `MainWindow::updateInteractionState()` enables the idle magnifier cursor for left-button zoom modes only while the action is actually available: a decoded image is shown, no render is pending, and hold zoom is not active.
 - In the default left-button mode, left-button drag pans the current raster and stores the pan offset in `ViewerController` only outside base `FitToWindow`.
+- For region-based decoded images, pan keeps moving the current tile immediately and starts a debounced 120 ms region reload so the visible area catches up without launching a decode on every mouse move.
 - In `HoldToZoomPan` mode, `ImageViewWidget` emits hold begin/move/end events; `MainWindow` saves the current `ViewRenderState`, starts temporary zoom with the same multiplier, pans the zoomed raster on mouse movement, and restores the saved view on release. Releasing before decode completion invalidates the pending decode generation and restores immediately.
 - Right-button drag draws a rectangle in `ImageViewWidget`; `MainWindow::zoomToRect()` converts that widget rectangle into a custom zoom factor and pan offset.
 - Left double click toggles fullscreen. `ImageViewWidget` delays single-click zoom emission by the system double-click interval and cancels it when a double click arrives, so fullscreen toggle does not also trigger temporary zoom.

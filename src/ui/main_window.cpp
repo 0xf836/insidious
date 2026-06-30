@@ -245,7 +245,22 @@ MainWindow::MainWindow(QWidget *parent)
     m_resizeReloadTimer.setSingleShot(true);
     m_resizeReloadTimer.setInterval(120);
     connect(&m_resizeReloadTimer, &QTimer::timeout, this, [this]() {
+        if (m_controller.hasCollection()
+            && m_controller.zoomMode() != core::ZoomMode::FitToWindow
+            && m_currentDecoded.ok()) {
+            loadCurrentImage(false, captureViewRenderState());
+            return;
+        }
         loadCurrentImage();
+    });
+
+    m_regionReloadTimer.setSingleShot(true);
+    m_regionReloadTimer.setInterval(120);
+    connect(&m_regionReloadTimer, &QTimer::timeout, this, [this]() {
+        if (!m_controller.hasCollection() || m_imageRenderPending || !m_currentDecoded.regionBased) {
+            return;
+        }
+        loadCurrentImage(false, captureViewRenderState());
     });
 
     resize(1100, 760);
@@ -369,6 +384,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
 
 void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback)
 {
+    m_regionReloadTimer.stop();
     if (!zoomFallback.has_value()) {
         m_activeHoldZoom.reset();
     }
@@ -400,9 +416,10 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     const core::DecodeRequest request = currentDecodeRequest();
     const QString cacheKey = currentCacheKey(request);
     const quint64 generation = ++m_decodeGeneration;
+    const bool cacheable = !request.regionRendering;
 
     core::DecodedImage cached;
-    if (m_cache->tryGet(cacheKey, &cached)) {
+    if (cacheable && m_cache->tryGet(cacheKey, &cached)) {
         m_imageRenderPending = false;
         clearPendingDecodeRequest();
         m_pendingZoomRenderFallback.reset();
@@ -649,9 +666,12 @@ void MainWindow::zoomToRect(const QRect &selectionRect)
 
     const QPointF selectedCenterInImage = selected.center() - imageRect.topLeft();
     const QPointF sourceCenter(selectedCenterInImage.x() / currentScale, selectedCenterInImage.y() / currentScale);
+    const QSize currentDisplaySize = m_currentDecoded.fullDisplaySize.isEmpty()
+        ? m_currentDecoded.image.size()
+        : m_currentDecoded.fullDisplaySize;
     const QSizeF newDisplaySize(
-        m_currentDecoded.image.width() * newScale / currentScale,
-        m_currentDecoded.image.height() * newScale / currentScale);
+        currentDisplaySize.width() * newScale / currentScale,
+        currentDisplaySize.height() * newScale / currentScale);
     const QPointF centeredTopLeft(
         (m_imageView->width() - newDisplaySize.width()) / 2.0,
         (m_imageView->height() - newDisplaySize.height()) / 2.0);
@@ -961,6 +981,7 @@ void MainWindow::setupConnections()
     connect(m_imageView, &ImageViewWidget::toggleFullscreenRequested, this, &MainWindow::toggleFullscreen);
     connect(m_imageView, &ImageViewWidget::panChanged, this, [this](QPointF offset) {
         m_controller.setPanOffset(offset);
+        scheduleRegionReload();
     });
     connect(m_fileTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFolderTreeSelection) {
@@ -1024,7 +1045,9 @@ void MainWindow::setupConnections()
             return;
         }
         m_pendingZoomRenderFallback.reset();
-        m_cache->insert(job.cacheKey, job.decoded);
+        if (!job.decoded.regionBased) {
+            m_cache->insert(job.cacheKey, job.decoded);
+        }
         displayDecodedImage(job.decoded);
         prefetchNeighbors(currentDecodeRequest());
     });
@@ -1789,7 +1812,7 @@ void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
     m_imageRenderPending = false;
     m_currentDecoded = decoded;
     m_imageView->setImageInteractionEnabled(true);
-    m_imageView->setImage(decoded.image);
+    m_imageView->setImage(decoded.image, decoded.fullDisplaySize, decoded.displayRegionOffset);
     m_imageView->setPanOffset(m_controller.panOffset());
     updateInfoPanelForCurrentImage();
     updateStatus();
@@ -1826,7 +1849,7 @@ void MainWindow::restoreViewRenderState(const ViewRenderState &state, const QStr
     m_controller.setPanOffset(state.panOffset);
     m_currentDecoded = state.decoded;
     m_imageView->setImageInteractionEnabled(true);
-    m_imageView->setImage(m_currentDecoded.image);
+    m_imageView->setImage(m_currentDecoded.image, m_currentDecoded.fullDisplaySize, m_currentDecoded.displayRegionOffset);
     m_imageView->setPanOffset(m_controller.panOffset());
     m_imageView->setOverlayMessage(overlayMessage);
     updateInfoPanelForCurrentImage();
@@ -1965,9 +1988,20 @@ void MainWindow::updateInfoPanelForCurrentImage(const QString &state)
 
 void MainWindow::scheduleFitReload()
 {
-    if (m_controller.hasCollection() && m_controller.zoomMode() == core::ZoomMode::FitToWindow) {
+    if (m_controller.hasCollection()) {
         m_resizeReloadTimer.start();
     }
+}
+
+void MainWindow::scheduleRegionReload()
+{
+    if (!m_controller.hasCollection()
+        || m_imageRenderPending
+        || !m_currentDecoded.regionBased) {
+        return;
+    }
+
+    m_regionReloadTimer.start();
 }
 
 void MainWindow::clearPrefetchJobs()
@@ -2129,9 +2163,12 @@ bool MainWindow::customZoomForAnchor(QPointF anchorPosition, double multiplier, 
     const QPointF anchor = clampedPointToRect(anchorPosition, imageRect);
     const QPointF imagePoint = anchor - imageRect.topLeft();
     const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
+    const QSize currentDisplaySize = m_currentDecoded.fullDisplaySize.isEmpty()
+        ? m_currentDecoded.image.size()
+        : m_currentDecoded.fullDisplaySize;
     const QSizeF newDisplaySize(
-        m_currentDecoded.image.width() * newScale / currentScale,
-        m_currentDecoded.image.height() * newScale / currentScale);
+        currentDisplaySize.width() * newScale / currentScale,
+        currentDisplaySize.height() * newScale / currentScale);
     const QPointF centeredTopLeft(
         (m_imageView->width() - newDisplaySize.width()) / 2.0,
         (m_imageView->height() - newDisplaySize.height()) / 2.0);
@@ -2173,6 +2210,7 @@ void MainWindow::handleHoldZoomMoved(QPoint delta)
     m_controller.setPanOffset(panOffset);
     if (!m_imageRenderPending) {
         m_imageView->setPanOffset(panOffset);
+        scheduleRegionReload();
     }
 }
 
@@ -2923,8 +2961,10 @@ core::DecodeRequest MainWindow::currentDecodeRequest() const
 {
     core::DecodeRequest request;
     request.viewportSize = m_imageView->size();
+    request.panOffset = m_controller.panOffset();
     request.rotationDegrees = m_controller.rotationDegrees();
     request.fitToWindow = m_controller.zoomMode() == core::ZoomMode::FitToWindow;
+    request.regionRendering = !request.fitToWindow;
     request.exifAutorotate = m_settings.viewer.exifAutorotate;
     request.scaleFactor = m_controller.zoomMode() == core::ZoomMode::ActualSize ? 1.0 : m_controller.zoomFactor();
     return request;

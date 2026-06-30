@@ -20,6 +20,7 @@ public:
     explicit ImageViewWidget(QWidget *parent = nullptr);
 
     void setImage(const QImage &image);
+    void setImage(const QImage &image, QSize fullImageSize, QPoint imageRegionOffset);
     void setMessage(const QString &message);
     void setOverlayMessage(const QString &message);
     void setImageInteractionEnabled(bool enabled);
@@ -65,6 +66,8 @@ private:
     [[nodiscard]] bool shouldShowClickZoomCursor() const;
 
     QImage m_image;
+    QSize m_fullImageSize;
+    QPoint m_imageRegionOffset;
     QString m_message;
     QString m_overlayMessage;
     QPointF m_panOffset;

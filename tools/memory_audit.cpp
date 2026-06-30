@@ -108,6 +108,7 @@ core::DecodeRequest zoomRequest()
     core::DecodeRequest request;
     request.viewportSize = QSize(1920, 1080);
     request.fitToWindow = false;
+    request.regionRendering = true;
     request.scaleFactor = 2.0;
     request.exifAutorotate = true;
     return request;
@@ -198,7 +199,7 @@ ScenarioResult zoomRender(const QString &fixtureDir)
     result.renderEstimateBytes = renderEstimateFor(decoded);
     result.displayedBytes = decoded.image.sizeInBytes();
     result.peakRssBytes = statusValueBytes(QStringLiteral("VmHWM"));
-    result.notes = QStringLiteral("scale=2 full-raster zoom decode");
+    result.notes = QStringLiteral("scale=2 region-based zoom decode");
     return result;
 }
 

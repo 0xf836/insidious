@@ -130,7 +130,7 @@ Current MVP fullscreen behavior:
 - When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, `docs/`, `README.md`, and this file together.
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
 - Transient loading during image navigation should preserve the currently displayed raster and use a subtle overlay. Zoom-triggered loading should preserve the displayed raster and decoded state without showing a loading label or moving the old image. Do not stack additional zoom/view-transform requests while an image render is pending; navigation may still cancel the pending render. Zoom-triggered render-too-large errors should restore the previous zoom/pan/raster and show a compact overlay instead of clearing the image. Error, empty, and scanning states may clear the image and show a full message.
-- Prefer display-sized rasters for fit/zoom rendering instead of forcing full-size decoded images into memory.
+- Prefer display-sized rasters for `fit` and region-sized rasters for non-fit zoom/actual-size rendering instead of forcing full-size decoded images into memory.
 - Use `src/core/render_memory_budget.*` for render-memory checks. Do not duplicate ad hoc raster byte math in decoders, cache code, or UI code.
 - Decoder-owned `QImage` data must either own its backing buffer through a Qt cleanup callback or be a real copy; never return a `QImage` pointing at freed libvips memory.
 - EXIF autorotate is a viewer setting and a synced checkable `View`/toolbar action. It must flow through `DecodeRequest` and the decoded image cache key so autorotated and non-autorotated rasters never collide.

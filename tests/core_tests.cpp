@@ -62,11 +62,13 @@ private slots:
     void archiveEntryStreamReadsSequentially();
     void decoderLoadsArchiveEntryWhenBoundedReadWouldFail();
     void decoderReportsMissingArchiveEntry();
+    void decoderRegionRenderingLimitsZoomOutput();
     void decoderReportsRenderTooLargeReason();
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
     void decodeRequestCacheKeyIncludesExifAutorotate();
     void decodeRequestCacheKeyIncludesRotation();
+    void decodeRequestCacheKeyIncludesRegionAndPan();
     void prefetchPolicyAllowsOnlyFitSizedRequests();
     void shortcutSettingsDefaultsAndCustomization();
     void appSettingsRoundTripsThroughQSettings();
@@ -817,6 +819,43 @@ void CoreTests::decoderReportsMissingArchiveEntry()
     QCOMPARE(decoded.errorReason, DecodeErrorReason::Other);
 }
 
+void CoreTests::decoderRegionRenderingLimitsZoomOutput()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(400, 300, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+
+    DecodeRequest fullRequest;
+    fullRequest.viewportSize = QSize(100, 80);
+    fullRequest.fitToWindow = false;
+    fullRequest.regionRendering = false;
+    fullRequest.scaleFactor = 4.0;
+    fullRequest.maxDecodedBytes = 512 * 1024;
+
+    VipsImageDecoder decoder;
+    const DecodedImage fullDecoded = decoder.decode(entry, fullRequest);
+    QVERIFY(!fullDecoded.ok());
+    QCOMPARE(fullDecoded.errorReason, DecodeErrorReason::RenderTooLarge);
+
+    DecodeRequest regionRequest = fullRequest;
+    regionRequest.regionRendering = true;
+    const DecodedImage regionDecoded = decoder.decode(entry, regionRequest);
+    QVERIFY2(regionDecoded.ok(), qPrintable(regionDecoded.errorMessage));
+    QVERIFY(regionDecoded.regionBased);
+    QCOMPARE(regionDecoded.sourceSize, QSize(400, 300));
+    QCOMPARE(regionDecoded.fullDisplaySize, QSize(1600, 1200));
+    QVERIFY(regionDecoded.image.width() < regionDecoded.fullDisplaySize.width());
+    QVERIFY(regionDecoded.image.height() < regionDecoded.fullDisplaySize.height());
+    QVERIFY(regionDecoded.image.sizeInBytes() <= regionRequest.maxDecodedBytes);
+    QVERIFY(!regionDecoded.sourceRegion.isEmpty());
+}
+
 void CoreTests::decoderReportsRenderTooLargeReason()
 {
     QTemporaryDir tempDir;
@@ -907,6 +946,23 @@ void CoreTests::decodeRequestCacheKeyIncludesRotation()
     rotated.rotationDegrees = 90;
 
     QVERIFY(unrotated.cacheKeySuffix() != rotated.cacheKeySuffix());
+}
+
+void CoreTests::decodeRequestCacheKeyIncludesRegionAndPan()
+{
+    DecodeRequest full;
+    full.viewportSize = QSize(800, 600);
+    full.scaleFactor = 2.0;
+    full.fitToWindow = false;
+    full.regionRendering = false;
+
+    DecodeRequest region = full;
+    region.regionRendering = true;
+    QVERIFY(full.cacheKeySuffix() != region.cacheKeySuffix());
+
+    DecodeRequest panned = region;
+    panned.panOffset = QPointF(12.0, -8.0);
+    QVERIFY(region.cacheKeySuffix() != panned.cacheKeySuffix());
 }
 
 void CoreTests::prefetchPolicyAllowsOnlyFitSizedRequests()

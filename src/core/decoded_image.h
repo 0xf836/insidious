@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QImage>
+#include <QPoint>
+#include <QPointF>
+#include <QRect>
 #include <QSize>
 #include <QString>
 #include <QVector>
@@ -9,20 +12,25 @@ namespace insidious::core {
 
 struct DecodeRequest {
     QSize viewportSize;
+    QPointF panOffset;
     double scaleFactor = 1.0;
     int rotationDegrees = 0;
     bool fitToWindow = true;
+    bool regionRendering = false;
     bool exifAutorotate = true;
     qint64 maxDecodedBytes = 384LL * 1024LL * 1024LL;
 
     [[nodiscard]] QString cacheKeySuffix() const
     {
-        return QStringLiteral("%1x%2|scale=%3|rot=%4|fit=%5|autorot=%6|max=%7")
+        return QStringLiteral("%1x%2|pan=%3,%4|scale=%5|rot=%6|fit=%7|region=%8|autorot=%9|max=%10")
             .arg(QString::number(viewportSize.width()),
                  QString::number(viewportSize.height()),
+                 QString::number(panOffset.x(), 'f', 2),
+                 QString::number(panOffset.y(), 'f', 2),
                  QString::number(scaleFactor, 'f', 4),
                  QString::number(rotationDegrees),
                  fitToWindow ? QStringLiteral("1") : QStringLiteral("0"),
+                 regionRendering ? QStringLiteral("1") : QStringLiteral("0"),
                  exifAutorotate ? QStringLiteral("1") : QStringLiteral("0"),
                  QString::number(maxDecodedBytes));
     }
@@ -50,8 +58,12 @@ struct DecodedImage {
     QImage image;
     QSize sourceSize;
     QSize displaySize;
+    QSize fullDisplaySize;
+    QPoint displayRegionOffset;
+    QRect sourceRegion;
     QVector<ImageMetadataField> metadataFields;
     double effectiveScale = 1.0;
+    bool regionBased = false;
     QString errorMessage;
     DecodeErrorReason errorReason = DecodeErrorReason::None;
 

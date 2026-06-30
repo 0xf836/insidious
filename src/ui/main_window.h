@@ -186,6 +186,7 @@ private:
     void updateInteractionState();
     void updateInfoPanelForCurrentImage(const QString &state = {});
     void scheduleFitReload();
+    void scheduleRegionReload();
     void clearPrefetchJobs();
     void prefetchNeighbors(const core::DecodeRequest &request);
     void reloadAfterImageSwitch();
@@ -305,6 +306,7 @@ private:
     QFutureWatcher<CopyOriginalImageJobResult> m_copyOriginalImageWatcher;
     QHash<QString, QFutureWatcher<void> *> m_prefetchWatchers;
     QTimer m_resizeReloadTimer;
+    QTimer m_regionReloadTimer;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
     quint64 m_copyOriginalImageGeneration = 0;

@@ -54,7 +54,14 @@ ImageViewWidget::ImageViewWidget(QWidget *parent)
 
 void ImageViewWidget::setImage(const QImage &image)
 {
+    setImage(image, image.size(), QPoint());
+}
+
+void ImageViewWidget::setImage(const QImage &image, QSize fullImageSize, QPoint imageRegionOffset)
+{
     m_image = image;
+    m_fullImageSize = fullImageSize.isEmpty() ? image.size() : fullImageSize;
+    m_imageRegionOffset = imageRegionOffset;
     m_message.clear();
     m_overlayMessage.clear();
     updateIdleCursor();
@@ -64,6 +71,8 @@ void ImageViewWidget::setImage(const QImage &image)
 void ImageViewWidget::setMessage(const QString &message)
 {
     m_image = QImage();
+    m_fullImageSize = QSize();
+    m_imageRegionOffset = QPoint();
     m_message = message;
     m_overlayMessage.clear();
     stopImageInteraction();
@@ -151,7 +160,7 @@ QRectF ImageViewWidget::imageRect() const
     if (m_image.isNull()) {
         return QRectF();
     }
-    return QRectF(imageTopLeft(), QSizeF(m_image.size()));
+    return QRectF(imageTopLeft(), QSizeF(m_fullImageSize));
 }
 
 void ImageViewWidget::resetPan()
@@ -168,7 +177,7 @@ void ImageViewWidget::paintEvent(QPaintEvent *event)
 
     if (!m_image.isNull()) {
         painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        painter.drawImage(imageTopLeft(), m_image);
+        painter.drawImage(imageTopLeft() + QPointF(m_imageRegionOffset), m_image);
 
         if (m_selectingZoom) {
             const QRect selection = zoomSelectionRect().intersected(rect());
@@ -394,7 +403,8 @@ void ImageViewWidget::mouseDoubleClickEvent(QMouseEvent *event)
 
 QPointF ImageViewWidget::imageTopLeft() const
 {
-    const QPointF centered((width() - m_image.width()) / 2.0, (height() - m_image.height()) / 2.0);
+    const QSize imageSize = m_fullImageSize.isEmpty() ? m_image.size() : m_fullImageSize;
+    const QPointF centered((width() - imageSize.width()) / 2.0, (height() - imageSize.height()) / 2.0);
     return centered + m_panOffset;
 }
 

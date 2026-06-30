@@ -54,7 +54,7 @@
 
 Причина: это снижает расход памяти на больших изображениях и лучше соответствует цели быстрого viewer. `actual size` ограничивается бюджетом decoded bytes.
 
-Ограничение: текущая реализация все еще рендерит полный zoomed raster для выбранного масштаба. Поэтому практический потолок zoom сейчас задается render budget, а не только `MaximumZoomFactor`. Следующий шаг для больших изображений - перейти к region-based rendering для видимой области плюс небольшой запас.
+Обновление: non-fit zoom/actual-size rendering декодирует видимую область плюс запас вместо полного zoomed raster. Render budget теперь применяется к фактическому output raster region; total peak memory всё ещё зависит от libvips working memory и source/cache state.
 
 ## ADR-010: MVP избегает recent-file integration
 

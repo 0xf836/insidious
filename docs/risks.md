@@ -87,4 +87,4 @@ Natural sort должен корректно обрабатывать имена
 
 ## Память
 
-Опасность: большие изображения и prefetch могут быстро съесть память. Cache должен иметь лимиты и уметь освобождать decoded images. Отдельно, текущий zoom pipeline рендерит полный raster выбранного масштаба, поэтому практический потолок zoom может наступать по render budget раньше, чем по `MaximumZoomFactor`; для больших исходников нужен region-based rendering, иначе простое поднятие лимита не решит UX-проблему.
+Опасность: большие изображения, decoded cache и future thumbnail work могут быстро съесть память. Cache должен иметь лимиты и уметь освобождать decoded images. Non-fit zoom/actual-size rendering сейчас декодирует только видимую область плюс запас, но total peak memory всё ещё зависит от libvips working memory, source-reader buffering и будущих thumbnails.

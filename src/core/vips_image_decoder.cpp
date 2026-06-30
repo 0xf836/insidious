@@ -76,6 +76,87 @@ double fitScaleFor(QSize imageSize, QSize viewportSize)
     return std::max(0.01, std::min(horizontal, vertical));
 }
 
+QSize scaledSizeFor(QSize imageSize, double scale)
+{
+    if (imageSize.isEmpty() || !std::isfinite(scale) || scale <= 0.0) {
+        return QSize();
+    }
+
+    return QSize(
+        static_cast<int>(std::ceil(static_cast<double>(imageSize.width()) * scale)),
+        static_cast<int>(std::ceil(static_cast<double>(imageSize.height()) * scale)));
+}
+
+int clampedInt(int value, int minimum, int maximum)
+{
+    return std::clamp(value, minimum, maximum);
+}
+
+QRect clampedDisplayRegion(QRectF region, QSize fullDisplaySize)
+{
+    if (fullDisplaySize.isEmpty()) {
+        return QRect();
+    }
+
+    const QRectF fullRect(QPointF(0.0, 0.0), QSizeF(fullDisplaySize));
+    region = region.intersected(fullRect);
+    if (region.isEmpty()) {
+        return QRect();
+    }
+
+    const int left = clampedInt(static_cast<int>(std::floor(region.left())), 0, fullDisplaySize.width() - 1);
+    const int top = clampedInt(static_cast<int>(std::floor(region.top())), 0, fullDisplaySize.height() - 1);
+    const int right = clampedInt(static_cast<int>(std::ceil(region.right())), left + 1, fullDisplaySize.width());
+    const int bottom = clampedInt(static_cast<int>(std::ceil(region.bottom())), top + 1, fullDisplaySize.height());
+    return QRect(left, top, right - left, bottom - top);
+}
+
+QRect regionDisplayRect(QSize fullDisplaySize, QSize viewportSize, QPointF panOffset)
+{
+    if (fullDisplaySize.isEmpty()) {
+        return QRect();
+    }
+    if (viewportSize.isEmpty()) {
+        return QRect(QPoint(0, 0), fullDisplaySize);
+    }
+
+    const QPointF fullTopLeft(
+        (viewportSize.width() - fullDisplaySize.width()) / 2.0 + panOffset.x(),
+        (viewportSize.height() - fullDisplaySize.height()) / 2.0 + panOffset.y());
+    const QRectF viewportInDisplay(
+        -fullTopLeft.x(),
+        -fullTopLeft.y(),
+        viewportSize.width(),
+        viewportSize.height());
+    QRect visible = clampedDisplayRegion(viewportInDisplay, fullDisplaySize);
+
+    if (visible.isEmpty()) {
+        const QPointF center = viewportInDisplay.center();
+        const int x = clampedInt(static_cast<int>(std::floor(center.x())), 0, fullDisplaySize.width() - 1);
+        const int y = clampedInt(static_cast<int>(std::floor(center.y())), 0, fullDisplaySize.height() - 1);
+        visible = QRect(x, y, 1, 1);
+    }
+
+    const int overscanX = std::max(128, viewportSize.width() / 2);
+    const int overscanY = std::max(128, viewportSize.height() / 2);
+    return clampedDisplayRegion(
+        QRectF(visible).adjusted(-overscanX, -overscanY, overscanX, overscanY),
+        fullDisplaySize);
+}
+
+QRect sourceRegionForDisplayRegion(QRect displayRegion, double scale, QSize imageSize)
+{
+    if (displayRegion.isEmpty() || imageSize.isEmpty() || !std::isfinite(scale) || scale <= 0.0) {
+        return QRect();
+    }
+
+    const int left = clampedInt(static_cast<int>(std::floor(displayRegion.left() / scale)), 0, imageSize.width() - 1);
+    const int top = clampedInt(static_cast<int>(std::floor(displayRegion.top() / scale)), 0, imageSize.height() - 1);
+    const int right = clampedInt(static_cast<int>(std::ceil((displayRegion.left() + displayRegion.width()) / scale)), left + 1, imageSize.width());
+    const int bottom = clampedInt(static_cast<int>(std::ceil((displayRegion.top() + displayRegion.height()) / scale)), top + 1, imageSize.height());
+    return QRect(left, top, right - left, bottom - top);
+}
+
 void freeVipsMemory(void *memory)
 {
     g_free(memory);
@@ -219,15 +300,40 @@ DecodedImage VipsImageDecoder::decode(
         const double scale = request.fitToWindow
             ? fitScaleFor(rotatedSize, request.viewportSize)
             : std::max(0.01, request.scaleFactor);
+        const QSize fullDisplaySize = scaledSizeFor(rotatedSize, scale);
+        QRect sourceRegion(QPoint(0, 0), rotatedSize);
+        QPoint displayRegionOffset;
+        const bool useRegionRendering = request.regionRendering && !request.fitToWindow;
+
+        if (useRegionRendering) {
+            const QRect displayRegion = regionDisplayRect(fullDisplaySize, request.viewportSize, request.panOffset);
+            sourceRegion = sourceRegionForDisplayRegion(displayRegion, scale, rotatedSize);
+            if (sourceRegion.isEmpty()) {
+                result.errorMessage = QObject::tr("Image region is empty.");
+                result.errorReason = DecodeErrorReason::Other;
+                return result;
+            }
+            displayRegionOffset = QPoint(
+                static_cast<int>(std::floor(sourceRegion.left() * scale)),
+                static_cast<int>(std::floor(sourceRegion.top() * scale)));
+        }
 
         if (exceedsRenderMemoryBudget(
-                QSize(image.width(), image.height()),
+                sourceRegion.size(),
                 image.bands(),
                 scale,
                 request.maxDecodedBytes)) {
             result.errorMessage = QObject::tr("Image is too large to render at the requested scale.");
             result.errorReason = DecodeErrorReason::RenderTooLarge;
             return result;
+        }
+
+        if (useRegionRendering) {
+            image = image.extract_area(
+                sourceRegion.left(),
+                sourceRegion.top(),
+                sourceRegion.width(),
+                sourceRegion.height());
         }
 
         if (std::abs(scale - 1.0) > 0.001) {
@@ -274,7 +380,11 @@ DecodedImage VipsImageDecoder::decode(
         result.image = view;
 
         result.displaySize = result.image.size();
+        result.fullDisplaySize = fullDisplaySize.isEmpty() ? result.displaySize : fullDisplaySize;
+        result.displayRegionOffset = displayRegionOffset;
+        result.sourceRegion = sourceRegion;
         result.effectiveScale = scale;
+        result.regionBased = useRegionRendering;
     } catch (const vips::VError &error) {
         result.errorMessage = archiveDecodeErrorMessage(archiveStream.get(), error.what());
         result.errorReason = DecodeErrorReason::Other;
