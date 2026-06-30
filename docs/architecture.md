@@ -129,7 +129,7 @@ Total peak memory проверяется отдельным developer-only audit
 4. Folder scanner загружает корневую папку и прямые подпапки.
 5. Viewer state устанавливает текущий entry в активной папке.
 6. Image loader декодирует текущее изображение.
-7. Cache запускает prefetch previous/next.
+7. Cache запускает fit-sized prefetch previous/next.
 8. UI обновляет изображение и statusbar.
 
 ## Поток открытия архива

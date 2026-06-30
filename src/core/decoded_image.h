@@ -28,6 +28,13 @@ struct DecodeRequest {
     }
 };
 
+[[nodiscard]] inline bool shouldPrefetchDecodeRequest(const DecodeRequest &request)
+{
+    return request.fitToWindow
+        && request.viewportSize.width() > 0
+        && request.viewportSize.height() > 0;
+}
+
 struct ImageMetadataField {
     QString name;
     QString value;

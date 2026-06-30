@@ -36,7 +36,7 @@
 - `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки/архива, source tree для папок/архивов, состояние viewer, настройки, render-memory budget, memory-only cache, libarchive reader, libvips decoder.
 - `tests/` — Qt Test тесты для core-логики.
 
-Главный поток открытия изображения: UI принимает путь, core создаёт одиночную коллекцию, сканирует папку или читает список изображений из архива, `ViewerController` выбирает текущий entry, `VipsImageDecoder` асинхронно строит display-sized `QImage`, `MainWindow` обновляет `ImageViewWidget` и statusbar. Повторные render-запросы для того же изображения схлопываются до последнего запроса, а переключение на другое изображение запускает новый foreground decode сразу.
+Главный поток открытия изображения: UI принимает путь, core создаёт одиночную коллекцию, сканирует папку или читает список изображений из архива, `ViewerController` выбирает текущий entry, `VipsImageDecoder` асинхронно строит display-sized `QImage`, `MainWindow` обновляет `ImageViewWidget` и statusbar. Повторные render-запросы для того же изображения схлопываются до последнего запроса, а переключение на другое изображение запускает новый foreground decode сразу. Neighbor prefetch запускается только для fit-sized decode requests, чтобы фоновые задачи не повторяли тяжёлые actual-size/custom zoom renders.
 
 Архивы ZIP/7z/RAR открываются через libarchive как дерево virtual folders. При открытии асинхронно перечисляются headers и строятся списки изображений по папкам; entries читаются в память только при decode и не распаковываются на диск. Для архивов с паролем пароль запрашивается при открытии, хранится только в памяти для текущего архива и очищается при смене source.
 

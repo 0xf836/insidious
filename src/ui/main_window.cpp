@@ -1987,6 +1987,10 @@ void MainWindow::clearPrefetchJobs()
 
 void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
 {
+    if (!core::shouldPrefetchDecodeRequest(request)) {
+        return;
+    }
+
     const QVector<core::ImageEntry> &entries = m_controller.entries();
     const int currentIndex = m_controller.currentIndex();
     const auto cache = m_cache;

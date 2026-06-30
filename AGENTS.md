@@ -125,7 +125,7 @@ Current MVP fullscreen behavior:
 - Main image decode requests must go through the `MainWindow` loader. Re-render requests for the same entry should coalesce to the newest pending request, while image switches should start the new foreground decode immediately.
 - Keep cache state memory-only. Do not introduce persistent cache files, recent-file lists, or viewed-path settings.
 - Prefetch cache writes must use `MemoryImageCache` generation guards so stale background prefetch cannot repopulate cache after source switches or cache clears.
-- Prefetch jobs should be tracked/coalesced by cache key. Do not start speculative prefetch for password-protected archive entries.
+- Prefetch jobs should be tracked/coalesced by cache key and limited to fit-sized decode requests. Do not start speculative prefetch for actual-size/custom zoom requests or password-protected archive entries.
 - `Copy Original Image` must copy original source bytes to the clipboard and may add compatible clipboard image data decoded from those same bytes, but it must not use the rendered raster. Filesystem and archive reads must stay off the UI thread; archive entries must be read through in-memory archive access without disk extraction, and archive passwords must remain only in memory.
 - When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, `docs/`, `README.md`, and this file together.
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.

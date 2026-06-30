@@ -10,7 +10,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom around cursor, toolbar/shortcut zoom around viewport center, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
 - Настраиваемые режимы ЛКМ zoom: click-to-zoom/restore по умолчанию и hold-to-zoom-pan с возвратом на release.
 - Magnifier cursor для режимов ЛКМ zoom показывается только когда zoom/restore или hold-to-zoom доступен.
-- Async decode pipeline через libvips: display-sized rasters, stale-result guards, same-entry render coalescing, immediate foreground decode on image switch, tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
+- Async decode pipeline через libvips: display-sized rasters, stale-result guards, same-entry render coalescing, immediate foreground decode on image switch, fit-sized tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
 - Zoom render budget guard: если zoom-запрос слишком большой для decode budget, viewer откатывает предыдущий raster/zoom/pan и показывает компактный overlay вместо full-screen ошибки.
 - Total peak memory audit tooling and baseline for large filesystem image, archive image, zoom render, and prefetch scenarios.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
@@ -28,7 +28,6 @@ Roadmap — живой backlog реализации, а не обещание р
 ## Ближайшее / small stabilization
 
 - Memory follow-ups after total peak audit:
-  - prefetch policy: не запускать speculative prefetch для expensive render requests; оставить prefetch преимущественно для base/fit-sized neighbor images, чтобы фоновые decode jobs не дублировали zoom/archive memory pressure;
   - archive decode budget: учитывать in-memory archive entry buffer вместе с render output budget и показывать понятную ошибку, если archive entry + decode/render state выходят за допустимый предел;
   - audit coverage: при появлении thumbnail panel добавить memory-audit сценарии для thumbnail generation/cache до включения больших thumbnail caches.
 - Settings polish:

@@ -62,6 +62,7 @@ private slots:
     void archiveScanRejectsBrokenArchive();
     void decodeRequestCacheKeyIncludesExifAutorotate();
     void decodeRequestCacheKeyIncludesRotation();
+    void prefetchPolicyAllowsOnlyFitSizedRequests();
     void shortcutSettingsDefaultsAndCustomization();
     void appSettingsRoundTripsThroughQSettings();
     void appSettingsFallbacksAndClampsInvalidValues();
@@ -819,6 +820,28 @@ void CoreTests::decodeRequestCacheKeyIncludesRotation()
     rotated.rotationDegrees = 90;
 
     QVERIFY(unrotated.cacheKeySuffix() != rotated.cacheKeySuffix());
+}
+
+void CoreTests::prefetchPolicyAllowsOnlyFitSizedRequests()
+{
+    DecodeRequest fit;
+    fit.viewportSize = QSize(800, 600);
+    fit.fitToWindow = true;
+    QVERIFY(shouldPrefetchDecodeRequest(fit));
+
+    DecodeRequest emptyViewport = fit;
+    emptyViewport.viewportSize = QSize();
+    QVERIFY(!shouldPrefetchDecodeRequest(emptyViewport));
+
+    DecodeRequest actualSize = fit;
+    actualSize.fitToWindow = false;
+    actualSize.scaleFactor = 1.0;
+    QVERIFY(!shouldPrefetchDecodeRequest(actualSize));
+
+    DecodeRequest customZoom = fit;
+    customZoom.fitToWindow = false;
+    customZoom.scaleFactor = 2.0;
+    QVERIFY(!shouldPrefetchDecodeRequest(customZoom));
 }
 
 void CoreTests::shortcutSettingsDefaultsAndCustomization()
