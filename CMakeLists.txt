@@ -18,6 +18,8 @@ pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 set(CORE_SOURCES
     src/core/app_settings.cpp
     src/core/app_settings.h
+    src/core/archive_entry_stream.cpp
+    src/core/archive_entry_stream.h
     src/core/archive_collection_source.cpp
     src/core/archive_collection_source.h
     src/core/decoded_image.h

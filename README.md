@@ -33,18 +33,18 @@
 
 - `src/app/` — запуск процесса, инициализация libvips, создание `QApplication`, обработка optional path argument.
 - `src/ui/` — Qt Widgets слой: главное окно, actions/shortcuts, drag'n'drop, statusbar, fullscreen, левая панель дерева/списка файлов, правая панель базовой информации, диалог настроек, widget отрисовки изображения.
-- `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки/архива, source tree для папок/архивов, состояние viewer, настройки, render-memory budget, memory-only cache, libarchive reader, libvips decoder.
+- `src/core/` — логика без виджетов: `ImageEntry`, фильтр форматов MVP, natural sort, сканирование папки/архива, source tree для папок/архивов, состояние viewer, настройки, render-memory budget, memory-only cache, libarchive full-entry/stream readers, libvips decoder.
 - `tests/` — Qt Test тесты для core-логики.
 
 Главный поток открытия изображения: UI принимает путь, core создаёт одиночную коллекцию, сканирует папку или читает список изображений из архива, `ViewerController` выбирает текущий entry, `VipsImageDecoder` асинхронно строит display-sized `QImage`, `MainWindow` обновляет `ImageViewWidget` и statusbar. Повторные render-запросы для того же изображения схлопываются до последнего запроса, а переключение на другое изображение запускает новый foreground decode сразу. Neighbor prefetch запускается только для fit-sized decode requests, чтобы фоновые задачи не повторяли тяжёлые actual-size/custom zoom renders.
 
-Архивы ZIP/7z/RAR открываются через libarchive как дерево virtual folders. При открытии асинхронно перечисляются headers и строятся списки изображений по папкам; entries читаются в память только при decode и не распаковываются на диск. Для архивов с паролем пароль запрашивается при открытии, хранится только в памяти для текущего архива и очищается при смене source.
+Архивы ZIP/7z/RAR открываются через libarchive как дерево virtual folders. При открытии асинхронно перечисляются headers и строятся списки изображений по папкам; display decode читает выбранный entry как последовательный stream без полной буферизации и без распаковки на диск. Для архивов с паролем пароль запрашивается при открытии, хранится только в памяти для текущего архива и очищается при смене source.
 
 Левая панель `Files` разделена по вертикали: сверху дерево папок текущего source, снизу список изображений выбранной папки без thumbnails. Выбранная папка становится активной коллекцией `ViewerController`: next/previous идут внутри папки, а на границе переходят к соседней подходящей папке по дереву; first/last остаются внутри активной папки. Выбор строки мышью или клавиатурой переключает текущее изображение через существующий viewer pipeline. Для filesystem folders подпапки загружаются лениво при выборе или раскрытии ветки.
 
 `Navigate -> Quick Jump` (`Ctrl+F`) открывает поиск по имени файла в активной папке. Поиск нечувствителен к регистру и переключает выбранное совпадение через тот же viewer pipeline.
 
-`Edit -> Copy Original Image` (`Ctrl+C`) копирует в clipboard исходные bytes текущего image с MIME исходного формата и добавляет совместимое clipboard image data, декодированное из этих же исходных bytes. Команда не использует rendered raster, поэтому zoom, rotate, fit, EXIF autorotate и display scaling не меняют копируемые данные. Для archive entries bytes читаются из архива в память без распаковки на диск.
+`Edit -> Copy Original Image` (`Ctrl+C`) копирует в clipboard исходные bytes текущего image с MIME исходного формата и добавляет совместимое clipboard image data, декодированное из этих же исходных bytes. Команда не использует rendered raster, поэтому zoom, rotate, fit, EXIF autorotate и display scaling не меняют копируемые данные. Для archive entries bytes читаются из архива в память без распаковки на диск; это bounded full-read path, отдельный от streaming display decode.
 
 Правая панель `Info` по умолчанию скрыта и включается через `View -> Info`. Она группирует сведения в компактные секции `Info` и `EXIF`: базовая информация о текущем entry, dimensions после decode и набор полезных EXIF-полей, которые отдаёт libvips.
 

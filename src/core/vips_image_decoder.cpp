@@ -1,15 +1,15 @@
 #include "core/vips_image_decoder.h"
 
-#include "core/archive_collection_source.h"
+#include "core/archive_entry_stream.h"
 #include "core/render_memory_budget.h"
 
-#include <QByteArray>
 #include <QImage>
 #include <QObject>
 #include <QtGlobal>
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <vector>
 #include <vips/vips8>
 
@@ -87,6 +87,30 @@ QString vipsErrorMessage(const char *message)
     return text.isEmpty() ? QObject::tr("Image decoding failed.") : text;
 }
 
+gint64 archiveSourceRead(VipsSourceCustom *, void *buffer, gint64 length, gpointer userData)
+{
+    auto *reader = static_cast<ArchiveEntryStreamReader *>(userData);
+    if (reader == nullptr) {
+        return -1;
+    }
+
+    return reader->read(static_cast<char *>(buffer), length);
+}
+
+gint64 archiveSourceSeek(VipsSourceCustom *, gint64, int, gpointer)
+{
+    return -1;
+}
+
+QString archiveDecodeErrorMessage(const ArchiveEntryStreamReader *reader, const char *fallback)
+{
+    if (reader != nullptr && !reader->errorMessage().isEmpty()) {
+        return reader->errorMessage();
+    }
+
+    return vipsErrorMessage(fallback);
+}
+
 struct ExifFieldSpec {
     QString field;
     QString label;
@@ -156,21 +180,23 @@ DecodedImage VipsImageDecoder::decode(
     const QString &archivePassword) const
 {
     DecodedImage result;
+    std::unique_ptr<ArchiveEntryStreamReader> archiveStream;
 
     try {
-        QByteArray archiveEntryData;
         vips::VImage image;
         if (entry.source == ImageEntrySource::Archive) {
-            const ArchiveEntryReadResult archiveRead = readArchiveEntry(entry, archivePassword);
-            if (!archiveRead.ok()) {
-                result.errorMessage = archiveRead.errorMessage;
+            archiveStream = std::make_unique<ArchiveEntryStreamReader>(entry, archivePassword);
+            if (!archiveStream->open()) {
+                result.errorMessage = archiveStream->errorMessage();
                 result.errorReason = DecodeErrorReason::Other;
                 return result;
             }
-            archiveEntryData = archiveRead.data;
-            image = vips::VImage::new_from_buffer(
-                archiveEntryData.constData(),
-                archiveEntryData.size(),
+
+            VipsSourceCustom *source = vips_source_custom_new();
+            g_signal_connect(source, "read", G_CALLBACK(archiveSourceRead), archiveStream.get());
+            g_signal_connect(source, "seek", G_CALLBACK(archiveSourceSeek), nullptr);
+            image = vips::VImage::new_from_source(
+                vips::VSource(VIPS_SOURCE(source), vips::STEAL),
                 "",
                 vips::VImage::option()->set("access", "sequential"));
         } else {
@@ -250,7 +276,7 @@ DecodedImage VipsImageDecoder::decode(
         result.displaySize = result.image.size();
         result.effectiveScale = scale;
     } catch (const vips::VError &error) {
-        result.errorMessage = vipsErrorMessage(error.what());
+        result.errorMessage = archiveDecodeErrorMessage(archiveStream.get(), error.what());
         result.errorReason = DecodeErrorReason::Other;
     } catch (const std::exception &error) {
         result.errorMessage = QString::fromUtf8(error.what());

@@ -1,4 +1,5 @@
 #include "core/archive_collection_source.h"
+#include "core/archive_entry_stream.h"
 #include "core/app_settings.h"
 #include "core/folder_collection_source.h"
 #include "core/image_entry_validation.h"
@@ -23,6 +24,7 @@
 
 #include <archive.h>
 #include <archive_entry.h>
+#include <array>
 #include <limits>
 #include <vips/vips8>
 
@@ -57,6 +59,9 @@ private slots:
     void decoderAppliesViewRotation();
     void decoderImageBufferOutlivesDecodedImageCopies();
     void decoderLoadsPngFromArchive();
+    void archiveEntryStreamReadsSequentially();
+    void decoderLoadsArchiveEntryWhenBoundedReadWouldFail();
+    void decoderReportsMissingArchiveEntry();
     void decoderReportsRenderTooLargeReason();
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
@@ -728,6 +733,88 @@ void CoreTests::decoderLoadsPngFromArchive()
     QCOMPARE(decoded.sourceSize, QSize(12, 6));
     QVERIFY(decoded.displaySize.width() <= 6);
     QVERIFY(decoded.displaySize.height() <= 6);
+}
+
+void CoreTests::archiveEntryStreamReadsSequentially()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.zip"));
+    const QByteArray expected = pngBytes(QSize(12, 6), Qt::blue);
+    QVERIFY(writeZipArchive(path, {
+        { QStringLiteral("sample.png"), expected },
+    }));
+
+    const ScanResult scan = scanArchive(path);
+    QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+    QCOMPARE(scan.entries.size(), 1);
+
+    ArchiveEntryStreamReader reader(scan.entries.first());
+    QVERIFY2(reader.open(), qPrintable(reader.errorMessage()));
+
+    QByteArray actual;
+    std::array<char, 5> buffer;
+    for (;;) {
+        const qint64 bytesRead = reader.read(buffer.data(), buffer.size());
+        QVERIFY(bytesRead >= 0);
+        if (bytesRead == 0) {
+            break;
+        }
+        actual.append(buffer.data(), static_cast<qsizetype>(bytesRead));
+    }
+
+    QCOMPARE(actual, expected);
+}
+
+void CoreTests::decoderLoadsArchiveEntryWhenBoundedReadWouldFail()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.zip"));
+    QVERIFY(writeZipArchive(path, {
+        { QStringLiteral("sample.png"), pngBytes(QSize(12, 6), Qt::blue) },
+    }));
+
+    const ScanResult scan = scanArchive(path);
+    QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+    QCOMPARE(scan.entries.size(), 1);
+    QVERIFY(!readArchiveEntry(scan.entries.first(), {}, 1).ok());
+
+    DecodeRequest request;
+    request.viewportSize = QSize(6, 6);
+    request.fitToWindow = true;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(scan.entries.first(), request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.sourceSize, QSize(12, 6));
+}
+
+void CoreTests::decoderReportsMissingArchiveEntry()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.zip"));
+    QVERIFY(writeZipArchive(path, {
+        { QStringLiteral("sample.png"), pngBytes(QSize(12, 6), Qt::blue) },
+    }));
+
+    const ScanResult scan = scanArchive(path);
+    QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+    QCOMPARE(scan.entries.size(), 1);
+
+    ImageEntry missing = scan.entries.first();
+    missing.archiveEntryPath = QStringLiteral("missing.png");
+
+    DecodeRequest request;
+    request.viewportSize = QSize(6, 6);
+    request.fitToWindow = true;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(missing, request);
+    QVERIFY(!decoded.ok());
+    QVERIFY(decoded.errorMessage.contains(QStringLiteral("not found"), Qt::CaseInsensitive));
+    QCOMPARE(decoded.errorReason, DecodeErrorReason::Other);
 }
 
 void CoreTests::decoderReportsRenderTooLargeReason()

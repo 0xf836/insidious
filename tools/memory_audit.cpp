@@ -30,7 +30,7 @@ struct ScenarioResult {
     QString source;
     QString fixture;
     qint64 sourceBytes = 0;
-    qint64 archiveEntryBytes = 0;
+    qint64 archiveEntryBufferBytes = 0;
     qint64 renderEstimateBytes = 0;
     qint64 displayedBytes = 0;
     qint64 cacheBytes = 0;
@@ -86,7 +86,7 @@ void printResult(const ScenarioResult &result)
     out << "source=" << result.source << '\n';
     out << "fixture=" << result.fixture << '\n';
     out << "source_mib=" << bytesToMiB(result.sourceBytes) << '\n';
-    out << "archive_entry_mib=" << bytesToMiB(result.archiveEntryBytes) << '\n';
+    out << "archive_entry_buffer_mib=" << bytesToMiB(result.archiveEntryBufferBytes) << '\n';
     out << "render_estimate_mib=" << bytesToMiB(result.renderEstimateBytes) << '\n';
     out << "displayed_mib=" << bytesToMiB(result.displayedBytes) << '\n';
     out << "cache_mib=" << bytesToMiB(result.cacheBytes) << '\n';
@@ -176,11 +176,10 @@ ScenarioResult archiveFit(const QString &fixtureDir)
     result.source = QStringLiteral("archive");
     result.fixture = QFileInfo(path).fileName();
     result.sourceBytes = QFileInfo(path).size();
-    result.archiveEntryBytes = entry.fileSize;
     result.renderEstimateBytes = renderEstimateFor(decoded);
     result.displayedBytes = decoded.image.sizeInBytes();
     result.peakRssBytes = statusValueBytes(QStringLiteral("VmHWM"));
-    result.notes = QStringLiteral("archive entry buffer plus fit decode");
+    result.notes = QStringLiteral("streamed archive entry plus fit decode");
     return result;
 }
 

@@ -34,13 +34,14 @@ The build creates:
 - `src/core/image_formats.*` contains the MVP image extension allowlist: JPEG, PNG, WebP, BMP, DIB, plus archive extension detection for ZIP, 7z, and RAR.
 - `src/core/natural_sort.*` contains case-folded natural ordering for folder entries.
 - `src/core/folder_collection_source.*` supports the older flat non-recursive folder scan and the current source-tree flow: root folder scan plus lazy per-folder loading.
-- `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and reads selected archive members into memory without extracting them to disk.
+- `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and still provides bounded full-entry reads for features that require original bytes.
+- `src/core/archive_entry_stream.*` opens one archive member as a sequential in-memory stream for display decode without extracting it to disk or buffering the full member first.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
 - `src/core/app_settings.*` defines persistent settings defaults, enum/string conversion, validation/clamping, category reset behavior, and `QSettings` read/write.
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, metadata fields, and machine-readable decode error reasons.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
 - `src/core/render_memory_budget.*` estimates the memory required for the full output raster of a fit/zoom decode request and exposes the shared render-budget guard.
-- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from in-memory buffers, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
+- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
@@ -62,7 +63,7 @@ Transient loading display:
 - Cache misses during zoom keep the previous raster and decoded state visible without showing a loading label and without moving the old raster before the new decode is ready.
 - While a stale raster is displayed, image-specific interactions such as pan, click zoom, rectangle zoom, wheel zoom, toolbar zoom, fit/actual size, and rotate are disabled; image navigation and fullscreen remain available.
 - If a zoom-triggered decode exceeds the render budget, `VipsImageDecoder` reports `DecodeErrorReason::RenderTooLarge`; `MainWindow` restores the previous zoom/pan/raster and shows a compact `Too large to render` overlay instead of replacing the image with a full error message.
-- This budget is calculated by `render_memory_budget` and is currently applied to the entire zoomed raster, not the visible viewport region. It estimates the final display raster only; total peak memory can also include libvips working/cache memory, an archive entry buffer, the displayed raster, and decoded cache contents. Large source images can therefore hit the limit earlier than the on-screen zoom percentage suggests, even when more visual zoom would still be acceptable.
+- This budget is calculated by `render_memory_budget` and is currently applied to the entire zoomed raster, not the visible viewport region. It estimates the final display raster only; total peak memory can also include libvips working/cache memory, source-reader buffering, the displayed raster, and decoded cache contents. Large source images can therefore hit the limit earlier than the on-screen zoom percentage suggests, even when more visual zoom would still be acceptable.
 - `docs/memory-audit.md` records the current synthetic peak RSS baseline for filesystem, archive, zoom, and prefetch scenarios.
 - Full messages still clear the image for initial loading, scanning, empty states, and current-entry errors.
 
@@ -88,7 +89,7 @@ Opening an archive:
 4. Archive-backed `ImageEntry` values keep both the archive path and internal entry path; the active folder's file list and quick jump treat direct images in that folder as the current collection.
 5. If libarchive reports that a password is required or invalid, `MainWindow` prompts the user and retries the scan until the password works or the user cancels.
 6. The current archive password is stored only in `MainWindow` memory for the active archive source and is passed by value to archive scan/decode jobs; it is never written to `ImageEntry`, cache keys, docs, logs, settings, or UI labels.
-7. During decode, `VipsImageDecoder` reads the selected archive entry into a bounded `QByteArray` with the current archive password and passes it to `vips::VImage::new_from_buffer()`.
+7. During display decode, `VipsImageDecoder` wraps the selected archive entry in an unseekable sequential `VipsSourceCustom` stream and passes it to `vips::VImage::new_from_source()`. The selected entry is not buffered fully in memory first.
 
 Left file list:
 
@@ -113,7 +114,7 @@ Clipboard:
 
 - `Edit -> Copy Original Image` / `Ctrl+C` copies the current source image bytes to the clipboard with the MIME type derived from the original extension and also adds Qt clipboard image data decoded from those same source bytes for paste compatibility.
 - The command does not use `DecodedImage` or the rendered raster, so zoom, rotate, fit mode, display scaling, and EXIF autorotate do not affect the clipboard payload.
-- Filesystem images are read from `ImageEntry::absolutePath`; archive images are read through `readArchiveEntry()` with the current in-memory archive password and are not extracted to disk.
+- Filesystem images are read from `ImageEntry::absolutePath`; archive images are read through `readArchiveEntry()` with the current in-memory archive password and are not extracted to disk. This clipboard path intentionally reads the full original entry bytes and remains separate from streaming display decode.
 - Clipboard reads run on a separate `QFutureWatcher`, are limited to 256 MiB, and stale results are ignored if the current entry changes before the read finishes.
 - Clipboard payload stores image bytes and decoded image data only. Archive passwords and filesystem/archive paths are not written into clipboard metadata.
 
