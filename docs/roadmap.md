@@ -27,8 +27,6 @@ Roadmap — живой backlog реализации, а не обещание р
 
 ## Ближайшее / small stabilization
 
-- Memory follow-ups after total peak audit:
-  - audit coverage: при появлении thumbnail panel добавить memory-audit сценарии для thumbnail generation/cache до включения больших thumbnail caches.
 - Settings polish:
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
 - Quick Jump fullscreen polish:
@@ -70,3 +68,5 @@ Roadmap — живой backlog реализации, а не обещание р
   - подготовить Linux packaging path после стабилизации viewer behavior.
 - UI:
   - Переделать кнопки
+- Memory follow-ups after total peak audit:
+  - audit coverage: при появлении thumbnail panel добавить memory-audit сценарии для thumbnail generation/cache до включения больших thumbnail caches.
