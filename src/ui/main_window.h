@@ -126,6 +126,7 @@ private:
     };
 
     struct FullscreenUiState {
+        Qt::WindowStates windowState;
         bool menuBarVisible = true;
         bool toolBarVisible = true;
         bool statusBarVisible = true;
@@ -236,6 +237,7 @@ private:
     bool restoreTemporaryZoomReturnMode();
     void enterFullscreenMode();
     void exitFullscreenMode();
+    void refreshNormalLayoutAfterFullscreen();
     void hideFullscreenOverlayPanels();
     void updateFullscreenOverlayGeometry();
     void updateFullscreenOverlayVisibility();

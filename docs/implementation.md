@@ -121,7 +121,7 @@ Clipboard:
 
 Fullscreen overlay UI:
 
-- Entering fullscreen stores the normal visibility of the menu bar, main toolbar, statusbar, `Files` dock, and `Info` dock, hides them, and makes the central image viewer occupy the window.
+- Entering fullscreen stores the previous non-fullscreen window state plus normal visibility of the menu bar, main toolbar, statusbar, `Files` dock, and `Info` dock, hides the UI chrome, and makes the central image viewer occupy the window. Exiting fullscreen restores the saved non-fullscreen window state instead of calling `showNormal()`, which keeps tiling/maximized window-manager geometry more predictable.
 - Fullscreen edge UI is implemented as child overlay widgets of `MainWindow`, not as dock widgets and not as layout participants. Showing or hiding these overlays must not resize `ImageViewWidget`, alter zoom/pan, or trigger image reload.
 - The left overlay owns a second `QTreeView` and `QListView` backed by the same tree/list models as the normal `Files` dock. The views have separate selection models and are synchronized from the active folder and `ViewerController::currentIndex()`.
 - The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.

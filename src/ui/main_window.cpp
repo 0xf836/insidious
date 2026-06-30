@@ -30,6 +30,7 @@
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
+#include <QLayout>
 #include <QInputDialog>
 #include <QImageReader>
 #include <QListView>
@@ -129,11 +130,6 @@ QString applicationStyleSheet(core::UiTheme theme)
         "  color: #f1f3f4;"
         "  padding: 4px;"
         "  border-bottom: 1px solid #3a414a;"
-        "}"
-        "QStatusBar {"
-        "  background-color: #202124;"
-        "  color: #e8eaed;"
-        "  border-top: 1px solid #3a414a;"
         "}"
         "QTreeView, QListView, QTableWidget {"
         "  background-color: #171a1f;"
@@ -358,8 +354,32 @@ MainWindow::MainWindow(QWidget *parent)
     m_imageView->setMessage(tr("Open an image or folder."));
     setCentralWidget(m_imageView);
 
-    m_statusLabel = new QLabel(this);
+    statusBar()->setObjectName(QStringLiteral("mainStatusBar"));
+    statusBar()->setSizeGripEnabled(false);
+    statusBar()->setContentsMargins(0, 0, 0, 0);
+    statusBar()->setAutoFillBackground(true);
+    statusBar()->setAttribute(Qt::WA_StyledBackground, true);
+    statusBar()->setStyleSheet(QStringLiteral(
+        "QStatusBar#mainStatusBar {"
+        "  background: palette(window);"
+        "  color: palette(window-text);"
+        "  border-top: 1px solid palette(mid);"
+        "  border-bottom: 0;"
+        "  margin: 0;"
+        "  padding: 0;"
+        "}"
+        "QStatusBar#mainStatusBar::item {"
+        "  border: 0;"
+        "}"
+        "QLabel#mainStatusLabel {"
+        "  background: transparent;"
+        "  color: palette(window-text);"
+        "}"));
+
+    m_statusLabel = new QLabel(statusBar());
+    m_statusLabel->setObjectName(QStringLiteral("mainStatusLabel"));
     m_statusLabel->setTextFormat(Qt::RichText);
+    m_statusLabel->setMargin(0);
     statusBar()->addPermanentWidget(m_statusLabel, 1);
 
     setupFileListPanel();
@@ -466,8 +486,12 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
-    updateFullscreenOverlayGeometry();
-    updateFullscreenOverlayVisibility();
+    if (m_fullscreenUiActive || isFullScreen()) {
+        updateFullscreenOverlayGeometry();
+        updateFullscreenOverlayVisibility();
+    } else {
+        hideFullscreenOverlayPanels();
+    }
     scheduleFitReload();
 }
 
@@ -3010,6 +3034,7 @@ void MainWindow::enterFullscreenMode()
         return;
     }
 
+    m_preFullscreenUiState.windowState = windowState() & ~Qt::WindowFullScreen;
     m_preFullscreenUiState.menuBarVisible = menuBar()->isVisible();
     m_preFullscreenUiState.toolBarVisible = m_mainToolBar != nullptr && m_mainToolBar->isVisible();
     m_preFullscreenUiState.statusBarVisible = statusBar()->isVisible();
@@ -3047,7 +3072,8 @@ void MainWindow::exitFullscreenMode()
     const bool shouldRestoreUi = m_fullscreenUiActive;
     m_fullscreenUiActive = false;
     updateFullscreenInfoLine();
-    showNormal();
+    setWindowState(m_preFullscreenUiState.windowState);
+    show();
 
     if (!shouldRestoreUi) {
         return;
@@ -3064,6 +3090,60 @@ void MainWindow::exitFullscreenMode()
     if (m_infoDock != nullptr) {
         m_infoDock->setVisible(m_preFullscreenUiState.infoDockVisible);
     }
+
+    refreshNormalLayoutAfterFullscreen();
+    QTimer::singleShot(0, this, [this]() {
+        refreshNormalLayoutAfterFullscreen();
+    });
+    QTimer::singleShot(50, this, [this]() {
+        refreshNormalLayoutAfterFullscreen();
+    });
+}
+
+void MainWindow::refreshNormalLayoutAfterFullscreen()
+{
+    if (m_fullscreenUiActive || isFullScreen()) {
+        return;
+    }
+
+    hideFullscreenOverlayPanels();
+    updateFullscreenInfoLine();
+
+    if (QLayout *mainLayout = layout()) {
+        mainLayout->invalidate();
+        mainLayout->activate();
+    }
+
+    if (QWidget *currentCentralWidget = centralWidget()) {
+        currentCentralWidget->updateGeometry();
+        currentCentralWidget->update();
+    }
+
+    if (m_fullscreenLeftPanel != nullptr) {
+        m_fullscreenLeftPanel->setGeometry(QRect());
+    }
+    if (m_fullscreenRightPanel != nullptr) {
+        m_fullscreenRightPanel->setGeometry(QRect());
+    }
+    if (m_fullscreenTopPanel != nullptr) {
+        m_fullscreenTopPanel->setGeometry(QRect());
+    }
+    if (m_fullscreenBottomPanel != nullptr) {
+        m_fullscreenBottomPanel->setGeometry(QRect());
+    }
+
+    statusBar()->setAutoFillBackground(true);
+    statusBar()->setAttribute(Qt::WA_StyledBackground, true);
+    statusBar()->updateGeometry();
+    statusBar()->raise();
+    statusBar()->update();
+    if (m_statusLabel != nullptr) {
+        m_statusLabel->updateGeometry();
+        m_statusLabel->update();
+    }
+
+    updateGeometry();
+    update();
 }
 
 void MainWindow::hideFullscreenOverlayPanels()
