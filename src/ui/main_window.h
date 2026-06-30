@@ -152,6 +152,9 @@ private:
 
     void setupActions();
     void setupConnections();
+    void showTransientMenuBar();
+    void hideTransientMenuBar();
+    void scheduleTransientMenuBarHide();
     void setupFileListPanel();
     void setupInfoPanel();
     void setupFullscreenOverlayPanels();
@@ -295,6 +298,7 @@ private:
     QAction *m_rotateRightAction = nullptr;
     QAction *m_exifAutorotateAction = nullptr;
     QAction *m_fullscreenAction = nullptr;
+    bool m_menuBarShownByAlt = false;
 
     core::ViewerController m_controller;
     core::DecodedImage m_currentDecoded;

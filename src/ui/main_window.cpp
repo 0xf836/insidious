@@ -471,7 +471,18 @@ void MainWindow::dropEvent(QDropEvent *event)
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 {
-    Q_UNUSED(watched)
+    if (watched == menuBar()) {
+        if (event->type() == QEvent::FocusOut) {
+            scheduleTransientMenuBarHide();
+        } else if (event->type() == QEvent::KeyPress) {
+            auto *keyEvent = static_cast<QKeyEvent *>(event);
+            if (keyEvent->key() == Qt::Key_Escape && m_menuBarShownByAlt) {
+                hideTransientMenuBar();
+                event->accept();
+                return true;
+            }
+        }
+    }
 
     const bool relevantEvent = event->type() == QEvent::MouseMove
         || event->type() == QEvent::Enter
@@ -505,6 +516,15 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Escape && isFullScreen()) {
         exitFullscreenMode();
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Alt
+        && !event->isAutoRepeat()
+        && !isFullScreen()
+        && !m_fullscreenUiActive) {
+        showTransientMenuBar();
         event->accept();
         return;
     }
@@ -1028,6 +1048,17 @@ void MainWindow::setupActions()
     auto *editMenu = menuBar()->addMenu(tr("&Edit"));
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     auto *navigateMenu = menuBar()->addMenu(tr("&Navigate"));
+    menuBar()->installEventFilter(this);
+    connect(menuBar(), &QMenuBar::triggered, this, [this]() {
+        hideTransientMenuBar();
+    });
+    const QList<QMenu *> menus { fileMenu, editMenu, viewMenu, navigateMenu };
+    for (QMenu *menu : menus) {
+        connect(menu, &QMenu::aboutToHide, this, [this]() {
+            scheduleTransientMenuBarHide();
+        });
+    }
+
     m_mainToolBar = addToolBar(tr("Main"));
     m_mainToolBar->setObjectName(QStringLiteral("mainToolBar"));
     m_mainToolBar->setMovable(false);
@@ -1184,6 +1215,7 @@ void MainWindow::setupActions()
     viewMenu->addAction(infoAction);
 
     applyShortcutSettings();
+    menuBar()->hide();
 }
 
 void MainWindow::setupConnections()
@@ -1317,6 +1349,58 @@ void MainWindow::setupConnections()
         const QString message = tr("Original image copied to clipboard.");
         m_imageView->setOverlayMessage(message);
         updateStatus(message);
+    });
+}
+
+void MainWindow::showTransientMenuBar()
+{
+    QMenuBar *bar = menuBar();
+    if (bar == nullptr) {
+        return;
+    }
+
+    m_menuBarShownByAlt = true;
+    bar->show();
+    bar->raise();
+    if (!bar->actions().isEmpty()) {
+        bar->setActiveAction(bar->actions().constFirst());
+    }
+    bar->setFocus(Qt::MenuBarFocusReason);
+}
+
+void MainWindow::hideTransientMenuBar()
+{
+    if (!m_menuBarShownByAlt || isFullScreen() || m_fullscreenUiActive) {
+        return;
+    }
+
+    QMenuBar *bar = menuBar();
+    if (bar == nullptr) {
+        return;
+    }
+
+    bar->setActiveAction(nullptr);
+    bar->hide();
+    m_menuBarShownByAlt = false;
+    if (m_imageView != nullptr) {
+        m_imageView->setFocus(Qt::OtherFocusReason);
+    }
+}
+
+void MainWindow::scheduleTransientMenuBarHide()
+{
+    if (!m_menuBarShownByAlt) {
+        return;
+    }
+
+    QTimer::singleShot(0, this, [this]() {
+        if (!m_menuBarShownByAlt) {
+            return;
+        }
+        if (QApplication::activePopupWidget() != nullptr) {
+            return;
+        }
+        hideTransientMenuBar();
     });
 }
 
@@ -3034,6 +3118,7 @@ void MainWindow::enterFullscreenMode()
         return;
     }
 
+    hideTransientMenuBar();
     m_preFullscreenUiState.windowState = windowState() & ~Qt::WindowFullScreen;
     m_preFullscreenUiState.menuBarVisible = menuBar()->isVisible();
     m_preFullscreenUiState.toolBarVisible = m_mainToolBar != nullptr && m_mainToolBar->isVisible();
