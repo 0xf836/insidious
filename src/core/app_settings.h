@@ -24,6 +24,11 @@ enum class WheelAction {
     NoAction,
 };
 
+enum class UiTheme {
+    Light,
+    Dark,
+};
+
 enum class ClickZoomBehavior {
     ToggleOnClick,
     HoldToZoomPan,
@@ -81,6 +86,7 @@ struct FullscreenSettings {
 };
 
 struct InterfaceSettings {
+    UiTheme theme = UiTheme::Light;
     bool rememberLayout = true;
     QByteArray mainWindowGeometry;
     QByteArray mainWindowState;
@@ -123,6 +129,8 @@ struct AppSettings {
 [[nodiscard]] ClickZoomBehavior clickZoomBehaviorFromSettingsString(const QString &value, ClickZoomBehavior fallback);
 [[nodiscard]] QString wheelActionToSettingsString(WheelAction action);
 [[nodiscard]] WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fallback);
+[[nodiscard]] QString uiThemeToSettingsString(UiTheme theme);
+[[nodiscard]] UiTheme uiThemeFromSettingsString(const QString &value, UiTheme fallback);
 [[nodiscard]] QVector<ShortcutCommand> shortcutCommands();
 [[nodiscard]] QString shortcutCommandId(ShortcutCommand command);
 [[nodiscard]] QStringList defaultShortcutSequences(ShortcutCommand command);

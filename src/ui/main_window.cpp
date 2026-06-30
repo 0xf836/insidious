@@ -43,6 +43,7 @@
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QStyle>
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
@@ -63,6 +64,131 @@ constexpr int LoadingOverlayDelayMs = 150;
 constexpr qint64 MaxOriginalClipboardBytes = 256LL * 1024LL * 1024LL;
 constexpr int MainToolbarButtonHeight = 28;
 constexpr int FullscreenToolbarButtonHeight = 30;
+
+QPalette darkApplicationPalette()
+{
+    QPalette palette;
+    palette.setColor(QPalette::Window, QColor(QStringLiteral("#202124")));
+    palette.setColor(QPalette::WindowText, QColor(QStringLiteral("#f1f3f4")));
+    palette.setColor(QPalette::Base, QColor(QStringLiteral("#15171a")));
+    palette.setColor(QPalette::AlternateBase, QColor(QStringLiteral("#20242a")));
+    palette.setColor(QPalette::ToolTipBase, QColor(QStringLiteral("#252a31")));
+    palette.setColor(QPalette::ToolTipText, QColor(QStringLiteral("#f1f3f4")));
+    palette.setColor(QPalette::Text, QColor(QStringLiteral("#f1f3f4")));
+    palette.setColor(QPalette::Button, QColor(QStringLiteral("#2b3036")));
+    palette.setColor(QPalette::ButtonText, QColor(QStringLiteral("#f1f3f4")));
+    palette.setColor(QPalette::BrightText, QColor(QStringLiteral("#ffffff")));
+    palette.setColor(QPalette::Highlight, QColor(QStringLiteral("#3d78d8")));
+    palette.setColor(QPalette::HighlightedText, QColor(QStringLiteral("#ffffff")));
+    palette.setColor(QPalette::Link, QColor(QStringLiteral("#7fb1ff")));
+    palette.setColor(QPalette::Mid, QColor(QStringLiteral("#3a414a")));
+    palette.setColor(QPalette::Dark, QColor(QStringLiteral("#111317")));
+    palette.setColor(QPalette::Light, QColor(QStringLiteral("#4a5563")));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(QStringLiteral("#858b94")));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(QStringLiteral("#858b94")));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(QStringLiteral("#858b94")));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight, QColor(QStringLiteral("#303640")));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText, QColor(QStringLiteral("#858b94")));
+    return palette;
+}
+
+QString applicationStyleSheet(core::UiTheme theme)
+{
+    if (theme != core::UiTheme::Dark) {
+        return {};
+    }
+
+    return QStringLiteral(
+        "QToolTip {"
+        "  color: #f1f3f4;"
+        "  background-color: #252a31;"
+        "  border: 1px solid #4a5563;"
+        "  padding: 3px 6px;"
+        "}"
+        "QMenu {"
+        "  color: #f1f3f4;"
+        "  background-color: #20242a;"
+        "  border: 1px solid #3a414a;"
+        "}"
+        "QMenu::item {"
+        "  padding: 4px 24px 4px 22px;"
+        "}"
+        "QMenu::item:selected {"
+        "  background-color: #315f9f;"
+        "}"
+        "QMenu::separator {"
+        "  height: 1px;"
+        "  background-color: #3a414a;"
+        "  margin: 4px 8px;"
+        "}"
+        "QMenuBar::item:selected {"
+        "  background-color: #2f3742;"
+        "}"
+        "QDockWidget::title {"
+        "  background-color: #2a2f36;"
+        "  color: #f1f3f4;"
+        "  padding: 4px;"
+        "  border-bottom: 1px solid #3a414a;"
+        "}"
+        "QStatusBar {"
+        "  background-color: #202124;"
+        "  color: #e8eaed;"
+        "  border-top: 1px solid #3a414a;"
+        "}"
+        "QTreeView, QListView, QTableWidget {"
+        "  background-color: #171a1f;"
+        "  alternate-background-color: #20242a;"
+        "  color: #e8eaed;"
+        "  selection-background-color: #315f9f;"
+        "  selection-color: #ffffff;"
+        "  border: 1px solid #3a414a;"
+        "}"
+        "QHeaderView::section {"
+        "  background-color: #252a31;"
+        "  color: #f1f3f4;"
+        "  border: 0;"
+        "  border-right: 1px solid #3a414a;"
+        "  border-bottom: 1px solid #3a414a;"
+        "  padding: 4px 6px;"
+        "}"
+        "QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QFontComboBox {"
+        "  background-color: #15171a;"
+        "  color: #f1f3f4;"
+        "  border: 1px solid #4a5563;"
+        "  border-radius: 4px;"
+        "  padding: 3px 6px;"
+        "}"
+        "QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QFontComboBox:focus {"
+        "  border-color: #3d78d8;"
+        "}"
+        "QPushButton {"
+        "  background-color: #2b3036;"
+        "  color: #f1f3f4;"
+        "  border: 1px solid #4a5563;"
+        "  border-radius: 4px;"
+        "  padding: 4px 10px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #343b44;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #263a5f;"
+        "}"
+        "QPushButton:disabled {"
+        "  color: #858b94;"
+        "  background-color: #252a31;"
+        "}"
+        "QTabWidget::pane, QFrame {"
+        "  border-color: #3a414a;"
+        "}"
+        "QScrollBar:vertical, QScrollBar:horizontal {"
+        "  background: #20242a;"
+        "}"
+        "QScrollBar::handle:vertical, QScrollBar::handle:horizontal {"
+        "  background: #4a5563;"
+        "  border-radius: 3px;"
+        "}");
+}
 
 struct OriginalImageReadResult {
     QByteArray data;
@@ -896,12 +1022,13 @@ void MainWindow::setupActions()
         "  border-radius: 4px;"
         "}"
         "#mainToolBar QToolButton:hover {"
-        "  background: rgba(0, 0, 0, 18);"
-        "  border-color: rgba(0, 0, 0, 32);"
+        "  background: palette(alternate-base);"
+        "  border-color: palette(mid);"
         "}"
         "#mainToolBar QToolButton:checked {"
-        "  background: rgba(64, 128, 220, 32);"
-        "  border-color: rgba(64, 128, 220, 72);"
+        "  background: palette(highlight);"
+        "  color: palette(highlighted-text);"
+        "  border-color: palette(highlight);"
         "}"
         "#mainToolBar QToolButton:disabled {"
         "  color: palette(mid);"
@@ -1469,6 +1596,7 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
     const bool regionRenderingChanged = settings.viewer.regionRenderingEnabled != m_settings.viewer.regionRenderingEnabled;
 
     m_settings = settings;
+    applyTheme();
     applyShortcutSettings();
     if (defaultZoomChanged) {
         m_baseZoomMode = m_settings.viewer.defaultZoomMode == core::ZoomMode::ActualSize
@@ -1519,6 +1647,20 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
     updateFullscreenOverlayVisibility();
     updateFullscreenInfoLine();
     updateActionState();
+}
+
+void MainWindow::applyTheme()
+{
+    if (qApp == nullptr) {
+        return;
+    }
+
+    if (m_settings.interface.theme == core::UiTheme::Dark) {
+        qApp->setPalette(darkApplicationPalette());
+    } else if (qApp->style() != nullptr) {
+        qApp->setPalette(qApp->style()->standardPalette());
+    }
+    qApp->setStyleSheet(applicationStyleSheet(m_settings.interface.theme));
 }
 
 QAction *MainWindow::actionForShortcutCommand(core::ShortcutCommand command) const
@@ -2696,8 +2838,8 @@ void MainWindow::setupFileSortButton(QToolButton *button, bool fullscreen)
             "  padding: 2px 8px;"
             "}"
             "QToolButton:hover {"
-            "  background-color: rgba(0, 0, 0, 18);"
-            "  border-color: rgba(0, 0, 0, 28);"
+            "  background-color: palette(alternate-base);"
+            "  border-color: palette(mid);"
             "}"
             "QToolButton::menu-indicator { image: none; width: 0; }"));
     }

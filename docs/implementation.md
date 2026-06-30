@@ -149,7 +149,7 @@ Settings:
 - Shortcut settings currently include core viewer commands only. `AppSettings` owns stable command ids, keyboard/mouse input strings, defaults, QSettings read/write, reset behavior, and invalid-input fallback. `MainWindow` maps keyboard inputs onto existing `QAction` shortcuts and triggers the same actions for matching mouse button inputs, so menus, the normal toolbar, and the fullscreen top overlay share command routing. `CopyOriginalImage` defaults to `Ctrl+C`.
 - `SettingsDialog` exposes a `Shortcuts` page where a command can have keyboard and mouse inputs at the same time, be cleared, or reset to defaults. `Set Keyboard` replaces only keyboard inputs for that command, while `Set Mouse` replaces only mouse inputs. Apply/OK rejects duplicate non-empty inputs across the editable command set.
 - Fullscreen settings currently include side and top/bottom edge trigger ratios plus pinned info line enabled/font family/font size/color.
-- Interface settings currently include whether to remember layout plus window geometry/state and normal/fullscreen Files splitter state.
+- Interface settings currently include normal-mode light/dark theme, whether to remember layout, window geometry/state, and normal/fullscreen Files splitter state. Fullscreen overlay chrome remains dark-only.
 - Settings must stay privacy-safe: do not store recent files, source paths, archive paths, default image folders, archive passwords, thumbnails, decoded image data, or file logs. Shortcut settings store only command ids and portable keyboard/mouse input strings.
 - `AppSettings::read()` clamps numeric values and falls back on defaults for unknown enum strings so older or manually edited config files remain safe.
 

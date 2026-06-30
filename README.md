@@ -115,4 +115,4 @@ Run:
 ./build/insidious /path/to/image-folder-or-archive
 ```
 
-The app intentionally does not use recent-file history, persistent thumbnail caches, archive extraction, archive password persistence or file logging in the MVP. The settings file stores only non-history preferences.
+The app intentionally does not use recent-file history, persistent thumbnail caches, archive extraction, archive password persistence or file logging in the MVP. The settings file stores only non-history preferences such as viewer behavior, shortcuts, fullscreen presentation, normal-mode theme, and layout state.

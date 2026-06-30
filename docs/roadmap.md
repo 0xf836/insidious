@@ -23,13 +23,12 @@ Roadmap — живой backlog реализации, а не обещание р
 - Optional pinned fullscreen info line: `name (resolution | filesize) [index/count] zoom`, separate from edge overlays, with fullscreen settings for visibility, font, size, and color.
 - Clipboard: copy current original image bytes to clipboard with the source image MIME type.
 - Runtime file sorting from the toolbar: name natural order, type, size, and date; each supports ascending/descending without persistent settings.
-- Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, explicit previous/next folder actions, configurable core viewer keyboard/mouse shortcuts with conflict detection and restore defaults, fullscreen trigger zones, layout persistence.
+- Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, explicit previous/next folder actions, configurable core viewer keyboard/mouse shortcuts with conflict detection and restore defaults, fullscreen trigger zones, normal-mode light/dark theme, layout persistence.
 
 ## Ближайшее / small stabilization
 
 - UI polish:
   - сделать главное меню (File, Edit, etc) по умолчанию скрытым, вызываемым только при нажатии Alt
-  - добавить темную тему для normal mode;
   - сгруппировать и визуально привести в порядок Preferences dialog.
 - Settings polish:
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.

@@ -74,6 +74,7 @@ private:
     QFontComboBox *m_fullscreenInfoLineFontCombo = nullptr;
     QSpinBox *m_fullscreenInfoLineSizeSpin = nullptr;
     QPushButton *m_fullscreenInfoLineColorButton = nullptr;
+    QComboBox *m_themeCombo = nullptr;
     QCheckBox *m_rememberLayoutCheck = nullptr;
 };
 

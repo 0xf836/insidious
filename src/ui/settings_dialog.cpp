@@ -340,6 +340,11 @@ void SettingsDialog::setupInterfacePage()
 
     QFormLayout *form = pageForm(page);
 
+    m_themeCombo = new QComboBox(page);
+    m_themeCombo->addItem(tr("Light"), static_cast<int>(core::UiTheme::Light));
+    m_themeCombo->addItem(tr("Dark"), static_cast<int>(core::UiTheme::Dark));
+    form->addRow(tr("Theme:"), m_themeCombo);
+
     m_rememberLayoutCheck = new QCheckBox(tr("Remember window layout"), page);
     form->addRow(QString(), m_rememberLayoutCheck);
 
@@ -365,6 +370,7 @@ void SettingsDialog::updateControlsFromSettings()
     setFontComboFamily(m_fullscreenInfoLineFontCombo, m_settings.fullscreen.infoLineFontFamily);
     m_fullscreenInfoLineSizeSpin->setValue(m_settings.fullscreen.infoLineFontPointSize);
     updateFullscreenInfoLineColorButton();
+    setComboToData(m_themeCombo, static_cast<int>(m_settings.interface.theme));
     m_rememberLayoutCheck->setChecked(m_settings.interface.rememberLayout);
 }
 
@@ -386,6 +392,7 @@ void SettingsDialog::updateSettingsFromControls()
     m_settings.fullscreen.infoLineFontFamily = m_fullscreenInfoLineFontCombo->currentFont().family();
     m_settings.fullscreen.infoLineFontPointSize = m_fullscreenInfoLineSizeSpin->value();
     m_settings.fullscreen.infoLineColor = m_fullscreenInfoLineColorButton->property("colorName").toString();
+    m_settings.interface.theme = static_cast<core::UiTheme>(m_themeCombo->currentData().toInt());
     m_settings.interface.rememberLayout = m_rememberLayoutCheck->isChecked();
 }
 

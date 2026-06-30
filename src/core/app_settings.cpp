@@ -198,6 +198,9 @@ AppSettings AppSettings::read(QSettings &settings)
     settings.endGroup();
 
     settings.beginGroup(QStringLiteral("interface"));
+    result.interface.theme = uiThemeFromSettingsString(
+        settings.value(QStringLiteral("theme"), uiThemeToSettingsString(defaults.interface.theme)).toString(),
+        defaults.interface.theme);
     result.interface.rememberLayout = settings.value(QStringLiteral("rememberLayout"), defaults.interface.rememberLayout).toBool();
     result.interface.mainWindowGeometry = settings.value(QStringLiteral("mainWindowGeometry")).toByteArray();
     result.interface.mainWindowState = settings.value(QStringLiteral("mainWindowState")).toByteArray();
@@ -254,6 +257,7 @@ void AppSettings::write(QSettings &settings) const
     settings.endGroup();
 
     settings.beginGroup(QStringLiteral("interface"));
+    settings.setValue(QStringLiteral("theme"), uiThemeToSettingsString(interface.theme));
     settings.setValue(QStringLiteral("rememberLayout"), interface.rememberLayout);
     if (interface.rememberLayout) {
         settings.setValue(QStringLiteral("mainWindowGeometry"), interface.mainWindowGeometry);
@@ -383,6 +387,29 @@ WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fall
     }
     if (normalized == QLatin1String("none")) {
         return WheelAction::NoAction;
+    }
+    return fallback;
+}
+
+QString uiThemeToSettingsString(UiTheme theme)
+{
+    switch (theme) {
+    case UiTheme::Light:
+        return QStringLiteral("light");
+    case UiTheme::Dark:
+        return QStringLiteral("dark");
+    }
+    return QStringLiteral("light");
+}
+
+UiTheme uiThemeFromSettingsString(const QString &value, UiTheme fallback)
+{
+    const QString normalized = value.toCaseFolded();
+    if (normalized == QLatin1String("light")) {
+        return UiTheme::Light;
+    }
+    if (normalized == QLatin1String("dark")) {
+        return UiTheme::Dark;
     }
     return fallback;
 }

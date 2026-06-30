@@ -157,6 +157,7 @@ private:
     void loadSettings();
     void saveSettings();
     void applySettings(const core::AppSettings &settings, bool reloadCurrentImage);
+    void applyTheme();
     void captureLayoutSettings();
     void restoreLayoutSettings();
     void openFile(const QString &filePath);

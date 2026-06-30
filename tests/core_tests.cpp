@@ -1005,6 +1005,7 @@ void CoreTests::shortcutSettingsDefaultsAndCustomization()
     QCOMPARE(values.fullscreen.infoLineFontFamily, QStringLiteral("DejaVu Sans"));
     QCOMPARE(values.fullscreen.infoLineFontPointSize, 10);
     QCOMPARE(values.fullscreen.infoLineColor, QStringLiteral("#00ff00"));
+    QCOMPARE(values.interface.theme, UiTheme::Light);
 
     setShortcutSequences(&values.shortcuts, ShortcutCommand::NextImage, QStringList { QStringLiteral("N") });
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::NextImage), QStringList({ QStringLiteral("N") }));
@@ -1054,6 +1055,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.fullscreen.infoLineFontFamily = QStringLiteral("Serif");
     values.fullscreen.infoLineFontPointSize = 18;
     values.fullscreen.infoLineColor = QStringLiteral("#aabbcc");
+    values.interface.theme = UiTheme::Dark;
     values.interface.rememberLayout = true;
     values.interface.mainWindowGeometry = QByteArray("geometry");
     values.interface.mainWindowState = QByteArray("state");
@@ -1086,6 +1088,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.fullscreen.infoLineFontFamily, QStringLiteral("Serif"));
     QCOMPARE(loaded.fullscreen.infoLineFontPointSize, 18);
     QCOMPARE(loaded.fullscreen.infoLineColor, QStringLiteral("#aabbcc"));
+    QCOMPARE(loaded.interface.theme, UiTheme::Dark);
     QVERIFY(loaded.interface.rememberLayout);
     QCOMPARE(loaded.interface.mainWindowGeometry, QByteArray("geometry"));
     QCOMPARE(loaded.interface.mainWindowState, QByteArray("state"));
@@ -1120,6 +1123,9 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     writeSettings.setValue(QStringLiteral("infoLineFontPointSize"), 99);
     writeSettings.setValue(QStringLiteral("infoLineColor"), QStringLiteral("not-a-color"));
     writeSettings.endGroup();
+    writeSettings.beginGroup(QStringLiteral("interface"));
+    writeSettings.setValue(QStringLiteral("theme"), QStringLiteral("invalid"));
+    writeSettings.endGroup();
     writeSettings.beginGroup(QStringLiteral("shortcuts"));
     writeSettings.beginGroup(QStringLiteral("nextImage"));
     writeSettings.setValue(QStringLiteral("customized"), true);
@@ -1150,6 +1156,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     QVERIFY(loaded.fullscreen.infoLineEnabled);
     QCOMPARE(loaded.fullscreen.infoLineFontPointSize, 32);
     QCOMPARE(loaded.fullscreen.infoLineColor, AppSettings::defaults().fullscreen.infoLineColor);
+    QCOMPARE(loaded.interface.theme, UiTheme::Light);
     QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::NextImage), defaultShortcutSequences(ShortcutCommand::NextImage));
     QCOMPARE(shortcutSequences(loaded.shortcuts, ShortcutCommand::PreviousImage), QStringList());
 
