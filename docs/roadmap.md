@@ -27,6 +27,10 @@ Roadmap — живой backlog реализации, а не обещание р
 
 ## Ближайшее / small stabilization
 
+- Memory follow-ups after total peak audit:
+  - prefetch policy: не запускать speculative prefetch для expensive render requests; оставить prefetch преимущественно для base/fit-sized neighbor images, чтобы фоновые decode jobs не дублировали zoom/archive memory pressure;
+  - archive decode budget: учитывать in-memory archive entry buffer вместе с render output budget и показывать понятную ошибку, если archive entry + decode/render state выходят за допустимый предел;
+  - audit coverage: при появлении thumbnail panel добавить memory-audit сценарии для thumbnail generation/cache до включения больших thumbnail caches.
 - Settings polish:
   - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
 - Quick Jump fullscreen polish:
@@ -40,6 +44,7 @@ Roadmap — живой backlog реализации, а не обещание р
   - memory-only thumbnail cache;
   - отмена thumbnail work при смене panel/source.
 - Performance and memory improvements:
+  - region-based zoom rendering: заменить full-raster zoom decode на decode/render только видимой области изображения плюс небольшой запас; это главный structural follow-up после memory audit, где `zoom-render` дал самый высокий measured peak RSS;
   - archive random-access/performance strategy: benchmark current per-image archive decode on large ZIP/7z/RAR, reduce repeated header scans where possible, consider limiting archive prefetch until access strategy is improved;
   - large tree UI scaling: не пересобирать preorder folder lists на каждый action-state update, не делать full `CollectionTreeModel` reset при lazy-load одной папки, рассмотреть path-to-node/index maps.
 - Source completeness:
@@ -49,7 +54,6 @@ Roadmap — живой backlog реализации, а не обещание р
 ## Позже / larger milestones
 
 - Zoom UX polish:
-  - заменить full-raster zoom rendering на region-based rendering: декодировать и масштабировать только видимую область изображения плюс небольшой запас, чтобы убрать ранний упор в render budget на больших исходниках.
   - добавить будущий отдельный режим temporary view: при удержании ЛКМ zoom следует за курсором (размеры области настраиваются), после отпускания возврат к исходному состоянию.
 - Advanced rendering:
   - ICC/color management;
