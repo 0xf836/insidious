@@ -15,6 +15,7 @@ void CollectionTreeModel::setRoot(std::shared_ptr<core::CollectionFolderNode> ro
 {
     beginResetModel();
     m_root = std::move(root);
+    rebuildIndexes();
     endResetModel();
 }
 
@@ -23,30 +24,56 @@ void CollectionTreeModel::clear()
     setRoot(nullptr);
 }
 
+bool CollectionTreeModel::replaceLoadedFolderContents(
+    core::CollectionFolderNode *folder,
+    QVector<core::ImageEntry> images,
+    QVector<std::shared_ptr<core::CollectionFolderNode>> children)
+{
+    if (folder == nullptr || !m_nodeRows.contains(folder)) {
+        return false;
+    }
+
+    const QModelIndex folderIndex = indexForNode(folder);
+    if (!folderIndex.isValid()) {
+        return false;
+    }
+
+    if (!folder->children.isEmpty()) {
+        beginRemoveRows(folderIndex, 0, static_cast<int>(folder->children.size()) - 1);
+        for (const auto &child : folder->children) {
+            removeSubtreeFromIndexes(child.get());
+        }
+        folder->children.clear();
+        endRemoveRows();
+    }
+
+    folder->images = std::move(images);
+    folder->loaded = true;
+
+    if (children.isEmpty()) {
+        folder->children.clear();
+        return true;
+    }
+
+    beginInsertRows(folderIndex, 0, static_cast<int>(children.size()) - 1);
+    folder->children = std::move(children);
+    setChildRows(folder);
+    for (const auto &child : folder->children) {
+        child->parent = folder;
+        indexSubtree(child.get());
+    }
+    endInsertRows();
+    return true;
+}
+
 QModelIndex CollectionTreeModel::indexForFolderPath(const QString &relativePath) const
 {
-    core::CollectionFolderNode *root = rootNode();
-    if (root == nullptr) {
-        return {};
-    }
+    return indexForNode(nodeForFolderPath(relativePath));
+}
 
-    if (root->relativePath == relativePath) {
-        return indexForNode(root);
-    }
-
-    QVector<core::CollectionFolderNode *> stack;
-    stack.append(root);
-    while (!stack.isEmpty()) {
-        core::CollectionFolderNode *node = stack.takeLast();
-        if (node->relativePath == relativePath) {
-            return indexForNode(node);
-        }
-        for (const auto &child : node->children) {
-            stack.append(child.get());
-        }
-    }
-
-    return {};
+core::CollectionFolderNode *CollectionTreeModel::nodeForFolderPath(const QString &relativePath) const
+{
+    return m_nodesByPath.value(relativePath, nullptr);
 }
 
 core::CollectionFolderNode *CollectionTreeModel::nodeForIndex(const QModelIndex &index) const
@@ -142,22 +169,66 @@ QModelIndex CollectionTreeModel::indexForNode(core::CollectionFolderNode *node) 
         return createIndex(0, 0, node);
     }
 
-    const core::CollectionFolderNode *parentNode = node->parent;
-    if (parentNode == nullptr) {
+    const auto row = m_nodeRows.constFind(node);
+    if (row == m_nodeRows.constEnd() || *row < 0) {
         return {};
     }
-
-    for (qsizetype row = 0; row < parentNode->children.size(); ++row) {
-        if (parentNode->children.at(row).get() == node) {
-            return createIndex(static_cast<int>(row), 0, node);
-        }
-    }
-    return {};
+    return createIndex(*row, 0, node);
 }
 
 core::CollectionFolderNode *CollectionTreeModel::rootNode() const
 {
     return m_root.get();
+}
+
+void CollectionTreeModel::rebuildIndexes()
+{
+    m_nodesByPath.clear();
+    m_nodeRows.clear();
+    if (m_root == nullptr) {
+        return;
+    }
+
+    m_nodeRows.insert(m_root.get(), 0);
+    indexSubtree(m_root.get());
+}
+
+void CollectionTreeModel::indexSubtree(core::CollectionFolderNode *node)
+{
+    if (node == nullptr) {
+        return;
+    }
+
+    m_nodesByPath.insert(node->relativePath, node);
+    setChildRows(node);
+    for (const auto &child : node->children) {
+        child->parent = node;
+        indexSubtree(child.get());
+    }
+}
+
+void CollectionTreeModel::removeSubtreeFromIndexes(core::CollectionFolderNode *node)
+{
+    if (node == nullptr) {
+        return;
+    }
+
+    m_nodesByPath.remove(node->relativePath);
+    m_nodeRows.remove(node);
+    for (const auto &child : node->children) {
+        removeSubtreeFromIndexes(child.get());
+    }
+}
+
+void CollectionTreeModel::setChildRows(core::CollectionFolderNode *parent)
+{
+    if (parent == nullptr) {
+        return;
+    }
+
+    for (qsizetype row = 0; row < parent->children.size(); ++row) {
+        m_nodeRows.insert(parent->children.at(row).get(), static_cast<int>(row));
+    }
 }
 
 } // namespace insidious::ui

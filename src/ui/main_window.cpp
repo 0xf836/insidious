@@ -355,22 +355,24 @@ bool classifyOpenPaths(const QStringList &paths, OpenPathKind *kind, QString *er
     return true;
 }
 
-void rebaseLoadedFolderResult(core::CollectionFolderNode *node)
+void rebaseLoadedFolderResult(
+    const core::CollectionFolderNode *node,
+    QVector<core::ImageEntry> *images,
+    QVector<std::shared_ptr<core::CollectionFolderNode>> *children)
 {
-    if (node == nullptr || node->sourceTreePrefix.isEmpty()) {
+    if (node == nullptr || images == nullptr || children == nullptr || node->sourceTreePrefix.isEmpty()) {
         return;
     }
 
-    for (core::ImageEntry &entry : node->images) {
+    for (core::ImageEntry &entry : *images) {
         entry.sourceFolderPath = node->relativePath;
         entry.sourceRelativePath = joinPath(node->relativePath, entry.displayName);
     }
-    for (const auto &child : node->children) {
+    for (const auto &child : *children) {
         child->sourceTreePrefix = node->sourceTreePrefix;
         child->loadRootPath = node->loadRootPath;
         child->loadFolderRelativePath = child->relativePath;
         child->relativePath = joinPath(node->sourceTreePrefix, child->loadFolderRelativePath);
-        child->parent = node;
     }
 }
 
@@ -2130,6 +2132,7 @@ void MainWindow::openFileList(const QStringList &filePaths)
     m_sourceRoot = source.root;
     m_sourceRootPath = source.rootPath;
     m_fileTreeModel->setRoot(m_sourceRoot);
+    rebuildSourceFolderTraversal();
     if (m_sourceRoot != nullptr) {
         m_fileTreeView->expand(m_fileTreeModel->indexForFolderPath(QString()));
         if (m_fullscreenFileTreeView != nullptr) {
@@ -2339,6 +2342,7 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
     m_sourceRoot = job.result.root;
     m_sourceRootPath = job.result.rootPath;
     m_fileTreeModel->setRoot(m_sourceRoot);
+    rebuildSourceFolderTraversal();
     if (m_sourceRoot != nullptr) {
         m_fileTreeView->expand(m_fileTreeModel->indexForFolderPath(QString()));
         if (m_fullscreenFileTreeView != nullptr) {
@@ -2375,15 +2379,15 @@ void MainWindow::applyFolderLoadResult(const FolderLoadJobResult &job)
         return;
     }
 
-    node->images = job.result.images;
-    node->children = job.result.children;
-    node->loaded = true;
-    rebaseLoadedFolderResult(node);
-    for (const auto &child : node->children) {
-        child->parent = node;
+    QVector<core::ImageEntry> images = job.result.images;
+    QVector<std::shared_ptr<core::CollectionFolderNode>> children = job.result.children;
+    rebaseLoadedFolderResult(node, &images, &children);
+    if (!m_fileTreeModel->replaceLoadedFolderContents(node, std::move(images), std::move(children))) {
+        showError(tr("Could not update folder tree."));
+        return;
     }
+    rebuildSourceFolderTraversal();
 
-    m_fileTreeModel->setRoot(m_sourceRoot);
     const QModelIndex loadedIndex = m_fileTreeModel->indexForFolderPath(job.folderRelativePath);
     if (loadedIndex.isValid()) {
         m_fileTreeView->expand(loadedIndex);
@@ -2578,14 +2582,16 @@ void MainWindow::updateActionState()
     const bool hasImage = m_controller.hasCollection();
     const bool hasPreviousInFolder = hasImage && m_controller.currentIndex() > 0;
     const bool hasNextInFolder = hasImage && m_controller.currentIndex() + 1 < m_controller.count();
-    const bool hasPrevious = hasPreviousInFolder || hasAdjacentFolder(false);
-    const bool hasNext = hasNextInFolder || hasAdjacentFolder(true);
+    const bool hasPreviousAdjacentFolder = adjacentFolder(false) != nullptr;
+    const bool hasNextAdjacentFolder = adjacentFolder(true) != nullptr;
+    const bool hasPrevious = hasPreviousInFolder || hasPreviousAdjacentFolder;
+    const bool hasNext = hasNextInFolder || hasNextAdjacentFolder;
     const bool canChangeView = hasImage && !m_imageRenderPending && !m_activeHoldZoom.has_value();
 
     m_previousAction->setEnabled(hasPrevious || hasImage);
     m_nextAction->setEnabled(hasNext || hasImage);
-    m_previousFolderAction->setEnabled(hasAdjacentFolder(false));
-    m_nextFolderAction->setEnabled(hasAdjacentFolder(true));
+    m_previousFolderAction->setEnabled(hasPreviousAdjacentFolder);
+    m_nextFolderAction->setEnabled(hasNextAdjacentFolder);
     m_firstAction->setEnabled(hasPreviousInFolder);
     m_lastAction->setEnabled(hasNextInFolder);
     m_quickJumpAction->setEnabled(hasImage);
@@ -2934,6 +2940,7 @@ void MainWindow::clearSourceTree()
 {
     m_sourceRoot.reset();
     m_sourceRootPath.clear();
+    m_sourceFoldersPreorder.clear();
     m_activeFolderPath.clear();
     m_loadingFolderPath.clear();
     m_loadingFolderSelectedIndex = 0;
@@ -3016,76 +3023,57 @@ void MainWindow::activateFolder(
 
 bool MainWindow::navigateToAdjacentFolder(bool forward, int selectedImageIndex)
 {
-    if (!hasAdjacentFolder(forward)) {
+    const core::CollectionFolderNode *folder = adjacentFolder(forward);
+    if (folder == nullptr) {
         return false;
     }
-
-    QVector<const core::CollectionFolderNode *> folders;
-    appendFoldersInPreorder(m_sourceRoot.get(), &folders);
-    int activeIndex = -1;
-    for (qsizetype index = 0; index < folders.size(); ++index) {
-        if (folders.at(index)->relativePath == m_activeFolderPath) {
-            activeIndex = static_cast<int>(index);
-            break;
-        }
-    }
-    if (activeIndex < 0) {
-        return false;
-    }
-
-    if (forward) {
-        for (int index = activeIndex + 1; index < folders.size(); ++index) {
-            if (isNavigableFolder(folders.at(index))) {
-                activateFolder(folders.at(index)->relativePath, selectedImageIndex, true);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    for (int index = activeIndex - 1; index >= 0; --index) {
-        if (isNavigableFolder(folders.at(index))) {
-            activateFolder(folders.at(index)->relativePath, selectedImageIndex, true);
-            return true;
-        }
-    }
-    return false;
+    activateFolder(folder->relativePath, selectedImageIndex, true);
+    return true;
 }
 
 bool MainWindow::hasAdjacentFolder(bool forward) const
 {
-    if (m_sourceRoot == nullptr) {
-        return false;
+    return adjacentFolder(forward) != nullptr;
+}
+
+const core::CollectionFolderNode *MainWindow::adjacentFolder(bool forward) const
+{
+    if (m_sourceFoldersPreorder.isEmpty()) {
+        return nullptr;
     }
 
-    QVector<const core::CollectionFolderNode *> folders;
-    appendFoldersInPreorder(m_sourceRoot.get(), &folders);
     int activeIndex = -1;
-    for (qsizetype index = 0; index < folders.size(); ++index) {
-        if (folders.at(index)->relativePath == m_activeFolderPath) {
+    for (qsizetype index = 0; index < m_sourceFoldersPreorder.size(); ++index) {
+        if (m_sourceFoldersPreorder.at(index)->relativePath == m_activeFolderPath) {
             activeIndex = static_cast<int>(index);
             break;
         }
     }
     if (activeIndex < 0) {
-        return false;
+        return nullptr;
     }
 
     if (forward) {
-        for (int index = activeIndex + 1; index < folders.size(); ++index) {
-            if (isNavigableFolder(folders.at(index))) {
-                return true;
+        for (int index = activeIndex + 1; index < m_sourceFoldersPreorder.size(); ++index) {
+            if (isNavigableFolder(m_sourceFoldersPreorder.at(index))) {
+                return m_sourceFoldersPreorder.at(index);
             }
         }
-        return false;
+        return nullptr;
     }
 
     for (int index = activeIndex - 1; index >= 0; --index) {
-        if (isNavigableFolder(folders.at(index))) {
-            return true;
+        if (isNavigableFolder(m_sourceFoldersPreorder.at(index))) {
+            return m_sourceFoldersPreorder.at(index);
         }
     }
-    return false;
+    return nullptr;
+}
+
+void MainWindow::rebuildSourceFolderTraversal()
+{
+    m_sourceFoldersPreorder.clear();
+    appendFoldersInPreorder(m_sourceRoot.get(), &m_sourceFoldersPreorder);
 }
 
 QVector<core::ImageEntry> MainWindow::sortedImagesForFolder(
@@ -3412,8 +3400,7 @@ core::CollectionFolderNode *MainWindow::folderNodeForPath(const QString &folderR
     if (m_fileTreeModel == nullptr) {
         return nullptr;
     }
-    const QModelIndex index = m_fileTreeModel->indexForFolderPath(folderRelativePath);
-    return m_fileTreeModel->nodeForIndex(index);
+    return m_fileTreeModel->nodeForFolderPath(folderRelativePath);
 }
 
 void MainWindow::rememberTemporaryZoomReturnMode()

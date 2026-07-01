@@ -36,7 +36,7 @@ The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp, and 
 - `src/ui/main_window.*` coordinates UI commands, single/multi-path open and drag'n'drop classification, async source scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
 - `src/ui/settings_dialog.*` is a UI-only Preferences dialog. Keep validation, persistence schema, and defaults in `src/core/app_settings.*`.
 - `src/ui/image_info_panel.*` is a UI-only metadata panel for the current entry, decoded dimensions, and EXIF fields supplied by the decoder. Keep EXIF parsing and metadata backends out of this widget.
-- `src/ui/collection_tree_model.*` is a UI-only tree model for folders in the current collection source.
+- `src/ui/collection_tree_model.*` is a UI-only tree model for folders in the current collection source. It keeps path/node row indexes and supports targeted lazy-load row insertion; avoid replacing a single loaded branch with a full model reset.
 - `src/ui/image_list_model.*` is a UI-only list model for images in the active folder. Keep it source-agnostic and free of thumbnail/decode work.
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.

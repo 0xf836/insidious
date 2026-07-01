@@ -15,6 +15,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Total peak memory audit tooling and baseline for large filesystem image, archive image, zoom render, and prefetch scenarios.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
 - Source tree `Files`: дерево папок/архива над списком изображений активной папки, lazy filesystem folder loading, cross-folder next/previous.
+- Large tree UI scaling: indexed `CollectionTreeModel`, targeted lazy-load row insertions, and cached source-tree preorder traversal for adjacent-folder navigation.
 - Архивы: ZIP/7z/RAR через libarchive, password prompt, без распаковки на диск, пароль только в памяти.
 - Source completeness: несколько выбранных изображений как временная коллекция, homogeneous multi-file/multi-folder/multi-archive drag'n'drop и Open File через synthetic source roots.
 - `Info` panel с компактной информацией об entry и полезными EXIF-полями из libvips metadata.
@@ -44,7 +45,6 @@ Roadmap — живой backlog реализации, а не обещание р
   - отмена thumbnail work при смене panel/source.
 - Performance and memory improvements:
   - archive random-access/performance strategy: benchmark current per-image archive decode on large ZIP/7z/RAR, reduce repeated header scans where possible, consider limiting archive prefetch until access strategy is improved;
-  - large tree UI scaling: не пересобирать preorder folder lists на каждый action-state update, не делать full `CollectionTreeModel` reset при lazy-load одной папки, рассмотреть path-to-node/index maps.
 
 ## Позже / larger milestones
 

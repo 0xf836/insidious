@@ -229,6 +229,8 @@ private:
         const QString &selectedIdentityKey = {});
     bool navigateToAdjacentFolder(bool forward, int selectedImageIndex);
     [[nodiscard]] bool hasAdjacentFolder(bool forward) const;
+    [[nodiscard]] const core::CollectionFolderNode *adjacentFolder(bool forward) const;
+    void rebuildSourceFolderTraversal();
     [[nodiscard]] QVector<core::ImageEntry> sortedImagesForFolder(
         const core::CollectionFolderNode &folder,
         int selectedImageIndex,
@@ -349,6 +351,7 @@ private:
     QHash<QString, QString> m_archivePasswords;
     std::shared_ptr<core::CollectionFolderNode> m_sourceRoot;
     QString m_sourceRootPath;
+    QVector<const core::CollectionFolderNode *> m_sourceFoldersPreorder;
     QString m_activeFolderPath;
     QString m_loadingFolderPath;
     int m_loadingFolderSelectedIndex = 0;

@@ -137,3 +137,19 @@ add_test(NAME insidious_image_view_widget_tests COMMAND insidious_image_view_wid
 set_tests_properties(insidious_image_view_widget_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+add_executable(insidious_collection_tree_model_tests
+    tests/collection_tree_model_tests.cpp
+    src/ui/collection_tree_model.cpp
+    src/ui/collection_tree_model.h
+)
+target_link_libraries(insidious_collection_tree_model_tests
+    PRIVATE
+        insidious_core
+        Qt6::Test
+        Qt6::Widgets
+)
+add_test(NAME insidious_collection_tree_model_tests COMMAND insidious_collection_tree_model_tests)
+set_tests_properties(insidious_collection_tree_model_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
