@@ -228,7 +228,10 @@ private:
         const QString &selectedPath) const;
     void applyImageSortMode(core::ImageSortMode mode);
     QToolButton *addToolbarButton(QToolBar *toolbar, QAction *action, const QString &label, bool fullscreen);
-    void setupFileSortButton(QToolButton *button, bool fullscreen);
+    void addToolbarSpacer(QToolBar *toolbar);
+    QToolButton *addAppMenuButton(QToolBar *toolbar, bool fullscreen);
+    QMenu *createAppMenu(QWidget *parent);
+    QMenu *createSortMenu(QWidget *parent);
     void syncFileSortControls();
     void refreshFileList();
     void syncFileListSelection();
@@ -269,7 +272,7 @@ private:
     QWidget *m_fullscreenLeftPanel = nullptr;
     QWidget *m_fullscreenRightPanel = nullptr;
     QToolBar *m_fullscreenTopPanel = nullptr;
-    QToolButton *m_fullscreenSortingButton = nullptr;
+    QToolButton *m_fullscreenAppMenuButton = nullptr;
     QWidget *m_fullscreenBottomPanel = nullptr;
     QSplitter *m_fullscreenFilePanelSplitter = nullptr;
     QTreeView *m_fullscreenFileTreeView = nullptr;
@@ -289,7 +292,8 @@ private:
     QAction *m_quickJumpAction = nullptr;
     QAction *m_copyOriginalImageAction = nullptr;
     QAction *m_preferencesAction = nullptr;
-    QToolButton *m_sortingButton = nullptr;
+    QToolButton *m_appMenuButton = nullptr;
+    QAction *m_quitAction = nullptr;
     QAction *m_zoomInAction = nullptr;
     QAction *m_zoomOutAction = nullptr;
     QAction *m_fitAction = nullptr;

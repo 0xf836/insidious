@@ -2,14 +2,14 @@
 
 ## Общий ориентир
 
-Интерфейс ориентируется на классический быстрый image viewer: toolbar, скрытое до Alt главное меню, центральная область просмотра, левая навигационная панель и нижняя статусная строка. Примерный визуальный ориентир — FastStone MaxView-like layout: дерево/список слева, изображение по центру, toolbar сверху, statusbar снизу.
+Интерфейс ориентируется на классический быстрый image viewer: toolbar, скрытое главное меню с доступом через `Alt` или toolbar menu button, центральная область просмотра, левая навигационная панель и нижняя статусная строка. Примерный визуальный ориентир — FastStone MaxView-like layout: дерево/список слева, изображение по центру, toolbar сверху, statusbar снизу.
 
 ## Главное окно
 
 Главное окно состоит из:
 
 - центральной области просмотра изображения;
-- верхней панели действий и transient главного меню, вызываемого через `Alt`;
+- верхней панели действий и главного меню, доступного через `Alt` или toolbar menu button;
 - нижней статусной строки;
 - левой панели навигации;
 - опциональной правой панели расширенной информации.
@@ -37,12 +37,13 @@
 
 - source: open file, open folder;
 - browse: previous/next image, previous/next folder, first/last, quick jump;
-- files: copy original image, runtime sorting;
-- view: zoom, fit, actual size, rotate, EXIF autorotate, fullscreen.
+- files: copy original image;
+- view: zoom, fit, actual size, rotate;
+- app menu: open file, open folder, fullscreen/exit fullscreen, EXIF autorotate, runtime sorting, Preferences, Quit.
 
-Normal toolbar использует короткие labels. Fullscreen top overlay использует еще более компактные labels/glyphs и всегда остаётся тёмной полупрозрачной панелью с читаемым светлым текстом.
+Normal toolbar использует короткие labels и прижимает app menu button к правому краю. Fullscreen top overlay использует еще более компактные labels/glyphs, тоже прижимает app menu button к правому краю и всегда остаётся тёмной полупрозрачной панелью с читаемым светлым текстом.
 
-Главное меню (`File`, `Edit`, `View`, `Navigate`) в normal mode скрыто по умолчанию. Нажатие `Alt` временно показывает меню и переводит туда фокус; после выбора menu action, закрытия popup-меню или ухода фокуса меню снова скрывается. В fullscreen normal menu bar не показывается, вместо него используются edge overlay panels.
+Главное меню (`File`, `Edit`, `View`, `Navigate`) в normal mode скрыто по умолчанию. Нажатие `Alt` временно показывает меню и переводит туда фокус; после выбора menu action, закрытия popup-меню или ухода фокуса меню снова скрывается. В normal и fullscreen toolbar также есть компактная menu button с частыми app-level командами: open file/folder, fullscreen, EXIF orientation, sorting, Preferences и Quit. В fullscreen normal menu bar не показывается, вместо него используются edge overlay panels.
 
 ## Нижняя статусная строка
 

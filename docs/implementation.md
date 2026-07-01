@@ -23,7 +23,7 @@ The build creates:
 
 - `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
-- The normal main menu is built from the same `QAction` objects as toolbars but is hidden by default; a plain `Alt` key press shows it transiently for keyboard menu navigation, and it hides again after action trigger, popup close, or focus loss.
+- The normal main menu is built from the same `QAction` objects as toolbars but is hidden by default; a plain `Alt` key press shows it transiently for keyboard menu navigation, and it hides again after action trigger, popup close, or focus loss. Normal and fullscreen toolbars also expose a right-aligned compact app menu button with open file/folder, fullscreen, EXIF orientation, sorting, Preferences, and Quit commands.
 - `src/ui/settings_dialog.*` implements the Preferences dialog. It edits an `AppSettings` value and leaves persistence/schema/defaults to core.
 - `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, and EXIF metadata fields collected by the decoder; it does not read files.
 - `src/ui/collection_tree_model.*` exposes the current source folder tree to `QTreeView` instances in the normal and fullscreen `Files` panels.

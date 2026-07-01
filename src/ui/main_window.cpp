@@ -42,6 +42,7 @@
 #include <QScopedValueRollback>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QSizePolicy>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QStyle>
@@ -1100,10 +1101,10 @@ void MainWindow::setupActions()
     addToolbarButton(m_mainToolBar, m_openFolderAction, tr("Folder"), false);
 
     fileMenu->addSeparator();
-    auto *quitAction = new QAction(tr("Quit"), this);
-    quitAction->setShortcut(QKeySequence::Quit);
-    connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
-    fileMenu->addAction(quitAction);
+    m_quitAction = new QAction(tr("Quit"), this);
+    m_quitAction->setShortcut(QKeySequence::Quit);
+    connect(m_quitAction, &QAction::triggered, qApp, &QApplication::quit);
+    fileMenu->addAction(m_quitAction);
 
     m_mainToolBar->addSeparator();
 
@@ -1152,11 +1153,6 @@ void MainWindow::setupActions()
     m_mainToolBar->addSeparator();
     addToolbarButton(m_mainToolBar, m_copyOriginalImageAction, tr("Copy"), false);
 
-    m_sortingButton = new QToolButton(this);
-    setupFileSortButton(m_sortingButton, false);
-    m_mainToolBar->addWidget(m_sortingButton);
-    syncFileSortControls();
-
     editMenu->addSeparator();
     m_preferencesAction = new QAction(tr("Preferences"), this);
     connect(m_preferencesAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
@@ -1198,12 +1194,13 @@ void MainWindow::setupActions()
     m_exifAutorotateAction->setCheckable(true);
     connect(m_exifAutorotateAction, &QAction::toggled, this, &MainWindow::setExifAutorotateEnabled);
     viewMenu->addAction(m_exifAutorotateAction);
-    addToolbarButton(m_mainToolBar, m_exifAutorotateAction, tr("EXIF"), false);
 
     m_fullscreenAction = new QAction(tr("Fullscreen"), this);
     connect(m_fullscreenAction, &QAction::triggered, this, &MainWindow::toggleFullscreen);
     viewMenu->addAction(m_fullscreenAction);
-    addToolbarButton(m_mainToolBar, m_fullscreenAction, tr("Full"), false);
+
+    addToolbarSpacer(m_mainToolBar);
+    m_appMenuButton = addAppMenuButton(m_mainToolBar, false);
 
     viewMenu->addSeparator();
     QAction *fileListAction = m_fileListDock->toggleViewAction();
@@ -1633,10 +1630,6 @@ void MainWindow::setupFullscreenOverlayPanels()
     addToolbarButton(m_fullscreenTopPanel, m_quickJumpAction, tr("Find"), true);
     m_fullscreenTopPanel->addSeparator();
     addToolbarButton(m_fullscreenTopPanel, m_copyOriginalImageAction, tr("Copy"), true);
-    m_fullscreenSortingButton = new QToolButton(m_fullscreenTopPanel);
-    setupFileSortButton(m_fullscreenSortingButton, true);
-    m_fullscreenTopPanel->addWidget(m_fullscreenSortingButton);
-    syncFileSortControls();
     m_fullscreenTopPanel->addSeparator();
     addToolbarButton(m_fullscreenTopPanel, m_zoomInAction, QStringLiteral("+"), true);
     addToolbarButton(m_fullscreenTopPanel, m_zoomOutAction, QStringLiteral("−"), true);
@@ -1644,8 +1637,8 @@ void MainWindow::setupFullscreenOverlayPanels()
     addToolbarButton(m_fullscreenTopPanel, m_actualSizeAction, QStringLiteral("1:1"), true);
     addToolbarButton(m_fullscreenTopPanel, m_rotateLeftAction, QStringLiteral("↶"), true);
     addToolbarButton(m_fullscreenTopPanel, m_rotateRightAction, QStringLiteral("↷"), true);
-    addToolbarButton(m_fullscreenTopPanel, m_exifAutorotateAction, tr("EXIF"), true);
-    addToolbarButton(m_fullscreenTopPanel, m_fullscreenAction, tr("Exit"), true);
+    addToolbarSpacer(m_fullscreenTopPanel);
+    m_fullscreenAppMenuButton = addAppMenuButton(m_fullscreenTopPanel, true);
     m_fullscreenTopPanel->hide();
 
     m_fullscreenBottomPanel = new QFrame(this);
@@ -2924,17 +2917,29 @@ QToolButton *MainWindow::addToolbarButton(QToolBar *toolbar, QAction *action, co
     return button;
 }
 
-void MainWindow::setupFileSortButton(QToolButton *button, bool fullscreen)
+void MainWindow::addToolbarSpacer(QToolBar *toolbar)
 {
-    if (button == nullptr) {
+    if (toolbar == nullptr) {
         return;
     }
 
+    auto *spacer = new QWidget(toolbar);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolbar->addWidget(spacer);
+}
+
+QToolButton *MainWindow::addAppMenuButton(QToolBar *toolbar, bool fullscreen)
+{
+    if (toolbar == nullptr) {
+        return nullptr;
+    }
+
+    auto *button = new QToolButton(toolbar);
     button->setAutoRaise(!fullscreen);
     button->setPopupMode(QToolButton::InstantPopup);
     button->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    button->setText(tr("Sort"));
-    button->setToolTip(tr("Sort files"));
+    button->setText(QStringLiteral("☰"));
+    button->setToolTip(tr("Main menu"));
     button->setMinimumHeight(fullscreen ? FullscreenToolbarButtonHeight : MainToolbarButtonHeight);
     button->setMouseTracking(true);
     button->installEventFilter(this);
@@ -2942,8 +2947,9 @@ void MainWindow::setupFileSortButton(QToolButton *button, bool fullscreen)
         button->setStyleSheet(QStringLiteral(
             "QToolButton {"
             "  border: 1px solid transparent;"
-            "  border-radius: 3px;"
-            "  padding: 2px 8px;"
+            "  border-radius: 4px;"
+            "  min-width: 24px;"
+            "  padding: 2px 6px;"
             "}"
             "QToolButton:hover {"
             "  background-color: palette(alternate-base);"
@@ -2952,7 +2958,31 @@ void MainWindow::setupFileSortButton(QToolButton *button, bool fullscreen)
             "QToolButton::menu-indicator { image: none; width: 0; }"));
     }
 
-    auto *menu = new QMenu(button);
+    button->setMenu(createAppMenu(button));
+    toolbar->addWidget(button);
+    return button;
+}
+
+QMenu *MainWindow::createAppMenu(QWidget *parent)
+{
+    auto *menu = new QMenu(parent);
+    menu->addAction(m_openFileAction);
+    menu->addAction(m_openFolderAction);
+    menu->addSeparator();
+    menu->addAction(m_fullscreenAction);
+    menu->addAction(m_exifAutorotateAction);
+    menu->addMenu(createSortMenu(menu));
+    menu->addSeparator();
+    menu->addAction(m_preferencesAction);
+    menu->addSeparator();
+    menu->addAction(m_quitAction);
+    return menu;
+}
+
+QMenu *MainWindow::createSortMenu(QWidget *parent)
+{
+    auto *menu = new QMenu(tr("Sort"), parent);
+    menu->setObjectName(QStringLiteral("sortMenu"));
     auto addModeAction = [this, menu](core::ImageSortKey key, core::SortDirection direction) {
         const core::ImageSortMode mode { key, direction };
         QAction *action = menu->addAction(sortModeMenuLabel(mode));
@@ -2974,21 +3004,26 @@ void MainWindow::setupFileSortButton(QToolButton *button, bool fullscreen)
     menu->addSeparator();
     addModeAction(core::ImageSortKey::Date, core::SortDirection::Ascending);
     addModeAction(core::ImageSortKey::Date, core::SortDirection::Descending);
-
-    button->setMenu(menu);
+    updateSortMenuSelection(menu, m_imageSortMode);
+    return menu;
 }
 
 void MainWindow::syncFileSortControls()
 {
     const QString toolTip = tr("Sort files: %1").arg(sortModeLabel(m_imageSortMode));
 
-    if (m_sortingButton != nullptr) {
-        m_sortingButton->setToolTip(toolTip);
-        updateSortMenuSelection(m_sortingButton->menu(), m_imageSortMode);
-    }
-    if (m_fullscreenSortingButton != nullptr) {
-        m_fullscreenSortingButton->setToolTip(toolTip);
-        updateSortMenuSelection(m_fullscreenSortingButton->menu(), m_imageSortMode);
+    const QList<QToolButton *> appMenuButtons {
+        m_appMenuButton,
+        m_fullscreenAppMenuButton,
+    };
+    for (QToolButton *button : appMenuButtons) {
+        if (button == nullptr || button->menu() == nullptr) {
+            continue;
+        }
+        for (QMenu *menu : button->menu()->findChildren<QMenu *>(QStringLiteral("sortMenu"))) {
+            menu->menuAction()->setToolTip(toolTip);
+            updateSortMenuSelection(menu, m_imageSortMode);
+        }
     }
 }
 
@@ -3129,6 +3164,9 @@ void MainWindow::enterFullscreenMode()
     captureLayoutSettings();
     m_fullscreenUiActive = true;
     hideFullscreenOverlayPanels();
+    if (m_fullscreenAction != nullptr) {
+        m_fullscreenAction->setText(tr("Exit Fullscreen"));
+    }
 
     menuBar()->hide();
     if (m_mainToolBar != nullptr) {
@@ -3157,6 +3195,9 @@ void MainWindow::exitFullscreenMode()
     const bool shouldRestoreUi = m_fullscreenUiActive;
     m_fullscreenUiActive = false;
     updateFullscreenInfoLine();
+    if (m_fullscreenAction != nullptr) {
+        m_fullscreenAction->setText(tr("Fullscreen"));
+    }
     setWindowState(m_preFullscreenUiState.windowState);
     show();
 
