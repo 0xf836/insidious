@@ -6,6 +6,7 @@
 #include "core/image_formats.h"
 #include "core/image_sort.h"
 #include "core/memory_image_cache.h"
+#include "core/multi_collection_source.h"
 #include "core/natural_sort.h"
 #include "core/render_memory_budget.h"
 #include "core/vips_image_decoder.h"
@@ -43,8 +44,12 @@ private slots:
     void folderScanIsNonRecursiveAndSorted();
     void imageSortOrdersByNameTypeSizeAndDate();
     void fileSystemSourceTreeLoadsFoldersLazily();
+    void fileListSourceTreePreservesInputOrder();
+    void folderListSourceTreePreservesTopLevelOrder();
     void archiveScanFiltersImagesAndSorts();
     void archiveSourceTreeGroupsImagesByFolder();
+    void archiveListSourceTreePreservesArchiveRoots();
+    void archiveListSourceTreeUsesSharedPassword();
     void archivePasswordIsRequiredAndAccepted();
     void viewerNavigationStopsAtBounds();
     void viewerRotationNormalizesAndResetsOnImageSwitch();
@@ -357,6 +362,66 @@ void CoreTests::fileSystemSourceTreeLoadsFoldersLazily()
     QCOMPARE(nested.children.first()->relativePath, QStringLiteral("nested/deeper"));
 }
 
+void CoreTests::fileListSourceTreePreservesInputOrder()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QDir root(tempDir.path());
+
+    QImage image(2, 2, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    const QString second = root.filePath(QStringLiteral("second.png"));
+    const QString first = root.filePath(QStringLiteral("first.png"));
+    QVERIFY(image.save(first));
+    QVERIFY(image.save(second));
+
+    const CollectionTreeResult tree = fileListSourceTree({ second, first });
+    QVERIFY2(tree.ok(), qPrintable(tree.errorMessage));
+    QVERIFY(tree.root != nullptr);
+    QCOMPARE(tree.root->displayName, QStringLiteral("Selected files"));
+    QVERIFY(tree.root->preserveImageOrder);
+    QCOMPARE(tree.root->images.size(), 2);
+    QCOMPARE(tree.root->images.at(0).displayName, QStringLiteral("second.png"));
+    QCOMPARE(tree.root->images.at(1).displayName, QStringLiteral("first.png"));
+    QCOMPARE(tree.selectedFolderPath, QString());
+    QCOMPARE(tree.selectedImageIndex, 0);
+
+    const CollectionTreeResult invalid = fileListSourceTree({ root.filePath(QStringLiteral("notes.txt")) });
+    QVERIFY(!invalid.ok());
+}
+
+void CoreTests::folderListSourceTreePreservesTopLevelOrder()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QDir root(tempDir.path());
+    QVERIFY(root.mkpath(QStringLiteral("one/nested")));
+    QVERIFY(root.mkpath(QStringLiteral("two")));
+
+    QImage image(2, 2, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(root.filePath(QStringLiteral("one/nested/child.png"))));
+    QVERIFY(image.save(root.filePath(QStringLiteral("two/root.png"))));
+
+    const QString one = root.filePath(QStringLiteral("one"));
+    const QString two = root.filePath(QStringLiteral("two"));
+    const CollectionTreeResult tree = folderListSourceTree({ two, one });
+    QVERIFY2(tree.ok(), qPrintable(tree.errorMessage));
+    QVERIFY(tree.root != nullptr);
+    QCOMPARE(tree.root->displayName, QStringLiteral("Selected folders"));
+    QCOMPARE(tree.root->children.size(), 2);
+    QCOMPARE(tree.root->children.at(0)->displayName, QStringLiteral("two"));
+    QCOMPARE(tree.root->children.at(0)->relativePath, QStringLiteral("folder-1"));
+    QCOMPARE(tree.root->children.at(0)->loadRootPath, QFileInfo(two).absoluteFilePath());
+    QCOMPARE(tree.root->children.at(0)->images.size(), 1);
+    QCOMPARE(tree.root->children.at(0)->images.first().sourceFolderPath, QStringLiteral("folder-1"));
+    QCOMPARE(tree.root->children.at(1)->displayName, QStringLiteral("one"));
+    QCOMPARE(tree.root->children.at(1)->relativePath, QStringLiteral("folder-2"));
+    QCOMPARE(tree.root->children.at(1)->children.first()->relativePath, QStringLiteral("folder-2/nested"));
+    QCOMPARE(tree.root->children.at(1)->children.first()->loadFolderRelativePath, QStringLiteral("nested"));
+    QCOMPARE(tree.selectedFolderPath, QStringLiteral("folder-1"));
+}
+
 void CoreTests::archiveScanFiltersImagesAndSorts()
 {
     QTemporaryDir tempDir;
@@ -402,6 +467,66 @@ void CoreTests::archiveSourceTreeGroupsImagesByFolder()
     QCOMPARE(tree.root->children.at(0)->images.at(0).sourceRelativePath, QStringLiteral("images/2.png"));
     QCOMPARE(tree.root->children.at(1)->displayName, QStringLiteral("other"));
     QCOMPARE(tree.selectedFolderPath, QStringLiteral("images"));
+}
+
+void CoreTests::archiveListSourceTreePreservesArchiveRoots()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QDir root(tempDir.path());
+    const QString first = root.filePath(QStringLiteral("first.zip"));
+    const QString second = root.filePath(QStringLiteral("second.zip"));
+
+    QVERIFY(writeZipArchive(first, {
+        { QStringLiteral("root.png"), pngBytes() },
+    }));
+    QVERIFY(writeZipArchive(second, {
+        { QStringLiteral("nested/2.png"), pngBytes() },
+    }));
+
+    const CollectionTreeResult tree = archiveListSourceTree({ second, first });
+    QVERIFY2(tree.ok(), qPrintable(tree.errorMessage));
+    QVERIFY(tree.root != nullptr);
+    QCOMPARE(tree.root->displayName, QStringLiteral("Selected archives"));
+    QCOMPARE(tree.root->children.size(), 2);
+    QCOMPARE(tree.root->children.at(0)->displayName, QStringLiteral("second.zip"));
+    QCOMPARE(tree.root->children.at(0)->relativePath, QStringLiteral("archive-1"));
+    QCOMPARE(tree.root->children.at(0)->children.first()->relativePath, QStringLiteral("archive-1/nested"));
+    QCOMPARE(tree.root->children.at(0)->children.first()->images.first().sourceFolderPath, QStringLiteral("archive-1/nested"));
+    QCOMPARE(tree.root->children.at(0)->children.first()->images.first().archiveEntryPath, QStringLiteral("nested/2.png"));
+    QCOMPARE(tree.root->children.at(0)->children.first()->images.first().sourceRelativePath, QStringLiteral("second.zip/nested/2.png"));
+    QCOMPARE(tree.root->children.at(1)->displayName, QStringLiteral("first.zip"));
+    QCOMPARE(tree.root->children.at(1)->relativePath, QStringLiteral("archive-2"));
+}
+
+void CoreTests::archiveListSourceTreeUsesSharedPassword()
+{
+    if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+        QSKIP("zip command is not available");
+    }
+
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QDir root(tempDir.path());
+    const QString first = root.filePath(QStringLiteral("first-secret.zip"));
+    const QString second = root.filePath(QStringLiteral("second-secret.zip"));
+    QVERIFY(writeEncryptedZipArchive(first, QStringLiteral("one.png"), pngBytes(QSize(10, 5), Qt::blue), QStringLiteral("secret")));
+    QVERIFY(writeEncryptedZipArchive(second, QStringLiteral("two.png"), pngBytes(QSize(10, 5), Qt::green), QStringLiteral("secret")));
+
+    const CollectionTreeResult withoutPassword = archiveListSourceTree({ first, second });
+    QVERIFY(!withoutPassword.ok());
+    QCOMPARE(withoutPassword.errorReason, ScanErrorReason::PasswordRequired);
+
+    const CollectionTreeResult wrongPassword = archiveListSourceTree({ first, second }, QStringLiteral("wrong"));
+    QVERIFY(!wrongPassword.ok());
+    QCOMPARE(wrongPassword.errorReason, ScanErrorReason::InvalidPassword);
+
+    const CollectionTreeResult correctPassword = archiveListSourceTree({ first, second }, QStringLiteral("secret"));
+    QVERIFY2(correctPassword.ok(), qPrintable(correctPassword.errorMessage));
+    QVERIFY(correctPassword.root != nullptr);
+    QCOMPARE(correctPassword.root->children.size(), 2);
+    QCOMPARE(correctPassword.root->children.at(0)->images.size(), 1);
+    QCOMPARE(correctPassword.root->children.at(1)->images.size(), 1);
 }
 
 void CoreTests::archivePasswordIsRequiredAndAccepted()

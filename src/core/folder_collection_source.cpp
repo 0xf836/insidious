@@ -186,6 +186,8 @@ FolderLoadResult loadFileSystemFolder(const QString &rootPath, const QString &fo
         auto child = std::make_shared<CollectionFolderNode>();
         child->displayName = directoryInfo.fileName();
         child->relativePath = cleanRelativePath(QDir(QFileInfo(result.rootPath).absoluteFilePath()).relativeFilePath(directoryInfo.absoluteFilePath()));
+        child->loadRootPath = result.rootPath;
+        child->loadFolderRelativePath = child->relativePath;
         child->canLoadChildren = true;
         result.children.append(child);
     }
@@ -236,6 +238,8 @@ CollectionTreeResult scanFileSystemSourceTree(const QString &folderPath, const Q
     result.root = std::make_shared<CollectionFolderNode>();
     result.root->relativePath = QString();
     result.root->displayName = folderInfo.fileName().isEmpty() ? result.rootPath : folderInfo.fileName();
+    result.root->loadRootPath = result.rootPath;
+    result.root->loadFolderRelativePath = QString();
     result.root->images = rootLoad.images;
     result.root->children = rootLoad.children;
     result.root->loaded = true;

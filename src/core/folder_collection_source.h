@@ -29,10 +29,14 @@ struct ScanResult {
 struct CollectionFolderNode {
     QString relativePath;
     QString displayName;
+    QString loadRootPath;
+    QString loadFolderRelativePath;
+    QString sourceTreePrefix;
     QVector<ImageEntry> images;
     QVector<std::shared_ptr<CollectionFolderNode>> children;
     bool loaded = false;
     bool canLoadChildren = false;
+    bool preserveImageOrder = false;
     CollectionFolderNode *parent = nullptr;
 };
 

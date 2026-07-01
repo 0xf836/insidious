@@ -22,7 +22,7 @@ The build creates:
 ## Directory structure
 
 - `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
-- `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, drag'n'drop, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
+- `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, single/multi-path open and drag'n'drop classification, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
 - The normal main menu is built from the same `QAction` objects as toolbars but is hidden by default; a plain `Alt` key press shows it transiently for keyboard menu navigation, and it hides again after action trigger, popup close, or focus loss. The normal toolbar exposes a right-aligned compact app menu button, while the fullscreen toolbar keeps the same button inside the main button cluster so the right edge overlay does not cover it.
 - `src/ui/settings_dialog.*` implements the Preferences dialog. It edits an `AppSettings` value and leaves persistence/schema/defaults to core.
 - `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, and EXIF metadata fields collected by the decoder; it does not read files.
@@ -34,8 +34,9 @@ The build creates:
 - `src/core/image_entry_validation.*` validates that a filesystem image or owning archive is still loadable before decode.
 - `src/core/image_formats.*` contains the MVP image extension allowlist: JPEG, PNG, WebP, BMP, DIB, plus archive extension detection for ZIP, 7z, and RAR.
 - `src/core/natural_sort.*` contains case-folded natural ordering for folder entries.
-- `src/core/folder_collection_source.*` supports the older flat non-recursive folder scan and the current source-tree flow: root folder scan plus lazy per-folder loading.
+- `src/core/folder_collection_source.*` supports the older flat non-recursive folder scan and the current source-tree flow: root folder scan plus lazy per-folder loading. `CollectionFolderNode` also carries optional filesystem lazy-load metadata and a flag for temporary file-list sources that initially preserve input order.
 - `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and still provides bounded full-entry reads for features that require original bytes.
+- `src/core/multi_collection_source.*` builds synthetic source trees for homogeneous multi-image, multi-folder, and multi-archive open/drop operations. It preserves top-level input order, namespaces folder paths to avoid collisions, keeps multi-folder lazy loading, and reuses archive scans without disk extraction.
 - `src/core/archive_entry_stream.*` opens one archive member as a sequential in-memory stream for display decode without extracting it to disk or buffering the full member first.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
 - `src/core/app_settings.*` defines persistent settings defaults, enum/string conversion, validation/clamping, category reset behavior, and `QSettings` read/write.
@@ -44,7 +45,7 @@ The build creates:
 - `src/core/render_memory_budget.*` estimates the memory required for an output raster and exposes the shared render-budget guard. For `fit` this is the full display-sized raster; for non-fit zoom/actual-size this is the decoded visible region plus overscan when region rendering is enabled, or the full scaled raster when it is disabled.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
-- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
+- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
 ## Data flow
 
@@ -93,12 +94,21 @@ Opening an archive:
 6. The current archive password is stored only in `MainWindow` memory for the active archive source and is passed by value to archive scan/decode jobs; it is never written to `ImageEntry`, cache keys, docs, logs, settings, or UI labels.
 7. During display decode, `VipsImageDecoder` wraps the selected archive entry in an unseekable sequential `VipsSourceCustom` stream and passes it to `vips::VImage::new_from_source()`. The selected entry is not buffered fully in memory first.
 
+Opening multiple paths:
+
+1. `MainWindow::openPaths()` accepts multiple paths only when they are homogeneous: all supported image files, all folders, or all supported archives.
+2. Multiple image files are validated synchronously and installed as a flat temporary source under a synthetic `Selected files` root. The initial order is the input order; explicit Sort then sorts the active list normally.
+3. Multiple folders are scanned asynchronously into a synthetic `Selected folders` root. Each selected folder is a top-level node in input order, and child folders keep their real filesystem root/load path so lazy loading still reads the correct directory.
+4. Multiple archives are scanned asynchronously into a synthetic `Selected archives` root. Each selected archive is a top-level node in input order, with its own virtual folder tree rebased under a unique synthetic path.
+5. Mixed multi-path sets and unsupported paths fail without installing a partial source.
+6. Multi-archive password handling prompts once when a password is required, applies that password to the selected archives, stores it only in memory for the current source, and aborts the open if any archive rejects it.
+
 Left file list:
 
 - `MainWindow` owns a left `QDockWidget` named `Files` with a vertical `QSplitter`: `QTreeView` above and `QListView` below.
-- The tree uses `CollectionTreeModel` and represents folders for the current filesystem/archive source.
+- The tree uses `CollectionTreeModel` and represents folders for the current filesystem/archive source or the synthetic root for multi-source opens.
 - The list uses `ImageListModel` and is reset from `ViewerController::entries()` whenever the active folder changes.
-- File sorting is runtime-only state in `MainWindow`: active-folder images are copied, sorted by `core::sortImageEntries()`, and then installed into `ViewerController`. Folder tree order and stored `CollectionFolderNode::images` stay in natural source order.
+- File sorting is runtime-only state in `MainWindow`: active-folder images are copied, sorted by `core::sortImageEntries()`, and then installed into `ViewerController`. Folder tree order and stored `CollectionFolderNode::images` stay in natural source order. Temporary selected-file collections initially preserve input order until the user explicitly applies Sort.
 - Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
 - Programmatic navigation syncs the selected file row and the selected/expanded folder in both normal and fullscreen panels.
 - `next/previous` first navigate inside the active folder collection. At folder boundaries, `MainWindow` walks the source tree in preorder to activate the next/previous loaded folder with images or unloaded filesystem folder; true source boundaries keep the existing reset-and-rerender behavior.
@@ -116,7 +126,7 @@ Clipboard:
 
 - `Edit -> Copy Original Image` / `Ctrl+C` copies the current source image bytes to the clipboard with the MIME type derived from the original extension and also adds Qt clipboard image data decoded from those same source bytes for paste compatibility.
 - The command does not use `DecodedImage` or the rendered raster, so zoom, rotate, fit mode, display scaling, and EXIF autorotate do not affect the clipboard payload.
-- Filesystem images are read from `ImageEntry::absolutePath`; archive images are read through `readArchiveEntry()` with the current in-memory archive password and are not extracted to disk. This clipboard path intentionally reads the full original entry bytes and remains separate from streaming display decode.
+- Filesystem images are read from `ImageEntry::absolutePath`; archive images are read through `readArchiveEntry()` with the current source's in-memory archive password for that archive path and are not extracted to disk. This clipboard path intentionally reads the full original entry bytes and remains separate from streaming display decode.
 - Clipboard reads run on a separate `QFutureWatcher`, are limited to 256 MiB, and stale results are ignored if the current entry changes before the read finishes.
 - Clipboard payload stores image bytes and decoded image data only. Archive passwords and filesystem/archive paths are not written into clipboard metadata.
 
@@ -185,7 +195,7 @@ Mouse input:
 - Folder scans, archive scans, and libvips decoding run through `QtConcurrent::run`.
 - `MainWindow` uses `m_sourceGeneration` and `m_decodeGeneration` to ignore old async results after the user opens another source or starts another decode.
 - Main image decode requests are routed through `MainWindow`: repeated same-entry reloads store only the newest pending request and start it after the active watcher finishes, but image switches start a new foreground decode immediately so navigation stays responsive. Cache hits still display immediately and invalidate older active decode results through `m_decodeGeneration`.
-- Current prefetch jobs are tracked by `MainWindow`, coalesced by cache key, and only write successful decoded images into the shared memory cache when the cache generation still matches the generation captured at prefetch start. Speculative prefetch is limited to fit-sized decode requests; actual-size and custom zoom requests do not start neighbor prefetch. Password-protected archive entries skip speculative prefetch so archive passwords are not retained by background neighbor jobs.
+- Current prefetch jobs are tracked by `MainWindow`, coalesced by cache key, and only write successful decoded images into the shared memory cache when the cache generation still matches the generation captured at prefetch start. Speculative prefetch is limited to fit-sized decode requests; actual-size and custom zoom requests do not start neighbor prefetch. Archive entries with an in-memory password for the current source skip speculative prefetch so archive passwords are not retained by background neighbor jobs.
 
 ## Privacy boundaries
 
@@ -206,7 +216,6 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 
 - Archive password persistence.
 - Recursive "include all descendants" folder collections.
-- Multiple selected files as a temporary collection.
 - GIF animation.
 - TIFF, AVIF, JPEG XL, RAW.
 - Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.

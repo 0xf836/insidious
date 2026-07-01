@@ -97,3 +97,11 @@
 Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, core viewer keyboard/mouse shortcuts, fullscreen edge trigger ratios, normal-mode theme и layout state.
 
 Причина: настройки должны быть расширяемыми и тестируемыми без GUI. Core-слой валидирует enum/string conversion и clamp числовых значений, а UI остаётся тонким слоем отображения. Privacy boundary остаётся явным: не сохранять recent files, viewed paths, archive paths, passwords, thumbnails, decoded cache или file logs.
+
+## ADR-017: Multi-source open использует однородные synthetic roots
+
+Решение: Open File и drag'n'drop принимают однородные multi-path наборы: только изображения, только папки или только архивы. Смешанные наборы отклоняются без частичного открытия. Несколько изображений становятся flat temporary collection под synthetic root; несколько папок или архивов становятся top-level children под synthetic root в порядке выбора. Multi-folder сохраняет lazy loading подпапок, multi-archive сохраняет virtual folder tree каждого архива.
+
+Причина: homogeneous policy остаётся предсказуемой для пользователя и не смешивает разные модели чтения, паролей и навигации в один плоский список. Synthetic root позволяет переиспользовать `Files` tree, active-folder list, navigation, quick jump, decode/cache pipeline и fullscreen panels без отдельного UI path.
+
+Пароли архивов: при открытии нескольких архивов приложение спрашивает пароль один раз и применяет его ко всем выбранным архивам; если какой-либо архив отклоняет пароль, открытие multi-archive source отменяется. Пароли остаются только в памяти текущего source и не пишутся в настройки, логи или entries.

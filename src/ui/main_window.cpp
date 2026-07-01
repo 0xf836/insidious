@@ -3,6 +3,7 @@
 #include "core/archive_collection_source.h"
 #include "core/image_entry_validation.h"
 #include "core/image_formats.h"
+#include "core/multi_collection_source.h"
 #include "core/vips_image_decoder.h"
 #include "ui/quick_jump_dialog.h"
 #include "ui/settings_dialog.h"
@@ -268,6 +269,111 @@ bool isNavigableFolder(const core::CollectionFolderNode *node)
         && (!node->images.isEmpty() || (node->canLoadChildren && !node->loaded));
 }
 
+QString joinPath(const QString &left, const QString &right)
+{
+    if (left.isEmpty()) {
+        return right;
+    }
+    if (right.isEmpty()) {
+        return left;
+    }
+    return left + QLatin1Char('/') + right;
+}
+
+enum class OpenPathKind {
+    Invalid,
+    Image,
+    Folder,
+    Archive,
+};
+
+OpenPathKind openPathKind(const QString &path)
+{
+    const QFileInfo info(path);
+    if (info.isDir()) {
+        return OpenPathKind::Folder;
+    }
+    if (core::isSupportedArchiveFile(info)) {
+        return OpenPathKind::Archive;
+    }
+    if (core::isSupportedImageFile(info)) {
+        return OpenPathKind::Image;
+    }
+    return OpenPathKind::Invalid;
+}
+
+QStringList localPathsFromUrls(const QList<QUrl> &urls)
+{
+    QStringList paths;
+    paths.reserve(urls.size());
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile()) {
+            return {};
+        }
+        const QString path = url.toLocalFile();
+        if (path.isEmpty()) {
+            return {};
+        }
+        paths.append(path);
+    }
+    return paths;
+}
+
+bool classifyOpenPaths(const QStringList &paths, OpenPathKind *kind, QString *errorMessage)
+{
+    if (paths.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QObject::tr("No files, folders, or archives were selected.");
+        }
+        return false;
+    }
+
+    OpenPathKind firstKind = OpenPathKind::Invalid;
+    for (const QString &path : paths) {
+        const OpenPathKind currentKind = openPathKind(path);
+        if (currentKind == OpenPathKind::Invalid) {
+            if (errorMessage != nullptr) {
+                *errorMessage = QObject::tr("Unsupported dropped path: %1").arg(path);
+            }
+            return false;
+        }
+        if (firstKind == OpenPathKind::Invalid) {
+            firstKind = currentKind;
+            continue;
+        }
+        if (currentKind != firstKind) {
+            if (errorMessage != nullptr) {
+                *errorMessage = QObject::tr("Drop or open images, folders, or archives as separate homogeneous groups.");
+            }
+            return false;
+        }
+    }
+
+    if (kind != nullptr) {
+        *kind = firstKind;
+    }
+    return true;
+}
+
+void rebaseLoadedFolderResult(core::CollectionFolderNode *node)
+{
+    if (node == nullptr || node->sourceTreePrefix.isEmpty()) {
+        return;
+    }
+
+    for (core::ImageEntry &entry : node->images) {
+        entry.sourceFolderPath = node->relativePath;
+        entry.sourceRelativePath = joinPath(node->relativePath, entry.displayName);
+    }
+    for (const auto &child : node->children) {
+        child->sourceTreePrefix = node->sourceTreePrefix;
+        child->loadRootPath = node->loadRootPath;
+        child->loadFolderRelativePath = child->relativePath;
+        child->relativePath = joinPath(node->sourceTreePrefix, child->loadFolderRelativePath);
+        child->parent = node;
+    }
+}
+
 QList<QKeySequence> keySequencesFromSettings(const QStringList &values)
 {
     QList<QKeySequence> sequences;
@@ -445,28 +551,65 @@ void MainWindow::openPath(const QString &path)
     }
 }
 
-void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+void MainWindow::openPaths(const QStringList &paths)
 {
-    const QMimeData *mimeData = event->mimeData();
-    if (mimeData == nullptr || !mimeData->hasUrls() || mimeData->urls().size() != 1) {
+    if (paths.size() == 1) {
+        openPath(paths.first());
         return;
     }
 
-    const QFileInfo info(mimeData->urls().first().toLocalFile());
-    if (info.isDir() || core::isSupportedImageFile(info) || core::isSupportedArchiveFile(info)) {
+    OpenPathKind kind = OpenPathKind::Invalid;
+    QString errorMessage;
+    if (!classifyOpenPaths(paths, &kind, &errorMessage)) {
+        showError(errorMessage);
+        return;
+    }
+
+    QStringList absolutePaths;
+    absolutePaths.reserve(paths.size());
+    for (const QString &path : paths) {
+        absolutePaths.append(QFileInfo(path).absoluteFilePath());
+    }
+
+    switch (kind) {
+    case OpenPathKind::Image:
+        openFileList(absolutePaths);
+        break;
+    case OpenPathKind::Folder:
+        openFolderList(absolutePaths);
+        break;
+    case OpenPathKind::Archive:
+        openArchiveList(absolutePaths);
+        break;
+    case OpenPathKind::Invalid:
+        showError(tr("Unsupported dropped paths."));
+        break;
+    }
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    const QMimeData *mimeData = event->mimeData();
+    if (mimeData == nullptr || !mimeData->hasUrls()) {
+        return;
+    }
+
+    OpenPathKind kind = OpenPathKind::Invalid;
+    const QStringList paths = localPathsFromUrls(mimeData->urls());
+    if (classifyOpenPaths(paths, &kind, nullptr)) {
         event->acceptProposedAction();
     }
 }
 
 void MainWindow::dropEvent(QDropEvent *event)
 {
-    const QList<QUrl> urls = event->mimeData()->urls();
-    if (urls.size() != 1) {
-        showError(tr("Drop one image file or one folder."));
+    const QStringList paths = localPathsFromUrls(event->mimeData()->urls());
+    if (paths.isEmpty()) {
+        showError(tr("Drop local image files, folders, or archives."));
         return;
     }
 
-    openPath(urls.first().toLocalFile());
+    openPaths(paths);
     event->acceptProposedAction();
 }
 
@@ -535,15 +678,15 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
 
 void MainWindow::openFileDialog()
 {
-    const QString filePath = QFileDialog::getOpenFileName(
+    const QStringList filePaths = QFileDialog::getOpenFileNames(
         this,
-        tr("Open image or archive"),
+        tr("Open images or archives"),
         QString(),
         imageDialogFilter(),
         nullptr,
         QFileDialog::DontUseNativeDialog);
-    if (!filePath.isEmpty()) {
-        openPath(filePath);
+    if (!filePaths.isEmpty()) {
+        openPaths(filePaths);
     }
 }
 
@@ -644,10 +787,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     updateInteractionState();
 
     const core::ImageEntry entryCopy = *entry;
-    const QString archivePassword = entryCopy.source == core::ImageEntrySource::Archive
-        && entryCopy.archivePath == m_currentArchivePath
-        ? m_currentArchivePassword
-        : QString();
+    const QString archivePassword = archivePasswordForEntry(entryCopy);
     const PendingDecodeRequest decodeRequest {
         generation,
         cacheKey,
@@ -1011,10 +1151,7 @@ void MainWindow::copyOriginalImageToClipboard()
 
     const quint64 generation = ++m_copyOriginalImageGeneration;
     const core::ImageEntry entryCopy = *entry;
-    const QString archivePassword = entryCopy.source == core::ImageEntrySource::Archive
-        && entryCopy.archivePath == m_currentArchivePath
-        ? m_currentArchivePassword
-        : QString();
+    const QString archivePassword = archivePasswordForEntry(entryCopy);
 
     m_copyOriginalImageWatcher.setFuture(QtConcurrent::run([generation, entryCopy, archivePassword]() {
         const OriginalImageReadResult readResult = readOriginalImageBytes(entryCopy, archivePassword);
@@ -1886,7 +2023,7 @@ void MainWindow::restoreLayoutSettings()
 
 void MainWindow::openFile(const QString &filePath)
 {
-    clearArchivePassword();
+    clearArchivePasswords();
 
     const core::ScanResult single = core::singleImageCollection(filePath);
     if (!single.ok()) {
@@ -1921,7 +2058,7 @@ void MainWindow::openFile(const QString &filePath)
 
 void MainWindow::openFolder(const QString &folderPath)
 {
-    clearArchivePassword();
+    clearArchivePasswords();
 
     ++m_sourceGeneration;
     ++m_decodeGeneration;
@@ -1945,8 +2082,8 @@ void MainWindow::openFolder(const QString &folderPath)
 
 void MainWindow::openArchive(const QString &archivePath)
 {
-    clearArchivePassword();
-    m_currentArchivePath = QFileInfo(archivePath).absoluteFilePath();
+    clearArchivePasswords();
+    const QString absoluteArchivePath = QFileInfo(archivePath).absoluteFilePath();
 
     ++m_sourceGeneration;
     ++m_decodeGeneration;
@@ -1965,7 +2102,89 @@ void MainWindow::openArchive(const QString &archivePath)
     m_imageView->setMessage(tr("Scanning archive..."));
     updateStatus(tr("Scanning archive..."));
     updateInteractionState();
-    startArchiveScan(m_currentArchivePath, m_currentArchivePassword);
+    startArchiveScan(absoluteArchivePath, archivePasswordForPath(absoluteArchivePath));
+}
+
+void MainWindow::openFileList(const QStringList &filePaths)
+{
+    clearArchivePasswords();
+
+    const core::CollectionTreeResult source = core::fileListSourceTree(filePaths);
+    if (!source.ok()) {
+        showError(source.errorMessage);
+        return;
+    }
+
+    ++m_sourceGeneration;
+    ++m_decodeGeneration;
+    clearPendingDecodeRequest();
+    m_pendingZoomRenderFallback.reset();
+    m_imageRenderPending = false;
+    m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = m_settings.viewer.defaultZoomMode;
+    clearPrefetchJobs();
+    m_cache->clear();
+    m_controller.clearCollection();
+    clearSourceTree();
+
+    m_sourceRoot = source.root;
+    m_sourceRootPath = source.rootPath;
+    m_fileTreeModel->setRoot(m_sourceRoot);
+    if (m_sourceRoot != nullptr) {
+        m_fileTreeView->expand(m_fileTreeModel->indexForFolderPath(QString()));
+        if (m_fullscreenFileTreeView != nullptr) {
+            m_fullscreenFileTreeView->expand(m_fileTreeModel->indexForFolderPath(QString()));
+        }
+    }
+    activateFolder(source.selectedFolderPath, source.selectedImageIndex, true);
+}
+
+void MainWindow::openFolderList(const QStringList &folderPaths)
+{
+    clearArchivePasswords();
+
+    ++m_sourceGeneration;
+    ++m_decodeGeneration;
+    clearPendingDecodeRequest();
+    m_pendingZoomRenderFallback.reset();
+    m_imageRenderPending = false;
+    m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = m_settings.viewer.defaultZoomMode;
+    clearPrefetchJobs();
+    m_cache->clear();
+    m_controller.clearCollection();
+    clearSourceTree();
+    refreshFileList();
+    m_infoPanel->showMessage(tr("Scanning folders..."));
+    m_fullscreenInfoPanel->showMessage(tr("Scanning folders..."));
+    m_imageView->setMessage(tr("Scanning folders..."));
+    updateStatus(tr("Scanning folders..."));
+    updateInteractionState();
+    startFolderListScan(folderPaths);
+}
+
+void MainWindow::openArchiveList(const QStringList &archivePaths)
+{
+    clearArchivePasswords();
+
+    ++m_sourceGeneration;
+    ++m_decodeGeneration;
+    clearPendingDecodeRequest();
+    m_pendingZoomRenderFallback.reset();
+    m_imageRenderPending = false;
+    m_temporaryZoomReturnMode.reset();
+    m_baseZoomMode = m_settings.viewer.defaultZoomMode;
+    clearPrefetchJobs();
+    m_cache->clear();
+    m_controller.clearCollection();
+    clearSourceTree();
+    refreshFileList();
+    m_infoPanel->showMessage(tr("Scanning archives..."));
+    m_fullscreenInfoPanel->showMessage(tr("Scanning archives..."));
+    m_imageView->setMessage(tr("Scanning archives..."));
+    updateStatus(tr("Scanning archives..."));
+    updateInteractionState();
+    startArchiveListScan(archivePaths, QString());
 }
 
 void MainWindow::startFolderScan(const QString &folderPath, const QString &selectedPath)
@@ -1984,6 +2203,22 @@ void MainWindow::startFolderScan(const QString &folderPath, const QString &selec
     }));
 }
 
+void MainWindow::startFolderListScan(const QStringList &folderPaths)
+{
+    const quint64 generation = m_sourceGeneration;
+    if (m_scanWatcher.isRunning()) {
+        m_scanWatcher.cancel();
+    }
+
+    m_scanWatcher.setFuture(QtConcurrent::run([folderPaths, generation]() {
+        ScanJobResult job;
+        job.generation = generation;
+        job.selectedPaths = folderPaths;
+        job.result = core::folderListSourceTree(folderPaths);
+        return job;
+    }));
+}
+
 void MainWindow::startArchiveScan(const QString &archivePath, const QString &password)
 {
     const quint64 generation = m_sourceGeneration;
@@ -1995,19 +2230,38 @@ void MainWindow::startArchiveScan(const QString &archivePath, const QString &pas
         ScanJobResult job;
         job.generation = generation;
         job.selectedPath = archivePath;
+        job.selectedPaths = { archivePath };
+        job.archivePassword = password;
         job.result = core::scanArchiveSourceTree(archivePath, password);
+        return job;
+    }));
+}
+
+void MainWindow::startArchiveListScan(const QStringList &archivePaths, const QString &password)
+{
+    const quint64 generation = m_sourceGeneration;
+    if (m_scanWatcher.isRunning()) {
+        m_scanWatcher.cancel();
+    }
+
+    m_scanWatcher.setFuture(QtConcurrent::run([archivePaths, password, generation]() {
+        ScanJobResult job;
+        job.generation = generation;
+        job.selectedPaths = archivePaths;
+        job.selectedPath = archivePaths.isEmpty() ? QString() : archivePaths.first();
+        job.archivePassword = password;
+        job.result = core::archiveListSourceTree(archivePaths, password);
         return job;
     }));
 }
 
 void MainWindow::startFolderLoad(const QString &folderRelativePath, int selectedImageIndex)
 {
-    if (m_sourceRootPath.isEmpty()) {
-        return;
-    }
-
     core::CollectionFolderNode *node = folderNodeForPath(folderRelativePath);
     if (node == nullptr || node->loaded || !node->canLoadChildren) {
+        return;
+    }
+    if (node->loadRootPath.isEmpty()) {
         return;
     }
     if (m_folderLoadWatcher.isRunning() && m_loadingFolderPath == folderRelativePath) {
@@ -2019,14 +2273,15 @@ void MainWindow::startFolderLoad(const QString &folderRelativePath, int selected
         m_folderLoadWatcher.cancel();
     }
 
-    const QString rootPath = m_sourceRootPath;
+    const QString rootPath = node->loadRootPath;
+    const QString loadFolderRelativePath = node->loadFolderRelativePath;
     m_loadingFolderPath = folderRelativePath;
     m_loadingFolderSelectedIndex = selectedImageIndex;
-    m_folderLoadWatcher.setFuture(QtConcurrent::run([rootPath, folderRelativePath, generation]() {
+    m_folderLoadWatcher.setFuture(QtConcurrent::run([rootPath, folderRelativePath, loadFolderRelativePath, generation]() {
         FolderLoadJobResult job;
         job.generation = generation;
         job.folderRelativePath = folderRelativePath;
-        job.result = core::loadFileSystemFolder(rootPath, folderRelativePath);
+        job.result = core::loadFileSystemFolder(rootPath, loadFolderRelativePath);
         return job;
     }));
 }
@@ -2038,18 +2293,38 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
     }
 
     if (!job.result.ok()) {
+        const bool archiveSelection = !job.selectedPaths.isEmpty()
+            && core::isSupportedArchiveFile(QFileInfo(job.selectedPaths.first()));
         if ((job.result.errorReason == core::ScanErrorReason::PasswordRequired
                 || job.result.errorReason == core::ScanErrorReason::InvalidPassword)
-            && core::isSupportedArchiveFile(QFileInfo(job.selectedPath))) {
+            && archiveSelection) {
+            if (job.selectedPaths.size() > 1 && !job.archivePassword.isEmpty()) {
+                clearArchivePasswords();
+                showError(job.result.errorMessage);
+                return;
+            }
+
             const bool retry = job.result.errorReason == core::ScanErrorReason::InvalidPassword;
-            if (promptArchivePassword(job.selectedPath, retry)) {
-                m_infoPanel->showMessage(tr("Scanning archive..."));
-                m_fullscreenInfoPanel->showMessage(tr("Scanning archive..."));
-                m_imageView->setMessage(tr("Scanning archive..."));
-                updateStatus(tr("Scanning archive..."));
-                startArchiveScan(job.selectedPath, m_currentArchivePassword);
+            const bool multiArchive = job.selectedPaths.size() > 1;
+            QString password;
+            const QString promptPath = multiArchive ? QString() : job.selectedPaths.first();
+            if (promptArchivePassword(promptPath, retry, &password)) {
+                for (const QString &archivePath : job.selectedPaths) {
+                    rememberArchivePassword(archivePath, password);
+                }
+
+                const QString scanMessage = multiArchive ? tr("Scanning archives...") : tr("Scanning archive...");
+                m_infoPanel->showMessage(scanMessage);
+                m_fullscreenInfoPanel->showMessage(scanMessage);
+                m_imageView->setMessage(scanMessage);
+                updateStatus(scanMessage);
+                if (multiArchive) {
+                    startArchiveListScan(job.selectedPaths, password);
+                } else {
+                    startArchiveScan(job.selectedPaths.first(), password);
+                }
             } else {
-                clearArchivePassword();
+                clearArchivePasswords();
                 showError(tr("Archive password is required."));
             }
             return;
@@ -2103,6 +2378,7 @@ void MainWindow::applyFolderLoadResult(const FolderLoadJobResult &job)
     node->images = job.result.images;
     node->children = job.result.children;
     node->loaded = true;
+    rebaseLoadedFolderResult(node);
     for (const auto &child : node->children) {
         child->parent = node;
     }
@@ -2124,13 +2400,16 @@ void MainWindow::applyFolderLoadResult(const FolderLoadJobResult &job)
     }
 }
 
-bool MainWindow::promptArchivePassword(const QString &archivePath, bool retry)
+bool MainWindow::promptArchivePassword(const QString &archivePath, bool retry, QString *passwordOut)
 {
     bool ok = false;
     const QFileInfo archiveInfo(archivePath);
+    const QString target = archivePath.isEmpty()
+        ? tr("selected archives")
+        : archiveInfo.fileName();
     const QString label = retry
-        ? tr("The password was not accepted for %1. Enter the archive password:").arg(archiveInfo.fileName())
-        : tr("Enter the password for %1:").arg(archiveInfo.fileName());
+        ? tr("The password was not accepted for %1. Enter the archive password:").arg(target)
+        : tr("Enter the password for %1:").arg(target);
     const QString password = QInputDialog::getText(
         this,
         tr("Archive Password"),
@@ -2144,15 +2423,36 @@ bool MainWindow::promptArchivePassword(const QString &archivePath, bool retry)
         return false;
     }
 
-    m_currentArchivePath = QFileInfo(archivePath).absoluteFilePath();
-    m_currentArchivePassword = password;
+    if (passwordOut != nullptr) {
+        *passwordOut = password;
+    }
+    if (!archivePath.isEmpty()) {
+        rememberArchivePassword(archivePath, password);
+    }
     return true;
 }
 
-void MainWindow::clearArchivePassword()
+void MainWindow::rememberArchivePassword(const QString &archivePath, const QString &password)
 {
-    m_currentArchivePath.clear();
-    m_currentArchivePassword.clear();
+    m_archivePasswords.insert(QFileInfo(archivePath).absoluteFilePath(), password);
+}
+
+QString MainWindow::archivePasswordForPath(const QString &archivePath) const
+{
+    return m_archivePasswords.value(QFileInfo(archivePath).absoluteFilePath());
+}
+
+QString MainWindow::archivePasswordForEntry(const core::ImageEntry &entry) const
+{
+    if (entry.source != core::ImageEntrySource::Archive || entry.archivePath.isEmpty()) {
+        return {};
+    }
+    return archivePasswordForPath(entry.archivePath);
+}
+
+void MainWindow::clearArchivePasswords()
+{
+    m_archivePasswords.clear();
 }
 
 void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
@@ -2393,9 +2693,6 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
     const int currentIndex = m_controller.currentIndex();
     const auto cache = m_cache;
     const quint64 cacheGeneration = cache->generation();
-    const QString currentArchivePath = m_currentArchivePath;
-    const QString currentArchivePassword = m_currentArchivePassword;
-
     for (int index : { currentIndex - 1, currentIndex + 1 }) {
         if (index < 0 || index >= entries.size()) {
             continue;
@@ -2407,16 +2704,10 @@ void MainWindow::prefetchNeighbors(const core::DecodeRequest &request)
             continue;
         }
 
-        if (entry.source == core::ImageEntrySource::Archive
-            && entry.archivePath == currentArchivePath
-            && !currentArchivePassword.isEmpty()) {
+        const QString archivePassword = archivePasswordForEntry(entry);
+        if (entry.source == core::ImageEntrySource::Archive && !archivePassword.isEmpty()) {
             continue;
         }
-
-        const QString archivePassword = entry.source == core::ImageEntrySource::Archive
-            && entry.archivePath == currentArchivePath
-            ? currentArchivePassword
-            : QString();
 
         auto *watcher = new QFutureWatcher<void>(this);
         m_prefetchWatchers.insert(key, watcher);
@@ -2804,7 +3095,12 @@ QVector<core::ImageEntry> MainWindow::sortedImagesForFolder(
     int *sortedSelectedIndex) const
 {
     QVector<core::ImageEntry> entries = folder.images;
-    core::sortImageEntries(&entries, m_imageSortMode);
+    const bool preserveCurrentOrder = folder.preserveImageOrder
+        && m_imageSortMode.key == core::ImageSortKey::Name
+        && m_imageSortMode.direction == core::SortDirection::Ascending;
+    if (!preserveCurrentOrder) {
+        core::sortImageEntries(&entries, m_imageSortMode);
+    }
 
     int resolvedIndex = entries.isEmpty() ? -1 : 0;
     if (!entries.isEmpty()) {
@@ -2843,7 +3139,9 @@ QString MainWindow::identityKeyForSelectedPath(
 
 void MainWindow::applyImageSortMode(core::ImageSortMode mode)
 {
-    if (mode.key == m_imageSortMode.key && mode.direction == m_imageSortMode.direction) {
+    core::CollectionFolderNode *folder = folderNodeForPath(m_activeFolderPath);
+    const bool forceSortPreservedOrder = folder != nullptr && folder->preserveImageOrder;
+    if (!forceSortPreservedOrder && mode.key == m_imageSortMode.key && mode.direction == m_imageSortMode.direction) {
         syncFileSortControls();
         return;
     }
@@ -2851,9 +3149,11 @@ void MainWindow::applyImageSortMode(core::ImageSortMode mode)
     const core::ImageEntry *currentEntry = m_controller.currentEntry();
     const QString currentIdentityKey = currentEntry == nullptr ? QString() : currentEntry->identityKey();
     m_imageSortMode = mode;
+    if (folder != nullptr) {
+        folder->preserveImageOrder = false;
+    }
     syncFileSortControls();
 
-    core::CollectionFolderNode *folder = folderNodeForPath(m_activeFolderPath);
     if (folder == nullptr) {
         refreshFileList();
         updateActionState();

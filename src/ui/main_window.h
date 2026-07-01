@@ -46,6 +46,7 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
 
     void openPath(const QString &path);
+    void openPaths(const QStringList &paths);
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
@@ -100,6 +101,8 @@ private:
     struct ScanJobResult {
         quint64 generation = 0;
         QString selectedPath;
+        QStringList selectedPaths;
+        QString archivePassword;
         core::CollectionTreeResult result;
     };
 
@@ -167,13 +170,21 @@ private:
     void openFile(const QString &filePath);
     void openFolder(const QString &folderPath);
     void openArchive(const QString &archivePath);
+    void openFileList(const QStringList &filePaths);
+    void openFolderList(const QStringList &folderPaths);
+    void openArchiveList(const QStringList &archivePaths);
     void startFolderScan(const QString &folderPath, const QString &selectedPath);
+    void startFolderListScan(const QStringList &folderPaths);
     void startArchiveScan(const QString &archivePath, const QString &password);
+    void startArchiveListScan(const QStringList &archivePaths, const QString &password);
     void startFolderLoad(const QString &folderRelativePath, int selectedImageIndex = 0);
     void applyScanResult(const ScanJobResult &job);
     void applyFolderLoadResult(const FolderLoadJobResult &job);
-    bool promptArchivePassword(const QString &archivePath, bool retry);
-    void clearArchivePassword();
+    bool promptArchivePassword(const QString &archivePath, bool retry, QString *passwordOut = nullptr);
+    void rememberArchivePassword(const QString &archivePath, const QString &password);
+    [[nodiscard]] QString archivePasswordForPath(const QString &archivePath) const;
+    [[nodiscard]] QString archivePasswordForEntry(const core::ImageEntry &entry) const;
+    void clearArchivePasswords();
     void displayDecodedImage(const core::DecodedImage &decoded);
     void loadCurrentImage(bool showTransientLoading);
     void loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback);
@@ -335,8 +346,7 @@ private:
     bool m_syncingFileListSelection = false;
     bool m_syncingFolderTreeSelection = false;
     bool m_quickJumpDialogOpen = false;
-    QString m_currentArchivePath;
-    QString m_currentArchivePassword;
+    QHash<QString, QString> m_archivePasswords;
     std::shared_ptr<core::CollectionFolderNode> m_sourceRoot;
     QString m_sourceRootPath;
     QString m_activeFolderPath;

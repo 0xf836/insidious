@@ -33,14 +33,14 @@ The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp, and 
 - `CMakeLists.txt` defines the build, `insidious_core`, the `insidious` GUI executable, and `insidious_core_tests`.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
-- `src/ui/main_window.*` coordinates UI commands, async folder scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
+- `src/ui/main_window.*` coordinates UI commands, single/multi-path open and drag'n'drop classification, async source scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
 - `src/ui/settings_dialog.*` is a UI-only Preferences dialog. Keep validation, persistence schema, and defaults in `src/core/app_settings.*`.
 - `src/ui/image_info_panel.*` is a UI-only metadata panel for the current entry, decoded dimensions, and EXIF fields supplied by the decoder. Keep EXIF parsing and metadata backends out of this widget.
 - `src/ui/collection_tree_model.*` is a UI-only tree model for folders in the current collection source.
 - `src/ui/image_list_model.*` is a UI-only list model for images in the active folder. Keep it source-agnostic and free of thumbnail/decode work.
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
-- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive scanning, viewer state, settings schema, decode request/result types, render-memory budget estimation, memory cache, libarchive full-entry/stream reading, and libvips decoding.
+- `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive/multi-source scanning, viewer state, settings schema, decode request/result types, render-memory budget estimation, memory cache, libarchive full-entry/stream reading, and libvips decoding.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` are developer-only total peak memory audit tooling. They generate temporary synthetic fixtures and must not introduce persistent app data or user-facing settings.
 - `tests/core_tests.cpp` covers core behavior with Qt Test. Add tests here for non-trivial core changes.
 - `docs/implementation.md` is the longer orientation document for current code structure and data flow.
@@ -88,7 +88,7 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 Current implementation should stay focused on a stable viewer pipeline for regular filesystem images, folders, archives, navigation, fullscreen, metadata, configurable core viewer shortcuts, and privacy-safe settings. RAW support, advanced metadata, advanced shortcut features, password persistence, and thumbnail panels are later milestones unless explicitly requested.
 
-Current MVP supports regular filesystem images, filesystem folder trees with lazy per-folder loading, ZIP/7z/RAR archive trees through libarchive without disk extraction, and a basic Preferences dialog. Password-protected archives prompt on open and keep the password only in memory for the current archive source. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, advanced shortcut features, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
+Current MVP supports regular filesystem images, temporary selected-file collections, filesystem folder trees with lazy per-folder loading, ZIP/7z/RAR archive trees through libarchive without disk extraction, homogeneous multi-image/multi-folder/multi-archive open and drag'n'drop, and a basic Preferences dialog. Password-protected archives prompt on open and keep passwords only in memory for the current source; multi-archive open asks once and applies that password to the selected archives, failing the open if any later archive rejects it. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, advanced shortcut features, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
 
 Use `docs/roadmap.md` as the living backlog. Keep completed work, next stabilization tasks, mid-term features, later milestones, and explicit non-goals sorted there when product direction changes.
 
@@ -138,6 +138,7 @@ Current MVP fullscreen behavior:
 - EXIF autorotate is a viewer setting and a synced checkable `View`/toolbar action. It must flow through `DecodeRequest` and the decoded image cache key so autorotated and non-autorotated rasters never collide.
 - If adding a source type later, make it look like a collection of `ImageEntry` objects to the viewer/controller rather than special-casing it throughout UI code.
 - The left `Files` panel is split into a folder tree and an active-folder image list. Selecting a folder changes the active viewer collection to direct images in that folder only.
+- Multi-path sources use a synthetic root in the left `Files` panel. Multiple selected images appear as one flat temporary collection; multiple folders or archives appear as top-level roots in the input order, with each folder/archive keeping its own direct-image lists and child folders.
 - File sorting is runtime-only and applies only to the active-folder image list: default on app start is natural name ascending; users can switch name/type/size/date asc/desc for the current process; the selected runtime mode also applies to newly opened sources, but it must not be persisted in settings.
 - Next/previous navigation should traverse source-tree folders at active-folder boundaries; first/last remain scoped to the active folder.
 - Filesystem folder nodes should be loaded lazily on selection/expansion. Do not reintroduce full recursive filesystem scans for normal folder opening.

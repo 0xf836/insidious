@@ -35,6 +35,8 @@ set(CORE_SOURCES
     src/core/image_sort.h
     src/core/memory_image_cache.cpp
     src/core/memory_image_cache.h
+    src/core/multi_collection_source.cpp
+    src/core/multi_collection_source.h
     src/core/natural_sort.cpp
     src/core/natural_sort.h
     src/core/render_memory_budget.cpp
