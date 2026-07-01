@@ -145,10 +145,10 @@ Pinned fullscreen info line:
 
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
-- `Viewer` — default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), EXIF autorotate, multiplier для temporary click zoom, общий zoom step, действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
-- `Shortcuts` — настройка core viewer shortcuts: открыть файл/папку, навигация по изображениям и папкам, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen. Команду можно назначить на keyboard shortcut и/или mouse button shortcut с optional modifiers.
-- `Fullscreen` — размер edge trigger zones для боковых и верхней/нижней overlay-панелей, включение и presentation settings для pinned fullscreen info line.
-- `Interface` — light/dark theme для normal mode, запоминание layout окна, dock-панелей и splitter sizes. Fullscreen chrome остаётся темным без отдельного выбора темы.
+- `Viewer` — секции `View Defaults`, `Zoom and Rendering`, `Wheel Actions`: default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), EXIF autorotate, режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), multiplier для temporary click zoom, общий zoom step, region-based rendering и действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
+- `Shortcuts` — секция `Assignments` для core viewer shortcuts: открыть файл/папку, навигация по изображениям и папкам, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen. Команду можно назначить на keyboard shortcut и/или mouse button shortcut с optional modifiers.
+- `Fullscreen` — секции `Edge Overlays` и `Pinned Info Line`: размер edge trigger zones для боковых и верхней/нижней overlay-панелей, включение и presentation settings для pinned fullscreen info line.
+- `Interface` — секции `Appearance` и `Layout`: light/dark theme для normal mode, запоминание layout окна, dock-панелей и splitter sizes. Fullscreen chrome остаётся темным без отдельного выбора темы.
 
 EXIF autorotate также доступен как быстрый checkable action в меню `View`, обычной верхней панели и fullscreen top overlay. Переключение сразу сохраняет настройку и перерендеривает текущий image, если он открыт.
 

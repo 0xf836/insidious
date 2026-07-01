@@ -8,7 +8,9 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QFontMetrics>
 #include <QFontComboBox>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeySequenceEdit>
@@ -29,21 +31,59 @@ QWidget *createPage()
 {
     auto *page = new QWidget;
     auto *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(12, 12, 12, 12);
-    layout->setSpacing(10);
+    layout->setContentsMargins(14, 14, 14, 14);
+    layout->setSpacing(12);
     return page;
 }
 
-QFormLayout *pageForm(QWidget *page)
+QVBoxLayout *pageLayout(QWidget *page)
 {
-    auto *layout = qobject_cast<QVBoxLayout *>(page->layout());
+    return qobject_cast<QVBoxLayout *>(page->layout());
+}
+
+QLabel *pageDescription(QWidget *page, const QString &text)
+{
+    auto *description = new QLabel(text, page);
+    description->setWordWrap(true);
+    description->setObjectName(QStringLiteral("pageDescription"));
+    pageLayout(page)->addWidget(description);
+    return description;
+}
+
+QFormLayout *sectionForm(QWidget *page, const QString &title)
+{
+    auto *group = new QGroupBox(title, page);
     auto *form = new QFormLayout;
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     form->setVerticalSpacing(8);
-    layout->addLayout(form);
-    layout->addStretch(1);
+    form->setContentsMargins(12, 10, 12, 12);
+    group->setLayout(form);
+    pageLayout(page)->addWidget(group);
     return form;
+}
+
+int fieldMinimumHeight(const QWidget *widget)
+{
+    const QFontMetrics metrics(widget->font());
+    return std::max(28, metrics.height() + 10);
+}
+
+template <typename Widget>
+Widget *stabilizeFieldHeight(Widget *widget)
+{
+    widget->setMinimumHeight(fieldMinimumHeight(widget));
+    return widget;
+}
+
+QVBoxLayout *sectionLayout(QWidget *page, const QString &title)
+{
+    auto *group = new QGroupBox(title, page);
+    auto *layout = new QVBoxLayout(group);
+    layout->setContentsMargins(12, 10, 12, 12);
+    layout->setSpacing(8);
+    pageLayout(page)->addWidget(group, 1);
+    return layout;
 }
 
 void setComboToData(QComboBox *combo, int value)
@@ -110,11 +150,14 @@ core::AppSettings SettingsDialog::settings() const
 void SettingsDialog::setupUi()
 {
     setWindowTitle(tr("Preferences"));
-    resize(760, 460);
-    setMinimumSize(700, 420);
+    resize(840, 620);
+    setMinimumSize(780, 560);
 
     m_categoryList = new QListWidget(this);
-    m_categoryList->setFixedWidth(150);
+    m_categoryList->setFixedWidth(160);
+    m_categoryList->setFrameShape(QFrame::NoFrame);
+    m_categoryList->setSpacing(2);
+    m_categoryList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_categoryList->addItem(tr("Viewer"));
     m_categoryList->addItem(tr("Shortcuts"));
     m_categoryList->addItem(tr("Fullscreen"));
@@ -128,6 +171,8 @@ void SettingsDialog::setupUi()
     setupInterfacePage();
 
     auto *contentLayout = new QHBoxLayout;
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(12);
     contentLayout->addWidget(m_categoryList);
     contentLayout->addWidget(m_pages, 1);
 
@@ -137,6 +182,8 @@ void SettingsDialog::setupUi()
     m_buttonBox->button(QDialogButtonBox::RestoreDefaults)->setText(tr("Restore Page Defaults"));
 
     auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setSpacing(12);
     mainLayout->addLayout(contentLayout, 1);
     mainLayout->addWidget(m_buttonBox);
 
@@ -165,59 +212,63 @@ void SettingsDialog::setupUi()
 void SettingsDialog::setupViewerPage()
 {
     QWidget *page = createPage();
-    auto *description = new QLabel(tr("Viewer defaults apply to newly opened images and future navigation actions."), page);
-    description->setWordWrap(true);
-    qobject_cast<QVBoxLayout *>(page->layout())->addWidget(description);
+    pageDescription(page, tr("Viewer defaults apply to newly opened images and future navigation actions."));
 
-    QFormLayout *form = pageForm(page);
+    QFormLayout *viewForm = sectionForm(page, tr("View Defaults"));
 
-    m_defaultZoomCombo = new QComboBox(page);
+    m_defaultZoomCombo = stabilizeFieldHeight(new QComboBox(page));
     m_defaultZoomCombo->addItem(tr("Fit to window"), static_cast<int>(core::ZoomMode::FitToWindow));
     m_defaultZoomCombo->addItem(tr("Actual size"), static_cast<int>(core::ZoomMode::ActualSize));
-    form->addRow(tr("Default zoom:"), m_defaultZoomCombo);
+    viewForm->addRow(tr("Default zoom:"), m_defaultZoomCombo);
 
-    m_imageSwitchPolicyCombo = new QComboBox(page);
+    m_imageSwitchPolicyCombo = stabilizeFieldHeight(new QComboBox(page));
     m_imageSwitchPolicyCombo->addItem(tr("Reset zoom and pan"), static_cast<int>(core::ImageSwitchPolicy::ResetToBaseMode));
     m_imageSwitchPolicyCombo->addItem(tr("Preserve current view"), static_cast<int>(core::ImageSwitchPolicy::PreserveView));
-    form->addRow(tr("When switching images:"), m_imageSwitchPolicyCombo);
-
-    m_clickZoomBehaviorCombo = new QComboBox(page);
-    m_clickZoomBehaviorCombo->addItem(tr("Click to zoom / restore"), static_cast<int>(core::ClickZoomBehavior::ToggleOnClick));
-    m_clickZoomBehaviorCombo->addItem(tr("Hold to zoom, drag to pan"), static_cast<int>(core::ClickZoomBehavior::HoldToZoomPan));
-    form->addRow(tr("Left button zoom:"), m_clickZoomBehaviorCombo);
+    viewForm->addRow(tr("When switching images:"), m_imageSwitchPolicyCombo);
 
     m_exifAutorotateCheck = new QCheckBox(tr("Use EXIF orientation"), page);
-    form->addRow(QString(), m_exifAutorotateCheck);
+    viewForm->addRow(QString(), m_exifAutorotateCheck);
 
-    m_clickZoomSpin = new QDoubleSpinBox(page);
+    QFormLayout *zoomForm = sectionForm(page, tr("Zoom and Rendering"));
+
+    m_clickZoomBehaviorCombo = stabilizeFieldHeight(new QComboBox(page));
+    m_clickZoomBehaviorCombo->addItem(tr("Click to zoom / restore"), static_cast<int>(core::ClickZoomBehavior::ToggleOnClick));
+    m_clickZoomBehaviorCombo->addItem(tr("Hold to zoom, drag to pan"), static_cast<int>(core::ClickZoomBehavior::HoldToZoomPan));
+    zoomForm->addRow(tr("Left button zoom:"), m_clickZoomBehaviorCombo);
+
+    m_clickZoomSpin = stabilizeFieldHeight(new QDoubleSpinBox(page));
     m_clickZoomSpin->setRange(1.1, 8.0);
     m_clickZoomSpin->setSingleStep(0.1);
     m_clickZoomSpin->setDecimals(1);
     m_clickZoomSpin->setSuffix(QStringLiteral("x"));
-    form->addRow(tr("Click zoom multiplier:"), m_clickZoomSpin);
+    zoomForm->addRow(tr("Click zoom multiplier:"), m_clickZoomSpin);
 
-    m_zoomStepSpin = new QDoubleSpinBox(page);
+    m_zoomStepSpin = stabilizeFieldHeight(new QDoubleSpinBox(page));
     m_zoomStepSpin->setRange(5.0, 100.0);
     m_zoomStepSpin->setSingleStep(5.0);
     m_zoomStepSpin->setDecimals(0);
     m_zoomStepSpin->setSuffix(QStringLiteral("%"));
-    form->addRow(tr("Zoom step:"), m_zoomStepSpin);
+    zoomForm->addRow(tr("Zoom step:"), m_zoomStepSpin);
 
     m_regionRenderingCheck = new QCheckBox(tr("Render only visible zoom region"), page);
     m_regionRenderingCheck->setToolTip(tr("Use less memory for zoom and actual size renders. Disable for smoother panning at higher memory cost."));
-    form->addRow(QString(), m_regionRenderingCheck);
+    zoomForm->addRow(QString(), m_regionRenderingCheck);
 
-    m_wheelActionCombo = new QComboBox(page);
+    QFormLayout *wheelForm = sectionForm(page, tr("Wheel Actions"));
+
+    m_wheelActionCombo = stabilizeFieldHeight(new QComboBox(page));
     addWheelActionItems(m_wheelActionCombo);
-    form->addRow(tr("Wheel:"), m_wheelActionCombo);
+    wheelForm->addRow(tr("Wheel:"), m_wheelActionCombo);
 
-    m_ctrlWheelActionCombo = new QComboBox(page);
+    m_ctrlWheelActionCombo = stabilizeFieldHeight(new QComboBox(page));
     addWheelActionItems(m_ctrlWheelActionCombo);
-    form->addRow(tr("Ctrl+wheel:"), m_ctrlWheelActionCombo);
+    wheelForm->addRow(tr("Ctrl+wheel:"), m_ctrlWheelActionCombo);
 
-    m_shiftWheelActionCombo = new QComboBox(page);
+    m_shiftWheelActionCombo = stabilizeFieldHeight(new QComboBox(page));
     addWheelActionItems(m_shiftWheelActionCombo);
-    form->addRow(tr("Shift+wheel:"), m_shiftWheelActionCombo);
+    wheelForm->addRow(tr("Shift+wheel:"), m_shiftWheelActionCombo);
+
+    pageLayout(page)->addStretch(1);
 
     m_pages->addWidget(page);
 }
@@ -225,12 +276,10 @@ void SettingsDialog::setupViewerPage()
 void SettingsDialog::setupShortcutsPage()
 {
     QWidget *page = createPage();
-    auto *description = new QLabel(tr("Customize core viewer shortcuts. Empty shortcuts leave commands available from menus and toolbars."), page);
-    description->setWordWrap(true);
-    auto *layout = qobject_cast<QVBoxLayout *>(page->layout());
-    layout->addWidget(description);
+    pageDescription(page, tr("Customize core viewer shortcuts. Empty shortcuts leave commands available from menus and toolbars."));
 
     m_shortcutCommands = core::shortcutCommands();
+    QVBoxLayout *shortcutLayout = sectionLayout(page, tr("Assignments"));
     m_shortcutTable = new QTableWidget(page);
     m_shortcutTable->setColumnCount(2);
     m_shortcutTable->setHorizontalHeaderLabels({ tr("Command"), tr("Shortcut") });
@@ -243,7 +292,7 @@ void SettingsDialog::setupShortcutsPage()
     m_shortcutTable->horizontalHeader()->setStretchLastSection(false);
     m_shortcutTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_shortcutTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    layout->addWidget(m_shortcutTable, 1);
+    shortcutLayout->addWidget(m_shortcutTable, 1);
 
     auto *buttonLayout = new QHBoxLayout;
     buttonLayout->addStretch(1);
@@ -284,7 +333,7 @@ void SettingsDialog::setupShortcutsPage()
     });
     buttonLayout->addWidget(resetButton);
 
-    layout->addLayout(buttonLayout);
+    shortcutLayout->addLayout(buttonLayout);
 
     m_pages->addWidget(page);
 }
@@ -292,41 +341,43 @@ void SettingsDialog::setupShortcutsPage()
 void SettingsDialog::setupFullscreenPage()
 {
     QWidget *page = createPage();
-    auto *description = new QLabel(tr("Edge trigger zones control when fullscreen overlay panels appear."), page);
-    description->setWordWrap(true);
-    qobject_cast<QVBoxLayout *>(page->layout())->addWidget(description);
+    pageDescription(page, tr("Fullscreen settings control overlay panels and the pinned presentation info line."));
 
-    QFormLayout *form = pageForm(page);
+    QFormLayout *edgeForm = sectionForm(page, tr("Edge Overlays"));
 
-    m_fullscreenSideTriggerSpin = new QDoubleSpinBox(page);
+    m_fullscreenSideTriggerSpin = stabilizeFieldHeight(new QDoubleSpinBox(page));
     m_fullscreenSideTriggerSpin->setRange(1.0, 30.0);
     m_fullscreenSideTriggerSpin->setSingleStep(0.5);
     m_fullscreenSideTriggerSpin->setDecimals(1);
     m_fullscreenSideTriggerSpin->setSuffix(QStringLiteral("%"));
-    form->addRow(tr("Side edge trigger:"), m_fullscreenSideTriggerSpin);
+    edgeForm->addRow(tr("Side edge trigger:"), m_fullscreenSideTriggerSpin);
 
-    m_fullscreenVerticalTriggerSpin = new QDoubleSpinBox(page);
+    m_fullscreenVerticalTriggerSpin = stabilizeFieldHeight(new QDoubleSpinBox(page));
     m_fullscreenVerticalTriggerSpin->setRange(1.0, 30.0);
     m_fullscreenVerticalTriggerSpin->setSingleStep(0.5);
     m_fullscreenVerticalTriggerSpin->setDecimals(1);
     m_fullscreenVerticalTriggerSpin->setSuffix(QStringLiteral("%"));
-    form->addRow(tr("Top/bottom trigger:"), m_fullscreenVerticalTriggerSpin);
+    edgeForm->addRow(tr("Top/bottom trigger:"), m_fullscreenVerticalTriggerSpin);
+
+    QFormLayout *infoLineForm = sectionForm(page, tr("Pinned Info Line"));
 
     m_fullscreenInfoLineCheck = new QCheckBox(tr("Show pinned info line"), page);
-    form->addRow(QString(), m_fullscreenInfoLineCheck);
+    infoLineForm->addRow(QString(), m_fullscreenInfoLineCheck);
 
-    m_fullscreenInfoLineFontCombo = new QFontComboBox(page);
-    form->addRow(tr("Info line font:"), m_fullscreenInfoLineFontCombo);
+    m_fullscreenInfoLineFontCombo = stabilizeFieldHeight(new QFontComboBox(page));
+    infoLineForm->addRow(tr("Font:"), m_fullscreenInfoLineFontCombo);
 
-    m_fullscreenInfoLineSizeSpin = new QSpinBox(page);
+    m_fullscreenInfoLineSizeSpin = stabilizeFieldHeight(new QSpinBox(page));
     m_fullscreenInfoLineSizeSpin->setRange(8, 32);
     m_fullscreenInfoLineSizeSpin->setSingleStep(1);
     m_fullscreenInfoLineSizeSpin->setSuffix(tr(" pt"));
-    form->addRow(tr("Info line size:"), m_fullscreenInfoLineSizeSpin);
+    infoLineForm->addRow(tr("Size:"), m_fullscreenInfoLineSizeSpin);
 
     m_fullscreenInfoLineColorButton = new QPushButton(page);
     connect(m_fullscreenInfoLineColorButton, &QPushButton::clicked, this, &SettingsDialog::chooseFullscreenInfoLineColor);
-    form->addRow(tr("Info line color:"), m_fullscreenInfoLineColorButton);
+    infoLineForm->addRow(tr("Color:"), m_fullscreenInfoLineColorButton);
+
+    pageLayout(page)->addStretch(1);
 
     m_pages->addWidget(page);
 }
@@ -334,19 +385,22 @@ void SettingsDialog::setupFullscreenPage()
 void SettingsDialog::setupInterfacePage()
 {
     QWidget *page = createPage();
-    auto *description = new QLabel(tr("Layout settings store window geometry, panel visibility, and Files panel splitter sizes. They never store opened paths."), page);
-    description->setWordWrap(true);
-    qobject_cast<QVBoxLayout *>(page->layout())->addWidget(description);
+    pageDescription(page, tr("Interface settings change appearance and privacy-safe layout persistence."));
 
-    QFormLayout *form = pageForm(page);
+    QFormLayout *appearanceForm = sectionForm(page, tr("Appearance"));
 
-    m_themeCombo = new QComboBox(page);
+    m_themeCombo = stabilizeFieldHeight(new QComboBox(page));
     m_themeCombo->addItem(tr("Light"), static_cast<int>(core::UiTheme::Light));
     m_themeCombo->addItem(tr("Dark"), static_cast<int>(core::UiTheme::Dark));
-    form->addRow(tr("Theme:"), m_themeCombo);
+    appearanceForm->addRow(tr("Theme:"), m_themeCombo);
+
+    QFormLayout *layoutForm = sectionForm(page, tr("Layout"));
 
     m_rememberLayoutCheck = new QCheckBox(tr("Remember window layout"), page);
-    form->addRow(QString(), m_rememberLayoutCheck);
+    m_rememberLayoutCheck->setToolTip(tr("Stores window geometry, panel visibility, and Files panel splitters. It never stores opened paths."));
+    layoutForm->addRow(QString(), m_rememberLayoutCheck);
+
+    pageLayout(page)->addStretch(1);
 
     m_pages->addWidget(page);
 }
