@@ -1637,7 +1637,6 @@ void MainWindow::setupFullscreenOverlayPanels()
     addToolbarButton(m_fullscreenTopPanel, m_actualSizeAction, QStringLiteral("1:1"), true);
     addToolbarButton(m_fullscreenTopPanel, m_rotateLeftAction, QStringLiteral("↶"), true);
     addToolbarButton(m_fullscreenTopPanel, m_rotateRightAction, QStringLiteral("↷"), true);
-    addToolbarSpacer(m_fullscreenTopPanel);
     m_fullscreenAppMenuButton = addAppMenuButton(m_fullscreenTopPanel, true);
     m_fullscreenTopPanel->hide();
 

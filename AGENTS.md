@@ -111,7 +111,7 @@ Current MVP mouse behavior:
 
 Current MVP fullscreen behavior:
 
-- In normal mode, the main menu bar is hidden by default and appears transiently for Alt-driven menu navigation; normal and fullscreen toolbars also have a right-aligned compact app menu button for open file/folder, fullscreen, EXIF orientation, sorting, Preferences, and Quit. Toolbars, shortcuts, and menu actions must continue to share the same `QAction` objects where practical.
+- In normal mode, the main menu bar is hidden by default and appears transiently for Alt-driven menu navigation; the normal toolbar also has a right-aligned compact app menu button, and the fullscreen toolbar keeps the same button inside its main command cluster so the right edge overlay does not cover it. Toolbars, shortcuts, and menu actions must continue to share the same `QAction` objects where practical.
 - Fullscreen hides the normal menu bar, toolbar, statusbar, `Files` dock, and `Info` dock by default, leaving only the image area visible.
 - Edge panels appear as overlays over the image: left `Files`, right `Info`, compact dark top actions toolbar, bottom status text.
 - Normal statusbar and fullscreen bottom status text share the compact `status_line_formatter` output: labelled dimensions/MP, file size, modified date, taken date, display path, zoom, and index/count. The pinned fullscreen info line is a separate overlay with the `name (resolution | filesize) [index/count] zoom` field set and configurable visibility/font/size/color.
