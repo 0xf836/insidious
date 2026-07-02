@@ -28,6 +28,7 @@ The build creates:
 - `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, color profile status, and EXIF metadata fields collected by the decoder; it does not read files.
 - `src/ui/collection_tree_model.*` exposes the current source folder tree to `QTreeView` instances in the normal and fullscreen `Files` panels. It keeps path/node row indexes for large trees and updates lazy-loaded folders with targeted row insertions instead of resetting the whole model.
 - `src/ui/image_list_model.*` exposes the active folder's image entries to `QListView` instances in the left `Files` panel. It is UI-only and does not scan sources, decode images, or build thumbnails.
+- `src/ui/thumbnail_list_model.*` and `src/ui/thumbnail_loader.*` implement the optional thumbnail tab for the active folder. The model is UI-only; the loader decodes visible/nearby thumbnails asynchronously, uses a bounded memory-only cache, and drops stale results through generation checks.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
 - `src/ui/status_line_formatter.*` formats the compact statusbar/fullscreen bottom text and the separate pinned fullscreen info line from current entry, decode metadata, zoom state, and collection index. The status line renders each field as a muted label plus value with vertical separators, keeps file and EXIF dates distinguishable as `modified:` and `taken:`, normalizes dates to `YYYY.M.D HH:MM:SS`, and shows zoom as a percentage. The pinned fullscreen line uses the separate `name (resolution | filesize) [index/count] zoom` field set.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys, including filesystem and archive-backed entries.
@@ -107,14 +108,22 @@ Opening multiple paths:
 
 Left file list:
 
-- `MainWindow` owns a left `QDockWidget` named `Files` with a vertical `QSplitter`: `QTreeView` above and `QListView` below.
+- `MainWindow` owns a left `QDockWidget` named `Files` with a vertical `QSplitter`: `QTreeView` above and a bottom tab widget containing `List` and `Thumbnails` views below.
 - The tree uses `CollectionTreeModel` and represents folders for the current filesystem/archive source or the synthetic root for multi-source opens.
-- The list uses `ImageListModel` and is reset from `ViewerController::entries()` whenever the active folder changes.
+- The list uses `ImageListModel`; thumbnails use `ThumbnailListModel`. Both are reset from `ViewerController::entries()` whenever the active folder changes.
 - File sorting is runtime-only state in `MainWindow`: active-folder images are copied, sorted by `core::sortImageEntries()`, and then installed into `ViewerController`. Folder tree order and stored `CollectionFolderNode::images` stay in natural source order. Temporary selected-file collections initially preserve input order until the user explicitly applies Sort.
-- Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
+- Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row or thumbnail calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
 - Programmatic navigation syncs the selected file row and the selected/expanded folder in both normal and fullscreen panels.
 - `next/previous` first navigate inside the active folder collection. At folder boundaries, `MainWindow` uses a cached preorder traversal of the source tree to activate the next/previous loaded folder with images or unloaded filesystem folder; true source boundaries keep the existing reset-and-rerender behavior. The traversal cache is rebuilt only when the source root changes or a lazy-loaded folder adds children.
 - Explicit previous/next folder commands use the same adjacent-folder traversal directly and are exposed as configurable shortcuts. Defaults are `MouseBack` for previous folder and `MouseForward` for next folder. Both explicit folder commands select the first image in the destination folder after the current runtime sort is applied; plain previous-image navigation at a folder boundary still opens the previous folder at its last sorted image for continuous reverse browsing.
+
+Thumbnail flow:
+
+- Thumbnail generation starts only while the `Thumbnails` tab is selected and the corresponding `Files` panel is visible: normal dock visibility in windowed mode, left overlay visibility in fullscreen.
+- `MainWindow` requests thumbnails for the current image, visible thumbnail cells, and a small nearby range. The loader runs one background decode at a time on its own thread pool so foreground image decode remains independent.
+- Thumbnail decode uses small fit-sized requests, fast scaling, current EXIF autorotate and color-management settings, no view rotation, and no region rendering.
+- Closing the tab/panel or switching source clears queued work and advances a generation guard. A currently running decode is allowed to finish, but stale results are ignored and are not inserted into the thumbnail model/cache.
+- The thumbnail cache is bounded, memory-only, cleared on source switch and process exit, and never persisted to `QSettings` or disk.
 
 Quick filename jump:
 
@@ -136,7 +145,7 @@ Fullscreen overlay UI:
 
 - Entering fullscreen stores the previous non-fullscreen window state plus normal visibility of the menu bar, main toolbar, statusbar, `Files` dock, and `Info` dock, hides the UI chrome, and makes the central image viewer occupy the window. Exiting fullscreen restores the saved non-fullscreen window state instead of calling `showNormal()`, which keeps tiling/maximized window-manager geometry more predictable.
 - Fullscreen edge UI is implemented as child overlay widgets of `MainWindow`, not as dock widgets and not as layout participants. Showing or hiding these overlays must not resize `ImageViewWidget`, alter zoom/pan, or trigger image reload.
-- The left overlay owns a second `QTreeView` and `QListView` backed by the same tree/list models as the normal `Files` dock. The views have separate selection models and are synchronized from the active folder and `ViewerController::currentIndex()`.
+- The left overlay owns a second `QTreeView`, list view, and thumbnail view backed by the same tree/list/thumbnail models as the normal `Files` dock. The views have separate selection models and are synchronized from the active folder and `ViewerController::currentIndex()`.
 - The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.
 - The top overlay is a `QToolBar` using the same `QAction` objects as the normal menu/toolbar flow, so shortcuts, enabled state, checkable state, and command routing remain centralized.
 - The bottom overlay mirrors the normal statusbar text. Both use `status_line_formatter` and currently share the same labelled field set: decoded dimensions/MP, file size, file modified date, EXIF date, display path, zoom percentage, and index/count; in `fit` mode the zoom field shows the actual displayed scale rather than the literal word `fit`.

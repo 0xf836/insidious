@@ -10,6 +10,8 @@
 #include "ui/image_info_panel.h"
 #include "ui/image_list_model.h"
 #include "ui/image_view_widget.h"
+#include "ui/thumbnail_loader.h"
+#include "ui/thumbnail_list_model.h"
 
 #include <QByteArray>
 #include <QFutureWatcher>
@@ -33,6 +35,7 @@ class QDockWidget;
 class QListView;
 class QModelIndex;
 class QSplitter;
+class QTabWidget;
 class QToolBar;
 class QToolButton;
 class QTreeView;
@@ -154,6 +157,11 @@ private:
         ViewRenderState returnState;
     };
 
+    enum class FilePanelMode {
+        List,
+        Thumbnails,
+    };
+
     void setupActions();
     void setupConnections();
     void showTransientMenuBar();
@@ -250,8 +258,18 @@ private:
     void syncFileSortControls();
     void refreshFileList();
     void syncFileListSelection();
+    void syncThumbnailSelection();
+    void syncFilePanelMode(FilePanelMode mode);
+    void updateThumbnailActivation();
+    void resetThumbnailWork(bool clearCache);
+    void requestVisibleThumbnails();
+    [[nodiscard]] bool thumbnailsShouldRun() const;
+    [[nodiscard]] core::DecodeRequest thumbnailDecodeRequest() const;
+    void handleThumbnailReady(const ThumbnailResult &result);
+    void handleThumbnailFailed(const ThumbnailResult &result);
     void syncFolderTreeSelection();
     void selectImageFromFileList(const QModelIndex &index);
+    void selectImageFromThumbnailList(const QModelIndex &index);
     void selectFolderFromTree(const QModelIndex &index);
     [[nodiscard]] core::CollectionFolderNode *folderNodeForPath(const QString &folderRelativePath) const;
     void rememberTemporaryZoomReturnMode();
@@ -277,9 +295,13 @@ private:
     QDockWidget *m_fileListDock = nullptr;
     QSplitter *m_filePanelSplitter = nullptr;
     QTreeView *m_fileTreeView = nullptr;
+    QTabWidget *m_filePanelTabs = nullptr;
     QListView *m_fileListView = nullptr;
+    QListView *m_thumbnailListView = nullptr;
     CollectionTreeModel *m_fileTreeModel = nullptr;
     ImageListModel *m_fileListModel = nullptr;
+    ThumbnailListModel *m_thumbnailListModel = nullptr;
+    ThumbnailLoader *m_thumbnailLoader = nullptr;
     QDockWidget *m_infoDock = nullptr;
     ImageInfoPanel *m_infoPanel = nullptr;
     QLabel *m_statusLabel = nullptr;
@@ -291,7 +313,9 @@ private:
     QWidget *m_fullscreenBottomPanel = nullptr;
     QSplitter *m_fullscreenFilePanelSplitter = nullptr;
     QTreeView *m_fullscreenFileTreeView = nullptr;
+    QTabWidget *m_fullscreenFilePanelTabs = nullptr;
     QListView *m_fullscreenFileListView = nullptr;
+    QListView *m_fullscreenThumbnailListView = nullptr;
     ImageInfoPanel *m_fullscreenInfoPanel = nullptr;
     QLabel *m_fullscreenStatusLabel = nullptr;
     QLabel *m_fullscreenInfoLineLabel = nullptr;
@@ -350,7 +374,11 @@ private:
     bool m_imageRenderPending = false;
     bool m_syncingFileListSelection = false;
     bool m_syncingFolderTreeSelection = false;
+    bool m_syncingFilePanelTabs = false;
     bool m_quickJumpDialogOpen = false;
+    FilePanelMode m_filePanelMode = FilePanelMode::List;
+    quint64 m_thumbnailGeneration = 0;
+    bool m_thumbnailsActive = false;
     QHash<QString, QString> m_archivePasswords;
     std::shared_ptr<core::CollectionFolderNode> m_sourceRoot;
     QString m_sourceRootPath;

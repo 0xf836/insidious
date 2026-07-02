@@ -8,6 +8,7 @@
 #include "ui/quick_jump_dialog.h"
 #include "ui/settings_dialog.h"
 #include "ui/status_line_formatter.h"
+#include "ui/thumbnail_list_model.h"
 
 #include <QAction>
 #include <QAbstractItemView>
@@ -40,13 +41,17 @@
 #include <QMenuBar>
 #include <QMenu>
 #include <QMimeData>
+#include <QPainter>
 #include <QScopedValueRollback>
+#include <QScrollBar>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QStyle>
+#include <QStyledItemDelegate>
+#include <QTabWidget>
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
@@ -67,6 +72,10 @@ constexpr int LoadingOverlayDelayMs = 150;
 constexpr qint64 MaxOriginalClipboardBytes = 256LL * 1024LL * 1024LL;
 constexpr int MainToolbarButtonHeight = 28;
 constexpr int FullscreenToolbarButtonHeight = 30;
+constexpr int ThumbnailImageSize = 160;
+constexpr int ThumbnailGridWidth = 220;
+constexpr int ThumbnailGridHeight = 218;
+constexpr int ThumbnailNearbyRows = 12;
 
 QPalette darkApplicationPalette()
 {
@@ -242,6 +251,74 @@ void updateSortMenuSelection(QMenu *menu, core::ImageSortMode mode)
         action->setFont(font);
         action->setEnabled(!selected);
     }
+}
+
+class ThumbnailItemDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    [[nodiscard]] QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override
+    {
+        return QSize(ThumbnailGridWidth, ThumbnailGridHeight);
+    }
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        if (painter == nullptr) {
+            return;
+        }
+
+        painter->save();
+        const bool selected = option.state.testFlag(QStyle::State_Selected);
+        const bool hovered = option.state.testFlag(QStyle::State_MouseOver);
+        if (selected || hovered) {
+            const QColor background = selected
+                ? option.palette.color(QPalette::Highlight)
+                : option.palette.color(QPalette::AlternateBase);
+            painter->fillRect(option.rect.adjusted(2, 2, -2, -2), background);
+        }
+
+        const int margin = 8;
+        const int textHeight = option.fontMetrics.height() + 8;
+        const QRect imageArea = option.rect.adjusted(margin, margin, -margin, -(textHeight + margin));
+        const QImage thumbnail = index.data(ThumbnailListModel::ThumbnailImageRole).value<QImage>();
+        if (!thumbnail.isNull() && !imageArea.isEmpty()) {
+            const QSize targetSize = thumbnail.size().scaled(imageArea.size(), Qt::KeepAspectRatio);
+            const QRect targetRect(
+                imageArea.x() + (imageArea.width() - targetSize.width()) / 2,
+                imageArea.y() + (imageArea.height() - targetSize.height()) / 2,
+                targetSize.width(),
+                targetSize.height());
+            painter->drawImage(targetRect, thumbnail);
+        }
+
+        const QRect textRect = option.rect.adjusted(margin, option.rect.height() - textHeight - margin / 2, -margin, -margin / 2);
+        painter->setPen(selected
+            ? option.palette.color(QPalette::HighlightedText)
+            : option.palette.color(QPalette::Text));
+        painter->drawText(
+            textRect,
+            Qt::AlignHCenter | Qt::AlignVCenter,
+            option.fontMetrics.elidedText(index.data(Qt::DisplayRole).toString(), Qt::ElideRight, textRect.width()));
+        painter->restore();
+    }
+};
+
+void configureThumbnailView(QListView *view, bool fullscreen)
+{
+    view->setViewMode(QListView::IconMode);
+    view->setResizeMode(QListView::Adjust);
+    view->setMovement(QListView::Static);
+    view->setSelectionMode(QAbstractItemView::SingleSelection);
+    view->setSelectionBehavior(QAbstractItemView::SelectItems);
+    view->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    view->setUniformItemSizes(true);
+    view->setWordWrap(false);
+    view->setTextElideMode(Qt::ElideRight);
+    view->setIconSize(QSize(ThumbnailImageSize, ThumbnailImageSize));
+    view->setGridSize(QSize(ThumbnailGridWidth, ThumbnailGridHeight));
+    view->setSpacing(fullscreen ? 4 : 6);
+    view->setItemDelegate(new ThumbnailItemDelegate(view));
 }
 
 QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
@@ -1436,6 +1513,30 @@ void MainWindow::setupConnections()
         selectImageFromFileList(current);
     });
     connect(m_fileListView, &QListView::activated, this, &MainWindow::selectImageFromFileList);
+    connect(m_thumbnailListView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
+        if (m_syncingFileListSelection) {
+            return;
+        }
+        selectImageFromThumbnailList(current);
+    });
+    connect(m_thumbnailListView, &QListView::activated, this, &MainWindow::selectImageFromThumbnailList);
+    connect(m_thumbnailListView->verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
+        requestVisibleThumbnails();
+    });
+    connect(m_thumbnailListView->horizontalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
+        requestVisibleThumbnails();
+    });
+    connect(m_filePanelTabs, &QTabWidget::currentChanged, this, [this](int index) {
+        if (m_syncingFilePanelTabs) {
+            return;
+        }
+        syncFilePanelMode(index == 1 ? FilePanelMode::Thumbnails : FilePanelMode::List);
+    });
+    connect(m_fileListDock, &QDockWidget::visibilityChanged, this, [this](bool) {
+        updateThumbnailActivation();
+    });
+    connect(m_thumbnailLoader, &ThumbnailLoader::thumbnailReady, this, &MainWindow::handleThumbnailReady);
+    connect(m_thumbnailLoader, &ThumbnailLoader::thumbnailFailed, this, &MainWindow::handleThumbnailFailed);
 
     connect(&m_decodeWatcher, &QFutureWatcher<DecodeJobResult>::finished, this, [this]() {
         if (m_decodeWatcher.isRunning()) {
@@ -1589,6 +1690,8 @@ void MainWindow::setupFileListPanel()
 {
     m_fileTreeModel = new CollectionTreeModel(this);
     m_fileListModel = new ImageListModel(this);
+    m_thumbnailListModel = new ThumbnailListModel(this);
+    m_thumbnailLoader = new ThumbnailLoader(this);
 
     m_fileTreeView = new QTreeView(this);
     m_fileTreeView->setModel(m_fileTreeModel);
@@ -1607,11 +1710,20 @@ void MainWindow::setupFileListPanel()
     m_fileListView->setAlternatingRowColors(true);
     m_fileListView->setUniformItemSizes(true);
 
+    m_thumbnailListView = new QListView(this);
+    m_thumbnailListView->setModel(m_thumbnailListModel);
+    configureThumbnailView(m_thumbnailListView, false);
+
+    m_filePanelTabs = new QTabWidget(this);
+    m_filePanelTabs->setDocumentMode(true);
+    m_filePanelTabs->addTab(m_fileListView, tr("List"));
+    m_filePanelTabs->addTab(m_thumbnailListView, tr("Thumbnails"));
+
     auto *fileListContainer = new QWidget(this);
     auto *fileListLayout = new QVBoxLayout(fileListContainer);
     fileListLayout->setContentsMargins(0, 0, 0, 0);
     fileListLayout->setSpacing(4);
-    fileListLayout->addWidget(m_fileListView, 1);
+    fileListLayout->addWidget(m_filePanelTabs, 1);
 
     m_filePanelSplitter = new QSplitter(Qt::Vertical, this);
     m_filePanelSplitter->addWidget(m_fileTreeView);
@@ -1670,6 +1782,9 @@ void MainWindow::setupFullscreenOverlayPanels()
         "#fullscreenLeftPanel QListView::item { padding: 6px 8px; margin: 1px 0; border-radius: 4px; }"
         "#fullscreenLeftPanel QListView::item:hover { background-color: rgba(255, 255, 255, 28); }"
         "#fullscreenLeftPanel QListView::item:selected { background-color: rgba(80, 150, 255, 96); color: rgba(255, 255, 255, 245); }"
+        "#fullscreenLeftPanel QTabWidget::pane { border: none; }"
+        "#fullscreenLeftPanel QTabBar::tab { color: rgba(245, 245, 245, 220); background: rgba(255, 255, 255, 18); padding: 4px 10px; margin-right: 2px; border-radius: 4px; }"
+        "#fullscreenLeftPanel QTabBar::tab:selected { background: rgba(80, 150, 255, 96); color: rgba(255, 255, 255, 245); }"
         "#fullscreenLeftPanel QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }"
         "#fullscreenLeftPanel QScrollBar::handle:vertical { background: rgba(255, 255, 255, 70); border-radius: 4px; min-height: 24px; }"
         "#fullscreenLeftPanel QScrollBar::handle:vertical:hover { background: rgba(255, 255, 255, 105); }"
@@ -1728,7 +1843,23 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenFileListView->viewport()->setAutoFillBackground(false);
     m_fullscreenFileListView->viewport()->setMouseTracking(true);
     m_fullscreenFileListView->viewport()->installEventFilter(this);
-    fullscreenFileListLayout->addWidget(m_fullscreenFileListView, 1);
+
+    m_fullscreenThumbnailListView = new QListView(m_fullscreenLeftPanel);
+    m_fullscreenThumbnailListView->setModel(m_thumbnailListModel);
+    m_fullscreenThumbnailListView->setFrameShape(QFrame::NoFrame);
+    m_fullscreenThumbnailListView->setAutoFillBackground(false);
+    m_fullscreenThumbnailListView->setMouseTracking(true);
+    m_fullscreenThumbnailListView->installEventFilter(this);
+    m_fullscreenThumbnailListView->viewport()->setAutoFillBackground(false);
+    m_fullscreenThumbnailListView->viewport()->setMouseTracking(true);
+    m_fullscreenThumbnailListView->viewport()->installEventFilter(this);
+    configureThumbnailView(m_fullscreenThumbnailListView, true);
+
+    m_fullscreenFilePanelTabs = new QTabWidget(m_fullscreenLeftPanel);
+    m_fullscreenFilePanelTabs->setDocumentMode(true);
+    m_fullscreenFilePanelTabs->addTab(m_fullscreenFileListView, tr("List"));
+    m_fullscreenFilePanelTabs->addTab(m_fullscreenThumbnailListView, tr("Thumbnails"));
+    fullscreenFileListLayout->addWidget(m_fullscreenFilePanelTabs, 1);
     m_fullscreenFilePanelSplitter->addWidget(fullscreenFileListContainer);
     m_fullscreenFilePanelSplitter->setSizes(QList<int> { 220, 340 });
     leftLayout->addWidget(m_fullscreenFilePanelSplitter, 1);
@@ -1753,6 +1884,25 @@ void MainWindow::setupFullscreenOverlayPanels()
         selectImageFromFileList(current);
     });
     connect(m_fullscreenFileListView, &QListView::activated, this, &MainWindow::selectImageFromFileList);
+    connect(m_fullscreenThumbnailListView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
+        if (m_syncingFileListSelection) {
+            return;
+        }
+        selectImageFromThumbnailList(current);
+    });
+    connect(m_fullscreenThumbnailListView, &QListView::activated, this, &MainWindow::selectImageFromThumbnailList);
+    connect(m_fullscreenThumbnailListView->verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
+        requestVisibleThumbnails();
+    });
+    connect(m_fullscreenThumbnailListView->horizontalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
+        requestVisibleThumbnails();
+    });
+    connect(m_fullscreenFilePanelTabs, &QTabWidget::currentChanged, this, [this](int index) {
+        if (m_syncingFilePanelTabs) {
+            return;
+        }
+        syncFilePanelMode(index == 1 ? FilePanelMode::Thumbnails : FilePanelMode::List);
+    });
 
     m_fullscreenRightPanel = new QFrame(this);
     m_fullscreenRightPanel->setObjectName(QStringLiteral("fullscreenRightPanel"));
@@ -1927,6 +2077,10 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
                 loadCurrentImage(false, captureViewRenderState());
             }
         }
+    }
+    if (exifAutorotateChanged || colorManagementChanged) {
+        resetThumbnailWork(true);
+        updateThumbnailActivation();
     }
 
     updateFullscreenOverlayGeometry();
@@ -2989,6 +3143,7 @@ core::WheelAction MainWindow::wheelActionForModifiers(Qt::KeyboardModifiers modi
 
 void MainWindow::clearSourceTree()
 {
+    resetThumbnailWork(true);
     m_sourceRoot.reset();
     m_sourceRootPath.clear();
     m_sourceFoldersPreorder.clear();
@@ -3368,12 +3523,20 @@ void MainWindow::syncFileSortControls()
 void MainWindow::refreshFileList()
 {
     m_fileListModel->setEntries(m_controller.entries());
+    m_thumbnailListModel->setEntries(m_controller.entries());
     m_fileListView->setEnabled(m_controller.hasCollection());
+    m_thumbnailListView->setEnabled(m_controller.hasCollection());
     if (m_fullscreenFileListView != nullptr) {
         m_fullscreenFileListView->setEnabled(m_controller.hasCollection());
     }
+    if (m_fullscreenThumbnailListView != nullptr) {
+        m_fullscreenThumbnailListView->setEnabled(m_controller.hasCollection());
+    }
+    m_thumbnailsActive = false;
+    m_thumbnailLoader->clearQueue(++m_thumbnailGeneration);
     syncFileListSelection();
     syncFolderTreeSelection();
+    updateThumbnailActivation();
 }
 
 void MainWindow::syncFileListSelection()
@@ -3389,6 +3552,7 @@ void MainWindow::syncFileListSelection()
         selectionModel->clear();
         m_fileListView->setCurrentIndex(QModelIndex());
         syncFullscreenFileListSelection();
+        syncThumbnailSelection();
         return;
     }
 
@@ -3398,6 +3562,191 @@ void MainWindow::syncFileListSelection()
         QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current | QItemSelectionModel::Rows);
     m_fileListView->scrollTo(modelIndex, QAbstractItemView::EnsureVisible);
     syncFullscreenFileListSelection();
+    syncThumbnailSelection();
+}
+
+void MainWindow::syncThumbnailSelection()
+{
+    if (m_thumbnailListView == nullptr || m_thumbnailListModel == nullptr) {
+        return;
+    }
+
+    const QScopedValueRollback<bool> guard(m_syncingFileListSelection, true);
+    const int currentIndex = m_controller.currentIndex();
+    const bool validIndex = currentIndex >= 0 && currentIndex < m_thumbnailListModel->rowCount();
+    const QModelIndex modelIndex = validIndex ? m_thumbnailListModel->index(currentIndex, 0) : QModelIndex();
+
+    auto syncView = [modelIndex, validIndex](QListView *view) {
+        if (view == nullptr || view->selectionModel() == nullptr) {
+            return;
+        }
+        if (!validIndex) {
+            view->selectionModel()->clear();
+            view->setCurrentIndex(QModelIndex());
+            return;
+        }
+        view->selectionModel()->setCurrentIndex(
+            modelIndex,
+            QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current | QItemSelectionModel::Rows);
+        view->scrollTo(modelIndex, QAbstractItemView::EnsureVisible);
+    };
+
+    syncView(m_thumbnailListView);
+    syncView(m_fullscreenThumbnailListView);
+}
+
+void MainWindow::syncFilePanelMode(FilePanelMode mode)
+{
+    m_filePanelMode = mode;
+    const int tabIndex = mode == FilePanelMode::Thumbnails ? 1 : 0;
+    const QScopedValueRollback<bool> guard(m_syncingFilePanelTabs, true);
+    if (m_filePanelTabs != nullptr && m_filePanelTabs->currentIndex() != tabIndex) {
+        m_filePanelTabs->setCurrentIndex(tabIndex);
+    }
+    if (m_fullscreenFilePanelTabs != nullptr && m_fullscreenFilePanelTabs->currentIndex() != tabIndex) {
+        m_fullscreenFilePanelTabs->setCurrentIndex(tabIndex);
+    }
+    updateThumbnailActivation();
+}
+
+bool MainWindow::thumbnailsShouldRun() const
+{
+    if (m_filePanelMode != FilePanelMode::Thumbnails || !m_controller.hasCollection()) {
+        return false;
+    }
+
+    if (m_fullscreenUiActive || isFullScreen()) {
+        return m_fullscreenLeftPanel != nullptr
+            && m_fullscreenLeftPanel->isVisible()
+            && m_fullscreenFilePanelTabs != nullptr
+            && m_fullscreenFilePanelTabs->currentIndex() == 1;
+    }
+
+    return m_fileListDock != nullptr
+        && m_fileListDock->isVisible()
+        && m_filePanelTabs != nullptr
+        && m_filePanelTabs->currentIndex() == 1;
+}
+
+void MainWindow::updateThumbnailActivation()
+{
+    const bool shouldRun = thumbnailsShouldRun();
+    if (!shouldRun) {
+        if (m_thumbnailsActive) {
+            m_thumbnailsActive = false;
+            m_thumbnailLoader->clearQueue(++m_thumbnailGeneration);
+        }
+        return;
+    }
+
+    if (!m_thumbnailsActive) {
+        m_thumbnailsActive = true;
+        m_thumbnailLoader->setActiveGeneration(++m_thumbnailGeneration);
+    }
+    requestVisibleThumbnails();
+}
+
+void MainWindow::resetThumbnailWork(bool clearCache)
+{
+    m_thumbnailsActive = false;
+    m_thumbnailLoader->clearQueue(++m_thumbnailGeneration);
+    m_thumbnailListModel->clearThumbnails();
+    if (clearCache) {
+        m_thumbnailLoader->clearCache();
+    }
+}
+
+core::DecodeRequest MainWindow::thumbnailDecodeRequest() const
+{
+    core::DecodeRequest request;
+    request.viewportSize = QSize(ThumbnailImageSize, ThumbnailImageSize);
+    request.devicePixelRatio = std::max(1.0, m_devicePixelRatio);
+    request.scaleFactor = 1.0;
+    request.rotationDegrees = 0;
+    request.fitToWindow = true;
+    request.regionRendering = false;
+    request.exifAutorotate = m_settings.viewer.exifAutorotate;
+    request.scalingQuality = core::ScalingQuality::FastLinear;
+    request.colorManagementEnabled = m_settings.viewer.colorManagementEnabled;
+    request.maxDecodedBytes = 32LL * 1024LL * 1024LL;
+    return request;
+}
+
+void MainWindow::requestVisibleThumbnails()
+{
+    if (!m_thumbnailsActive || !thumbnailsShouldRun() || m_thumbnailListModel == nullptr) {
+        return;
+    }
+
+    QListView *view = (m_fullscreenUiActive || isFullScreen()) && m_fullscreenLeftPanel != nullptr && m_fullscreenLeftPanel->isVisible()
+        ? m_fullscreenThumbnailListView
+        : m_thumbnailListView;
+    if (view == nullptr || view->viewport() == nullptr || m_thumbnailListModel->rowCount() <= 0) {
+        return;
+    }
+
+    const int count = m_thumbnailListModel->rowCount();
+    int firstRow = 0;
+    int lastRow = std::min(count - 1, 32);
+    const QRect viewportRect = view->viewport()->rect();
+    const QModelIndex firstVisible = view->indexAt(viewportRect.topLeft() + QPoint(2, 2));
+    const QModelIndex lastVisible = view->indexAt(viewportRect.bottomRight() - QPoint(2, 2));
+    if (firstVisible.isValid()) {
+        firstRow = firstVisible.row();
+    }
+    if (lastVisible.isValid()) {
+        lastRow = lastVisible.row();
+    } else if (firstVisible.isValid()) {
+        lastRow = std::min(count - 1, firstRow + 32);
+    }
+
+    firstRow = std::max(0, firstRow - ThumbnailNearbyRows);
+    lastRow = std::min(count - 1, lastRow + ThumbnailNearbyRows);
+
+    QVector<int> rows;
+    auto addRow = [&rows, count](int row) {
+        if (row < 0 || row >= count || rows.contains(row)) {
+            return;
+        }
+        rows.append(row);
+    };
+    addRow(m_controller.currentIndex());
+    for (int row = firstRow; row <= lastRow; ++row) {
+        addRow(row);
+    }
+
+    const core::DecodeRequest request = thumbnailDecodeRequest();
+    for (int row : rows) {
+        if (m_thumbnailListModel->hasThumbnail(row) || m_thumbnailListModel->isFailed(row)) {
+            continue;
+        }
+        const core::ImageEntry *entry = m_thumbnailListModel->entryAt(row);
+        if (entry == nullptr) {
+            continue;
+        }
+        m_thumbnailLoader->requestThumbnail(
+            row,
+            *entry,
+            request,
+            archivePasswordForEntry(*entry),
+            m_thumbnailGeneration);
+    }
+}
+
+void MainWindow::handleThumbnailReady(const ThumbnailResult &result)
+{
+    if (result.generation != m_thumbnailGeneration || m_thumbnailListModel == nullptr) {
+        return;
+    }
+    m_thumbnailListModel->setThumbnail(result.identityKey, result.image);
+}
+
+void MainWindow::handleThumbnailFailed(const ThumbnailResult &result)
+{
+    if (result.generation != m_thumbnailGeneration || m_thumbnailListModel == nullptr) {
+        return;
+    }
+    m_thumbnailListModel->markFailed(result.identityKey);
 }
 
 void MainWindow::syncFolderTreeSelection()
@@ -3435,6 +3784,11 @@ void MainWindow::selectImageFromFileList(const QModelIndex &index)
     if (m_controller.setCurrentIndex(index.row())) {
         reloadAfterImageSwitch();
     }
+}
+
+void MainWindow::selectImageFromThumbnailList(const QModelIndex &index)
+{
+    selectImageFromFileList(index);
 }
 
 void MainWindow::selectFolderFromTree(const QModelIndex &index)
@@ -3623,6 +3977,7 @@ void MainWindow::hideFullscreenOverlayPanels()
     if (m_fullscreenBottomPanel != nullptr) {
         m_fullscreenBottomPanel->hide();
     }
+    updateThumbnailActivation();
 }
 
 void MainWindow::updateFullscreenOverlayGeometry()
@@ -3706,6 +4061,7 @@ void MainWindow::updateFullscreenOverlayVisibility()
             panel->raise();
         }
     }
+    updateThumbnailActivation();
     updateFullscreenInfoLine();
 }
 
@@ -3725,6 +4081,7 @@ void MainWindow::syncFullscreenFileListSelection()
     if (currentIndex < 0 || currentIndex >= m_fileListModel->rowCount()) {
         selectionModel->clear();
         m_fullscreenFileListView->setCurrentIndex(QModelIndex());
+        syncThumbnailSelection();
         return;
     }
 
@@ -3733,6 +4090,7 @@ void MainWindow::syncFullscreenFileListSelection()
         modelIndex,
         QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current | QItemSelectionModel::Rows);
     m_fullscreenFileListView->scrollTo(modelIndex, QAbstractItemView::EnsureVisible);
+    syncThumbnailSelection();
 }
 
 void MainWindow::updateFullscreenStatusText()

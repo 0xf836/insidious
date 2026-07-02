@@ -25,7 +25,7 @@
 
 ## Начальный принцип разработки
 
-Сначала делается маленькая, стабильная версия viewer pipeline: открыть изображение, несколько выбранных изображений, папку или архив, навигация, масштабирование, fullscreen, drag'n'drop, информация и настройки без следов просмотра. RAW, JPEG XL, thumbnail panel, display-profile matching и продвинутая настройка rendering добавляются отдельными milestones после стабилизации базового просмотра.
+Сначала делается маленькая, стабильная версия viewer pipeline: открыть изображение, несколько выбранных изображений, папку или архив, навигация, масштабирование, fullscreen, drag'n'drop, информация, lazy thumbnail panel и настройки без следов просмотра. RAW, JPEG XL, display-profile matching и продвинутая настройка rendering добавляются отдельными milestones после стабилизации базового просмотра.
 
 ## Текущая реализация
 
@@ -40,7 +40,7 @@
 
 Архивы ZIP/7z/RAR открываются через libarchive как дерево virtual folders. При открытии асинхронно перечисляются headers и строятся списки изображений по папкам; display decode читает выбранный entry как последовательный stream без полной буферизации и без распаковки на диск. Для архивов с паролем пароль запрашивается при открытии, хранится только в памяти для текущего source и очищается при смене source. При открытии нескольких архивов приложение спрашивает пароль один раз, применяет его к выбранным архивам и отменяет открытие, если какой-либо архив его отклоняет.
 
-Левая панель `Files` разделена по вертикали: сверху дерево папок текущего source, снизу список изображений выбранной папки без thumbnails. Выбранная папка становится активной коллекцией `ViewerController`: next/previous идут внутри папки, а на границе переходят к соседней подходящей папке по дереву; first/last остаются внутри активной папки. Выбор строки мышью или клавиатурой переключает текущее изображение через существующий viewer pipeline. Для filesystem folders подпапки загружаются лениво при выборе или раскрытии ветки. Для нескольких выбранных изображений дерево показывает синтетический root с одним плоским списком; для нескольких папок или архивов под синтетическим root находятся top-level источники в порядке выбора.
+Левая панель `Files` разделена по вертикали: сверху дерево папок текущего source, снизу вкладки `List` и `Thumbnails` для изображений выбранной папки. Thumbnail generation запускается только при явно открытой вкладке `Thumbnails` и видимой панели, создаёт видимые и ближайшие превью асинхронно, хранит их только в памяти и останавливает очередь при закрытии вкладки/панели или смене source. Выбранная папка становится активной коллекцией `ViewerController`: next/previous идут внутри папки, а на границе переходят к соседней подходящей папке по дереву; first/last остаются внутри активной папки. Выбор строки или thumbnail мышью/клавиатурой переключает текущее изображение через существующий viewer pipeline. Для filesystem folders подпапки загружаются лениво при выборе или раскрытии ветки. Для нескольких выбранных изображений дерево показывает синтетический root с одним плоским списком; для нескольких папок или архивов под синтетическим root находятся top-level источники в порядке выбора.
 
 `Navigate -> Quick Jump` (`Ctrl+F`) открывает поиск по имени файла в активной папке. Поиск нечувствителен к регистру и переключает выбранное совпадение через тот же viewer pipeline.
 
@@ -115,4 +115,4 @@ Run:
 ./build/insidious /path/to/image-folder-or-archive
 ```
 
-The app intentionally does not use recent-file history, persistent thumbnail caches, archive extraction, archive password persistence or file logging in the MVP. The settings file stores only non-history preferences such as viewer behavior, shortcuts, fullscreen presentation, normal-mode theme, and layout state.
+The app intentionally does not use recent-file history, persistent thumbnail caches, archive extraction, archive password persistence or file logging in the MVP. Thumbnails are generated only while the thumbnail tab is visible and are cached in memory only. The settings file stores only non-history preferences such as viewer behavior, shortcuts, fullscreen presentation, normal-mode theme, and layout state.

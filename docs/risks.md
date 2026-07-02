@@ -65,6 +65,7 @@ Thumbnail panel может стать источником подвисаний 
 - thumbnails создаются только по требованию;
 - генерация должна быть lazy/asynchronous;
 - cache только memory-only;
+- очередь generation сбрасывается при закрытии вкладки/панели или смене source;
 - при закрытии приложения thumbnails исчезают.
 
 ## Большие папки
@@ -87,4 +88,4 @@ Natural sort должен корректно обрабатывать имена
 
 ## Память
 
-Опасность: большие изображения, decoded cache и future thumbnail work могут быстро съесть память. Cache должен иметь лимиты и уметь освобождать decoded images. Non-fit zoom/actual-size rendering сейчас декодирует только видимую область плюс запас, но total peak memory всё ещё зависит от libvips working memory, source-reader buffering и будущих thumbnails.
+Опасность: большие изображения, decoded cache и thumbnail work могут быстро съесть память. Cache должен иметь лимиты и уметь освобождать decoded images. Non-fit zoom/actual-size rendering сейчас декодирует только видимую область плюс запас, но total peak memory всё ещё зависит от libvips working memory, source-reader buffering и thumbnails.

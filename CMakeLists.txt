@@ -76,6 +76,10 @@ add_executable(insidious
     src/ui/settings_dialog.h
     src/ui/status_line_formatter.cpp
     src/ui/status_line_formatter.h
+    src/ui/thumbnail_list_model.cpp
+    src/ui/thumbnail_list_model.h
+    src/ui/thumbnail_loader.cpp
+    src/ui/thumbnail_loader.h
 )
 target_link_libraries(insidious
     PRIVATE
@@ -119,6 +123,22 @@ target_link_libraries(insidious_ui_tests
 )
 add_test(NAME insidious_ui_tests COMMAND insidious_ui_tests)
 set_tests_properties(insidious_ui_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
+add_executable(insidious_thumbnail_list_model_tests
+    tests/thumbnail_list_model_tests.cpp
+    src/ui/thumbnail_list_model.cpp
+    src/ui/thumbnail_list_model.h
+)
+target_link_libraries(insidious_thumbnail_list_model_tests
+    PRIVATE
+        insidious_core
+        Qt6::Test
+        Qt6::Widgets
+)
+add_test(NAME insidious_thumbnail_list_model_tests COMMAND insidious_thumbnail_list_model_tests)
+set_tests_properties(insidious_thumbnail_list_model_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
 
