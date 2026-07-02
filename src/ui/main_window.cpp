@@ -30,6 +30,7 @@
 #include <QFont>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
+#include <QItemSelection>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLayout>
@@ -76,6 +77,7 @@ constexpr int ThumbnailImageSize = 160;
 constexpr int ThumbnailGridWidth = 220;
 constexpr int ThumbnailGridHeight = 218;
 constexpr int ThumbnailNearbyRows = 12;
+constexpr int MaxComparisonItems = 8;
 
 QPalette darkApplicationPalette()
 {
@@ -332,7 +334,7 @@ void configureThumbnailView(QListView *view, bool fullscreen)
     view->setViewMode(QListView::IconMode);
     view->setResizeMode(QListView::Adjust);
     view->setMovement(QListView::Static);
-    view->setSelectionMode(QAbstractItemView::SingleSelection);
+    view->setSelectionMode(QAbstractItemView::ExtendedSelection);
     view->setSelectionBehavior(QAbstractItemView::SelectItems);
     view->setEditTriggers(QAbstractItemView::NoEditTriggers);
     view->setUniformItemSizes(true);
@@ -342,6 +344,7 @@ void configureThumbnailView(QListView *view, bool fullscreen)
     view->setIconSize(QSize(ThumbnailImageSize, ThumbnailImageSize));
     view->setGridSize(QSize(ThumbnailGridWidth, ThumbnailGridHeight));
     view->setSpacing(fullscreen ? 4 : 6);
+    view->setContextMenuPolicy(Qt::CustomContextMenu);
     view->setItemDelegate(new ThumbnailItemDelegate(view));
 }
 
@@ -571,10 +574,15 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle(tr("Insidious"));
     setAcceptDrops(true);
 
-    m_imageView = new ImageViewWidget(this);
+    m_centralTabs = new QTabWidget(this);
+    m_centralTabs->setDocumentMode(true);
+    m_imageView = new ImageViewWidget(m_centralTabs);
+    m_comparisonView = new ComparisonViewWidget(m_centralTabs);
     m_devicePixelRatio = devicePixelRatioF();
     m_imageView->setMessage(tr("Open an image or folder."));
-    setCentralWidget(m_imageView);
+    m_centralTabs->addTab(m_imageView, tr("Viewer"));
+    m_centralTabs->addTab(m_comparisonView, tr("Compare"));
+    setCentralWidget(m_centralTabs);
 
     statusBar()->setObjectName(QStringLiteral("mainStatusBar"));
     statusBar()->setSizeGripEnabled(false);
@@ -1518,6 +1526,25 @@ void MainWindow::setupConnections()
         m_controller.setPanOffset(offset);
         scheduleRegionReload();
     });
+    connect(m_centralTabs, &QTabWidget::currentChanged, this, [this]() {
+        if (m_centralTabs->currentWidget() == m_comparisonView && !m_comparisonStatusMessage.isEmpty()) {
+            updateStatus(m_comparisonStatusMessage);
+        } else {
+            updateStatus();
+        }
+        updateActionState();
+    });
+    connect(m_comparisonView, &ComparisonViewWidget::closeRequested, this, [this]() {
+        if (m_centralTabs != nullptr) {
+            m_centralTabs->setCurrentWidget(m_imageView);
+        }
+    });
+    connect(m_comparisonView, &ComparisonViewWidget::statusMessageChanged, this, [this](const QString &message) {
+        m_comparisonStatusMessage = message;
+        if (m_centralTabs != nullptr && m_centralTabs->currentWidget() == m_comparisonView) {
+            updateStatus(message);
+        }
+    });
     connect(m_fileTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFolderTreeSelection) {
             return;
@@ -1536,14 +1563,26 @@ void MainWindow::setupConnections()
         }
         selectImageFromFileList(current);
     });
+    connect(m_fileListView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](const QItemSelection &selected, const QItemSelection &deselected) {
+        updateComparisonSelectionOrder(selected, deselected);
+    });
     connect(m_fileListView, &QListView::activated, this, &MainWindow::selectImageFromFileList);
+    connect(m_fileListView, &QListView::customContextMenuRequested, this, [this](const QPoint &position) {
+        showComparisonContextMenu(m_fileListView, position);
+    });
     connect(m_thumbnailListView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFileListSelection) {
             return;
         }
         selectImageFromThumbnailList(current);
     });
+    connect(m_thumbnailListView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](const QItemSelection &selected, const QItemSelection &deselected) {
+        updateComparisonSelectionOrder(selected, deselected);
+    });
     connect(m_thumbnailListView, &QListView::activated, this, &MainWindow::selectImageFromThumbnailList);
+    connect(m_thumbnailListView, &QListView::customContextMenuRequested, this, [this](const QPoint &position) {
+        showComparisonContextMenu(m_thumbnailListView, position);
+    });
     connect(m_thumbnailListView->verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
         requestVisibleThumbnails();
     });
@@ -1730,13 +1769,14 @@ void MainWindow::setupFileListPanel()
 
     m_fileListView = new QListView(this);
     m_fileListView->setModel(m_fileListModel);
-    m_fileListView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_fileListView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_fileListView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_fileListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_fileListView->setAlternatingRowColors(true);
     m_fileListView->setUniformItemSizes(true);
     m_fileListView->setTextElideMode(Qt::ElideRight);
     m_fileListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_fileListView->setContextMenuPolicy(Qt::CustomContextMenu);
 
     m_thumbnailListView = new QListView(this);
     m_thumbnailListView->setModel(m_thumbnailListModel);
@@ -1861,13 +1901,14 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenFileListView = new QListView(m_fullscreenLeftPanel);
     m_fullscreenFileListView->setModel(m_fileListModel);
     m_fullscreenFileListView->setFrameShape(QFrame::NoFrame);
-    m_fullscreenFileListView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_fullscreenFileListView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_fullscreenFileListView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_fullscreenFileListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_fullscreenFileListView->setAlternatingRowColors(false);
     m_fullscreenFileListView->setUniformItemSizes(true);
     m_fullscreenFileListView->setTextElideMode(Qt::ElideRight);
     m_fullscreenFileListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_fullscreenFileListView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_fullscreenFileListView->setSpacing(1);
     m_fullscreenFileListView->setAutoFillBackground(false);
     m_fullscreenFileListView->setMouseTracking(true);
@@ -1885,6 +1926,7 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenThumbnailListView->viewport()->setAutoFillBackground(false);
     m_fullscreenThumbnailListView->viewport()->setMouseTracking(true);
     m_fullscreenThumbnailListView->viewport()->installEventFilter(this);
+    m_fullscreenThumbnailListView->setContextMenuPolicy(Qt::CustomContextMenu);
     configureThumbnailView(m_fullscreenThumbnailListView, true);
 
     m_fullscreenFilePanelTabs = new QTabWidget(m_fullscreenLeftPanel);
@@ -1915,14 +1957,26 @@ void MainWindow::setupFullscreenOverlayPanels()
         }
         selectImageFromFileList(current);
     });
+    connect(m_fullscreenFileListView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](const QItemSelection &selected, const QItemSelection &deselected) {
+        updateComparisonSelectionOrder(selected, deselected);
+    });
     connect(m_fullscreenFileListView, &QListView::activated, this, &MainWindow::selectImageFromFileList);
+    connect(m_fullscreenFileListView, &QListView::customContextMenuRequested, this, [this](const QPoint &position) {
+        showComparisonContextMenu(m_fullscreenFileListView, position);
+    });
     connect(m_fullscreenThumbnailListView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFileListSelection) {
             return;
         }
         selectImageFromThumbnailList(current);
     });
+    connect(m_fullscreenThumbnailListView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](const QItemSelection &selected, const QItemSelection &deselected) {
+        updateComparisonSelectionOrder(selected, deselected);
+    });
     connect(m_fullscreenThumbnailListView, &QListView::activated, this, &MainWindow::selectImageFromThumbnailList);
+    connect(m_fullscreenThumbnailListView, &QListView::customContextMenuRequested, this, [this](const QPoint &position) {
+        showComparisonContextMenu(m_fullscreenThumbnailListView, position);
+    });
     connect(m_fullscreenThumbnailListView->verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
         requestVisibleThumbnails();
     });
@@ -2794,6 +2848,14 @@ void MainWindow::showImageLoadError(const core::ImageEntry &entry, const QString
 
 void MainWindow::updateStatus(const QString &message)
 {
+    QString effectiveMessage = message;
+    const bool compareActive = m_centralTabs != nullptr
+        && m_comparisonView != nullptr
+        && m_centralTabs->currentWidget() == m_comparisonView;
+    if (compareActive && !m_comparisonStatusMessage.isEmpty()) {
+        effectiveMessage = m_comparisonStatusMessage;
+    }
+
     const StatusLineContext context {
         m_controller.currentEntry(),
         &m_currentDecoded,
@@ -2801,7 +2863,7 @@ void MainWindow::updateStatus(const QString &message)
         m_controller.zoomFactor(),
         m_controller.currentIndex(),
         m_controller.count(),
-        message,
+        effectiveMessage,
     };
     const QString statusText = formatStatusLine(context);
 
@@ -2812,6 +2874,9 @@ void MainWindow::updateStatus(const QString &message)
 
 void MainWindow::updateActionState()
 {
+    const bool compareActive = m_centralTabs != nullptr
+        && m_comparisonView != nullptr
+        && m_centralTabs->currentWidget() == m_comparisonView;
     const bool hasImage = m_controller.hasCollection();
     const bool hasPreviousInFolder = hasImage && m_controller.currentIndex() > 0;
     const bool hasNextInFolder = hasImage && m_controller.currentIndex() + 1 < m_controller.count();
@@ -2821,21 +2886,21 @@ void MainWindow::updateActionState()
     const bool hasNext = hasNextInFolder || hasNextAdjacentFolder;
     const bool canChangeView = hasImage && !m_imageRenderPending && !m_activeHoldZoom.has_value();
 
-    m_previousAction->setEnabled(hasPrevious || hasImage);
-    m_nextAction->setEnabled(hasNext || hasImage);
-    m_previousFolderAction->setEnabled(hasPreviousAdjacentFolder);
-    m_nextFolderAction->setEnabled(hasNextAdjacentFolder);
-    m_firstAction->setEnabled(hasPreviousInFolder);
-    m_lastAction->setEnabled(hasNextInFolder);
-    m_quickJumpAction->setEnabled(hasImage);
-    m_copyOriginalImageAction->setEnabled(hasImage && !m_copyOriginalImageWatcher.isRunning());
-    m_zoomInAction->setEnabled(canChangeView);
-    m_zoomOutAction->setEnabled(canChangeView);
-    m_fitAction->setEnabled(canChangeView);
-    m_actualSizeAction->setEnabled(canChangeView);
-    m_rotateLeftAction->setEnabled(canChangeView);
-    m_rotateRightAction->setEnabled(canChangeView);
-    m_fullscreenAction->setEnabled(hasImage);
+    m_previousAction->setEnabled(!compareActive && (hasPrevious || hasImage));
+    m_nextAction->setEnabled(!compareActive && (hasNext || hasImage));
+    m_previousFolderAction->setEnabled(!compareActive && hasPreviousAdjacentFolder);
+    m_nextFolderAction->setEnabled(!compareActive && hasNextAdjacentFolder);
+    m_firstAction->setEnabled(!compareActive && hasPreviousInFolder);
+    m_lastAction->setEnabled(!compareActive && hasNextInFolder);
+    m_quickJumpAction->setEnabled(!compareActive && hasImage);
+    m_copyOriginalImageAction->setEnabled(!compareActive && hasImage && !m_copyOriginalImageWatcher.isRunning());
+    m_zoomInAction->setEnabled(!compareActive && canChangeView);
+    m_zoomOutAction->setEnabled(!compareActive && canChangeView);
+    m_fitAction->setEnabled(!compareActive && canChangeView);
+    m_actualSizeAction->setEnabled(!compareActive && canChangeView);
+    m_rotateLeftAction->setEnabled(!compareActive && canChangeView);
+    m_rotateRightAction->setEnabled(!compareActive && canChangeView);
+    m_fullscreenAction->setEnabled(!compareActive && hasImage);
 }
 
 void MainWindow::updateInteractionState()
@@ -3554,6 +3619,7 @@ void MainWindow::syncFileSortControls()
 
 void MainWindow::refreshFileList()
 {
+    clearComparisonSelection();
     m_fileListModel->setEntries(m_controller.entries());
     m_thumbnailListModel->setEntries(m_controller.entries());
     m_fileListView->setEnabled(m_controller.hasCollection());
@@ -3781,6 +3847,141 @@ void MainWindow::handleThumbnailFailed(const ThumbnailResult &result)
     m_thumbnailListModel->markFailed(result.identityKey);
 }
 
+void MainWindow::updateComparisonSelectionOrder(const QItemSelection &selected, const QItemSelection &deselected)
+{
+    if (m_syncingFileListSelection) {
+        return;
+    }
+
+    auto identityForIndex = [this](const QModelIndex &index) -> QString {
+        if (!index.isValid() || index.row() < 0 || index.row() >= m_controller.count()) {
+            return {};
+        }
+        return m_controller.entries().at(index.row()).identityKey();
+    };
+
+    for (const QModelIndex &index : deselected.indexes()) {
+        const QString identity = identityForIndex(index);
+        if (!identity.isEmpty()) {
+            m_comparisonSelectionOrder.removeAll(identity);
+        }
+    }
+
+    for (const QModelIndex &index : selected.indexes()) {
+        const QString identity = identityForIndex(index);
+        if (!identity.isEmpty() && !m_comparisonSelectionOrder.contains(identity)) {
+            m_comparisonSelectionOrder.append(identity);
+        }
+    }
+}
+
+QVector<ComparisonSessionItem> MainWindow::comparisonItemsForView(QListView *view) const
+{
+    QVector<ComparisonSessionItem> items;
+    if (view == nullptr || view->selectionModel() == nullptr || !m_controller.hasCollection()) {
+        return items;
+    }
+
+    QVector<int> selectedRows;
+    for (const QModelIndex &index : view->selectionModel()->selectedIndexes()) {
+        if (index.isValid() && index.row() >= 0 && index.row() < m_controller.count() && !selectedRows.contains(index.row())) {
+            selectedRows.append(index.row());
+        }
+    }
+
+    auto appendRow = [this, &items, &selectedRows](int row) {
+        if (!selectedRows.contains(row)) {
+            return;
+        }
+        const core::ImageEntry &entry = m_controller.entries().at(row);
+        items.append(ComparisonSessionItem {
+            entry,
+            archivePasswordForEntry(entry),
+        });
+        selectedRows.removeAll(row);
+    };
+
+    for (const QString &identity : m_comparisonSelectionOrder) {
+        for (int row = 0; row < m_controller.count(); ++row) {
+            if (m_controller.entries().at(row).identityKey() == identity) {
+                appendRow(row);
+                break;
+            }
+        }
+    }
+
+    std::sort(selectedRows.begin(), selectedRows.end());
+    for (int row : selectedRows) {
+        appendRow(row);
+    }
+    return items;
+}
+
+void MainWindow::showComparisonContextMenu(QListView *view, const QPoint &position)
+{
+    if (view == nullptr || view->selectionModel() == nullptr) {
+        return;
+    }
+
+    const QModelIndex clickedIndex = view->indexAt(position);
+    if (clickedIndex.isValid() && !view->selectionModel()->isSelected(clickedIndex)) {
+        view->selectionModel()->setCurrentIndex(
+            clickedIndex,
+            QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current | QItemSelectionModel::Rows);
+    }
+
+    const QVector<ComparisonSessionItem> items = comparisonItemsForView(view);
+    QMenu menu(this);
+    QMenu *compareMenu = menu.addMenu(tr("Compare"));
+    QAction *rowAction = compareMenu->addAction(tr("In Row"));
+    if (items.size() < 2) {
+        rowAction->setText(tr("In Row (select 2-8 images)"));
+        rowAction->setEnabled(false);
+    } else if (items.size() > MaxComparisonItems) {
+        rowAction->setText(tr("In Row (max 8 images)"));
+        rowAction->setEnabled(false);
+    } else {
+        connect(rowAction, &QAction::triggered, this, [this, items]() {
+            openRowComparison(items);
+        });
+    }
+    menu.exec(view->viewport()->mapToGlobal(position));
+}
+
+void MainWindow::openRowComparison(const QVector<ComparisonSessionItem> &items)
+{
+    if (items.size() < 2 || items.size() > MaxComparisonItems || m_comparisonView == nullptr || m_centralTabs == nullptr) {
+        return;
+    }
+
+    if (m_fullscreenUiActive) {
+        exitFullscreenMode();
+    } else if (isFullScreen()) {
+        showNormal();
+    }
+
+    m_comparisonView->setSession(items, comparisonRenderSettings());
+    m_centralTabs->setCurrentWidget(m_comparisonView);
+    m_comparisonStatusMessage = tr("Compare: %1 images in row").arg(items.size());
+    updateStatus(m_comparisonStatusMessage);
+    updateActionState();
+}
+
+void MainWindow::clearComparisonSelection()
+{
+    m_comparisonSelectionOrder.clear();
+}
+
+ComparisonRenderSettings MainWindow::comparisonRenderSettings() const
+{
+    ComparisonRenderSettings settings;
+    settings.exifAutorotate = m_settings.viewer.exifAutorotate;
+    settings.scalingQuality = m_settings.viewer.scalingQuality;
+    settings.colorManagementEnabled = m_settings.viewer.colorManagementEnabled;
+    settings.devicePixelRatio = std::max(1.0, m_devicePixelRatio);
+    return settings;
+}
+
 void MainWindow::syncFolderTreeSelection()
 {
     if (m_fileTreeModel == nullptr || m_fileTreeView == nullptr) {
@@ -3810,6 +4011,11 @@ void MainWindow::syncFolderTreeSelection()
 void MainWindow::selectImageFromFileList(const QModelIndex &index)
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_controller.count()) {
+        return;
+    }
+
+    const Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
+    if (modifiers.testFlag(Qt::ControlModifier) || modifiers.testFlag(Qt::ShiftModifier)) {
         return;
     }
 
@@ -3874,6 +4080,10 @@ void MainWindow::enterFullscreenMode()
 {
     if (m_fullscreenUiActive) {
         return;
+    }
+
+    if (m_centralTabs != nullptr && m_imageView != nullptr) {
+        m_centralTabs->setCurrentWidget(m_imageView);
     }
 
     hideTransientMenuBar();

@@ -29,6 +29,7 @@ The build creates:
 - `src/ui/collection_tree_model.*` exposes the current source folder tree to `QTreeView` instances in the normal and fullscreen `Files` panels. It keeps path/node row indexes for large trees and updates lazy-loaded folders with targeted row insertions instead of resetting the whole model.
 - `src/ui/image_list_model.*` exposes the active folder's image entries to `QListView` instances in the left `Files` panel. It is UI-only and does not scan sources, decode images, or build thumbnails.
 - `src/ui/thumbnail_list_model.*` and `src/ui/thumbnail_loader.*` implement the optional thumbnail tab for the active folder. The model is UI-only; the loader decodes visible/nearby thumbnails asynchronously, uses a bounded memory-only cache, and drops stale results through generation checks.
+- `src/ui/comparison_view_widget.*` implements the temporary image comparison tab. It keeps compare session state in UI memory, decodes comparison tiles asynchronously with current render settings, uses a bounded memory-only cache, and does not change `ViewerController` collection state.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
 - `src/ui/status_line_formatter.*` formats the compact statusbar/fullscreen bottom text and the separate pinned fullscreen info line from current entry, decode metadata, zoom state, and collection index. The status line renders each field as a muted label plus value with vertical separators, keeps file and EXIF dates distinguishable as `modified:` and `taken:`, normalizes dates to `YYYY.M.D HH:MM:SS`, and shows zoom as a percentage. The pinned fullscreen line uses the separate `name (resolution | filesize) [index/count] zoom` field set.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys, including filesystem and archive-backed entries.
@@ -111,8 +112,9 @@ Left file list:
 - `MainWindow` owns a left `QDockWidget` named `Files` with a vertical `QSplitter`: `QTreeView` above and a bottom tab widget containing `List` and `Thumbnails` views below.
 - The tree uses `CollectionTreeModel` and represents folders for the current filesystem/archive source or the synthetic root for multi-source opens.
 - The list uses `ImageListModel`; thumbnails use `ThumbnailListModel`. Both are reset from `ViewerController::entries()` whenever the active folder changes.
+- The list and thumbnail views use extended selection for temporary compare selection. `MainWindow` tracks selected image identity keys in click order while the active folder is unchanged; changing the active folder/source clears that order.
 - File sorting is runtime-only state in `MainWindow`: active-folder images are copied, sorted by `core::sortImageEntries()`, and then installed into `ViewerController`. Folder tree order and stored `CollectionFolderNode::images` stay in natural source order. Temporary selected-file collections initially preserve input order until the user explicitly applies Sort.
-- Selecting a folder activates only that folder's direct images as the viewer collection; selecting a file row or thumbnail calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path.
+- Selecting a folder activates only that folder's direct images as the viewer collection. A plain file row or thumbnail selection calls `ViewerController::setCurrentIndex()` and then loads through the existing image-switch path; `Ctrl`/`Shift` selection is reserved for multi-select compare and does not switch the current viewer image.
 - Programmatic navigation syncs the selected file row and the selected/expanded folder in both normal and fullscreen panels.
 - `next/previous` first navigate inside the active folder collection. At folder boundaries, `MainWindow` uses a cached preorder traversal of the source tree to activate the next/previous loaded folder with images or unloaded filesystem folder; true source boundaries keep the existing reset-and-rerender behavior. The traversal cache is rebuilt only when the source root changes or a lazy-loaded folder adds children.
 - Explicit previous/next folder commands use the same adjacent-folder traversal directly and are exposed as configurable shortcuts. Defaults are `MouseBack` for previous folder and `MouseForward` for next folder. Both explicit folder commands select the first image in the destination folder after the current runtime sort is applied; plain previous-image navigation at a folder boundary still opens the previous folder at its last sorted image for continuous reverse browsing.
@@ -124,6 +126,16 @@ Thumbnail flow:
 - Thumbnail decode uses small fit-sized requests, fast scaling, current EXIF autorotate and color-management settings, no view rotation, and no region rendering.
 - Closing the tab/panel or switching source clears queued work and advances a generation guard. A currently running decode is allowed to finish, but stale results are ignored and are not inserted into the thumbnail model/cache.
 - The thumbnail cache is bounded, memory-only, cleared on source switch and process exit, and never persisted to `QSettings` or disk.
+
+Comparison flow:
+
+- `MainWindow` uses a central `QTabWidget` with `Viewer` and `Compare` tabs. The existing `ImageViewWidget` remains the first tab and keeps the normal viewer pipeline.
+- The `List` and `Thumbnails` context menus expose `Compare -> In Row` when 2-8 images are selected in the active folder. Launching compare from fullscreen exits fullscreen first because compare is a normal-mode tab in this slice.
+- `ComparisonViewWidget` receives copied `ImageEntry` values plus any current in-memory archive password needed for those entries. Passwords remain process memory only and are not written to labels, settings, cache keys, or disk.
+- Row comparison decodes each tile asynchronously on a small private thread pool. The row divides the available panel width between tiles, and decode requests fit to the tile viewport size instead of forcing the row wider than the central window. Requests carry current EXIF autorotate, scaling quality, color management, and DPR, and stay independent from the foreground viewer decode watcher.
+- Each tile owns local zoom/pan state. Wheel zoom and drag pan affect only that tile; dragging an unzoomed tile reorders the row.
+- Compare cache is bounded and memory-only. Session contents, selected identity order, decoded comparison rasters, and cache entries are cleared by process exit/source changes and are never persisted.
+- While `Compare` is the active central tab, single-image viewer actions such as next/previous, zoom, rotate, fullscreen, quick jump, and copy original are disabled to avoid mutating hidden viewer state.
 
 Quick filename jump:
 
@@ -174,6 +186,7 @@ Settings:
 - Fullscreen settings currently include side and top/bottom edge trigger ratios plus pinned info line enabled/font family/font size/color.
 - Interface settings currently include normal-mode light/dark theme, whether to remember layout, window geometry/state, and normal/fullscreen Files splitter state. Fullscreen overlay chrome remains dark-only.
 - Settings must stay privacy-safe: do not store recent files, source paths, archive paths, default image folders, archive passwords, thumbnails, decoded image data, or file logs. Shortcut settings store only command ids and portable keyboard/mouse input strings.
+- Temporary compare sessions and compare decoded rasters are also privacy-sensitive runtime state and must not be persisted.
 - `AppSettings::read()` clamps numeric values and falls back on defaults for unknown enum strings so older or manually edited config files remain safe.
 
 Navigation:
@@ -219,6 +232,7 @@ The MVP intentionally avoids:
 - File logs in normal usage.
 - Archive extraction.
 - Archive password persistence.
+- Persistent comparison sessions.
 
 The app uses `QSettings` only for non-history preferences. Layout persistence stores Qt geometry/state byte arrays and splitter positions; it must not store opened source paths.
 
@@ -231,7 +245,8 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - GIF animation.
 - TIFF, AVIF, JPEG XL, RAW.
 - Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.
-- Thumbnail panel.
+- Advanced thumbnail controls.
+- Advanced comparison modes beyond the current row comparison tab: grid, carousel, two-image hover switch, and alignment presets.
 - Configurable or fuzzy quick filename jump.
 - Advanced shortcut features such as editing every QAction, profiles/import-export, and configurable shortcut scopes.
 - Advanced settings for display-profile matching, statusbar content, quick jump behavior, and thumbnail generation.

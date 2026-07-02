@@ -7,6 +7,7 @@
 #include "core/app_settings.h"
 #include "core/viewer_controller.h"
 #include "ui/collection_tree_model.h"
+#include "ui/comparison_view_widget.h"
 #include "ui/image_info_panel.h"
 #include "ui/image_list_model.h"
 #include "ui/image_view_widget.h"
@@ -32,6 +33,7 @@
 class QAction;
 class QCloseEvent;
 class QDockWidget;
+class QItemSelection;
 class QListView;
 class QModelIndex;
 class QSplitter;
@@ -267,6 +269,12 @@ private:
     [[nodiscard]] core::DecodeRequest thumbnailDecodeRequest() const;
     void handleThumbnailReady(const ThumbnailResult &result);
     void handleThumbnailFailed(const ThumbnailResult &result);
+    void updateComparisonSelectionOrder(const QItemSelection &selected, const QItemSelection &deselected);
+    [[nodiscard]] QVector<ComparisonSessionItem> comparisonItemsForView(QListView *view) const;
+    void showComparisonContextMenu(QListView *view, const QPoint &position);
+    void openRowComparison(const QVector<ComparisonSessionItem> &items);
+    void clearComparisonSelection();
+    [[nodiscard]] ComparisonRenderSettings comparisonRenderSettings() const;
     void syncFolderTreeSelection();
     void selectImageFromFileList(const QModelIndex &index);
     void selectImageFromThumbnailList(const QModelIndex &index);
@@ -292,6 +300,8 @@ private:
     [[nodiscard]] bool triggerMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button);
 
     ImageViewWidget *m_imageView = nullptr;
+    QTabWidget *m_centralTabs = nullptr;
+    ComparisonViewWidget *m_comparisonView = nullptr;
     QDockWidget *m_fileListDock = nullptr;
     QSplitter *m_filePanelSplitter = nullptr;
     QTreeView *m_fileTreeView = nullptr;
@@ -385,6 +395,8 @@ private:
     QVector<const core::CollectionFolderNode *> m_sourceFoldersPreorder;
     QString m_activeFolderPath;
     QString m_loadingFolderPath;
+    QVector<QString> m_comparisonSelectionOrder;
+    QString m_comparisonStatusMessage;
     int m_loadingFolderSelectedIndex = 0;
     FullscreenOverlaySettings m_fullscreenOverlaySettings;
     FullscreenUiState m_preFullscreenUiState;
