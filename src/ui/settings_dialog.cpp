@@ -18,6 +18,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QTableWidget>
@@ -33,12 +34,24 @@ QWidget *createPage()
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(14, 14, 14, 14);
     layout->setSpacing(12);
+    layout->setSizeConstraint(QLayout::SetMinimumSize);
+    page->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     return page;
 }
 
 QVBoxLayout *pageLayout(QWidget *page)
 {
     return qobject_cast<QVBoxLayout *>(page->layout());
+}
+
+QScrollArea *scrollablePage(QWidget *page)
+{
+    auto *area = new QScrollArea;
+    area->setFrameShape(QFrame::NoFrame);
+    area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    area->setWidgetResizable(true);
+    area->setWidget(page);
+    return area;
 }
 
 QLabel *pageDescription(QWidget *page, const QString &text)
@@ -281,7 +294,7 @@ void SettingsDialog::setupViewerPage()
 
     pageLayout(page)->addStretch(1);
 
-    m_pages->addWidget(page);
+    m_pages->addWidget(scrollablePage(page));
 }
 
 void SettingsDialog::setupShortcutsPage()
@@ -346,7 +359,7 @@ void SettingsDialog::setupShortcutsPage()
 
     shortcutLayout->addLayout(buttonLayout);
 
-    m_pages->addWidget(page);
+    m_pages->addWidget(scrollablePage(page));
 }
 
 void SettingsDialog::setupFullscreenPage()
@@ -390,7 +403,7 @@ void SettingsDialog::setupFullscreenPage()
 
     pageLayout(page)->addStretch(1);
 
-    m_pages->addWidget(page);
+    m_pages->addWidget(scrollablePage(page));
 }
 
 void SettingsDialog::setupInterfacePage()
@@ -413,7 +426,7 @@ void SettingsDialog::setupInterfacePage()
 
     pageLayout(page)->addStretch(1);
 
-    m_pages->addWidget(page);
+    m_pages->addWidget(scrollablePage(page));
 }
 
 void SettingsDialog::updateControlsFromSettings()

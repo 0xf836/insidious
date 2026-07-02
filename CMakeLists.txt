@@ -122,6 +122,22 @@ set_tests_properties(insidious_ui_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
 
+add_executable(insidious_settings_dialog_tests
+    tests/settings_dialog_tests.cpp
+    src/ui/settings_dialog.cpp
+    src/ui/settings_dialog.h
+)
+target_link_libraries(insidious_settings_dialog_tests
+    PRIVATE
+        insidious_core
+        Qt6::Test
+        Qt6::Widgets
+)
+add_test(NAME insidious_settings_dialog_tests COMMAND insidious_settings_dialog_tests)
+set_tests_properties(insidious_settings_dialog_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
 add_executable(insidious_image_view_widget_tests
     tests/image_view_widget_tests.cpp
     src/ui/image_view_widget.cpp

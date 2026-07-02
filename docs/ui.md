@@ -155,6 +155,8 @@ Pinned fullscreen info line:
 - `Fullscreen` — секции `Edge Overlays` и `Pinned Info Line`: размер edge trigger zones для боковых и верхней/нижней overlay-панелей, включение и presentation settings для pinned fullscreen info line.
 - `Interface` — секции `Appearance` и `Layout`: light/dark theme для normal mode, запоминание layout окна, dock-панелей и splitter sizes. Fullscreen chrome остаётся темным без отдельного выбора темы.
 
+Страницы Preferences прокручиваются при нехватке высоты, чтобы секции не сжимались ниже нормальной высоты контролов.
+
 EXIF autorotate также доступен как быстрый checkable action в меню `View`, обычной верхней панели и fullscreen top overlay. Переключение сразу сохраняет настройку и перерендеривает текущий image, если он открыт.
 
 Shortcut editor разрешает очистить shortcut у команды и сбросить команду к default. Apply/OK блокирует дублирующиеся non-empty keyboard или mouse shortcuts в редактируемом наборе. В текущем срезе не редактируются `Quit`, dock toggles `Files`/`Info`, profiles/import-export и shortcut scopes.
