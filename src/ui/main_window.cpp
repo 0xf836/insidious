@@ -584,6 +584,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_centralTabs->addTab(m_imageView, tr("Viewer"));
     m_centralTabs->addTab(m_comparisonView, tr("Compare"));
     setCentralWidget(m_centralTabs);
+    updateComparisonTabTitle();
 
     statusBar()->setObjectName(QStringLiteral("mainStatusBar"));
     statusBar()->setSizeGripEnabled(false);
@@ -1629,6 +1630,7 @@ void MainWindow::setupConnections()
         updateActionState();
     });
     connect(m_comparisonView, &ComparisonViewWidget::closeRequested, this, [this]() {
+        updateComparisonTabTitle();
         if (m_centralTabs != nullptr) {
             m_centralTabs->setCurrentWidget(m_imageView);
         }
@@ -3334,6 +3336,8 @@ core::WheelAction MainWindow::wheelActionForModifiers(Qt::KeyboardModifiers modi
 
 void MainWindow::clearSourceTree()
 {
+    clearComparisonSession();
+    clearComparisonSelection();
     resetThumbnailWork(true);
     m_sourceRoot.reset();
     m_sourceRootPath.clear();
@@ -4027,6 +4031,39 @@ void MainWindow::showComparisonContextMenu(QListView *view, const QPoint &positi
     const QVector<ComparisonSessionItem> items = comparisonItemsForView(view);
     QMenu menu(this);
     QMenu *compareMenu = menu.addMenu(tr("Compare"));
+
+    QAction *addAction = compareMenu->addAction(tr("Add to Compare"));
+    int uniqueToAdd = 0;
+    for (const ComparisonSessionItem &item : items) {
+        const QString identityKey = item.entry.identityKey();
+        if (!identityKey.isEmpty()
+            && m_comparisonView != nullptr
+            && !m_comparisonView->hasItem(identityKey)) {
+            ++uniqueToAdd;
+        }
+    }
+    const int currentCount = m_comparisonView == nullptr ? 0 : m_comparisonView->itemCount();
+    if (items.isEmpty()) {
+        addAction->setEnabled(false);
+    } else if (uniqueToAdd <= 0) {
+        addAction->setText(tr("Add to Compare (already added)"));
+        addAction->setEnabled(false);
+    } else if (currentCount + uniqueToAdd > MaxComparisonItems) {
+        addAction->setText(tr("Add to Compare (max 8 images)"));
+        addAction->setEnabled(false);
+    } else {
+        connect(addAction, &QAction::triggered, this, [this, items]() {
+            appendToComparison(items);
+        });
+    }
+
+    QAction *openAction = compareMenu->addAction(tr("Open Compare"));
+    openAction->setEnabled(m_comparisonView != nullptr && m_comparisonView->hasSession());
+    connect(openAction, &QAction::triggered, this, [this]() {
+        openComparisonSession();
+    });
+
+    compareMenu->addSeparator();
     QAction *rowAction = compareMenu->addAction(tr("In Row"));
     if (items.size() < 2) {
         rowAction->setText(tr("In Row (select 2-8 images)"));
@@ -4054,6 +4091,7 @@ void MainWindow::openRowComparison(const QVector<ComparisonSessionItem> &items)
 
     m_comparisonView->setSession(items, comparisonRenderSettings());
     m_centralTabs->setCurrentWidget(m_comparisonView);
+    updateComparisonTabTitle();
     if (m_fullscreenUiActive) {
         m_fullscreenContentMode = FullscreenContentMode::Compare;
         m_comparisonView->setFullscreenPresentation(true);
@@ -4066,9 +4104,85 @@ void MainWindow::openRowComparison(const QVector<ComparisonSessionItem> &items)
     updateActionState();
 }
 
+void MainWindow::appendToComparison(const QVector<ComparisonSessionItem> &items)
+{
+    if (items.isEmpty() || m_comparisonView == nullptr || m_centralTabs == nullptr) {
+        return;
+    }
+
+    int uniqueToAdd = 0;
+    for (const ComparisonSessionItem &item : items) {
+        const QString identityKey = item.entry.identityKey();
+        if (!identityKey.isEmpty() && !m_comparisonView->hasItem(identityKey)) {
+            ++uniqueToAdd;
+        }
+    }
+    if (uniqueToAdd <= 0) {
+        updateStatus(tr("Compare: selected images already added"));
+        return;
+    }
+    if (m_comparisonView->itemCount() + uniqueToAdd > MaxComparisonItems) {
+        updateStatus(tr("Compare: maximum is 8 images"));
+        return;
+    }
+
+    int added = 0;
+    if (!m_comparisonView->hasSession()) {
+        m_comparisonView->setSession(items, comparisonRenderSettings());
+        added = m_comparisonView->itemCount();
+    } else {
+        added = m_comparisonView->appendItems(items);
+    }
+    updateComparisonTabTitle();
+    m_comparisonStatusMessage = tr("Compare: added %1, total %2").arg(added).arg(m_comparisonView->itemCount());
+    updateStatus(m_comparisonStatusMessage);
+    updateActionState();
+}
+
+void MainWindow::openComparisonSession()
+{
+    if (m_comparisonView == nullptr || m_centralTabs == nullptr || !m_comparisonView->hasSession()) {
+        return;
+    }
+
+    m_centralTabs->setCurrentWidget(m_comparisonView);
+    if (m_fullscreenUiActive) {
+        m_fullscreenContentMode = FullscreenContentMode::Compare;
+        m_comparisonView->setFullscreenPresentation(true);
+        setCentralTabBarVisible(false);
+        hideFullscreenOverlayPanels();
+        updateFullscreenInfoLine();
+    }
+    updateStatus(m_comparisonStatusMessage);
+    updateActionState();
+}
+
 void MainWindow::clearComparisonSelection()
 {
     m_comparisonSelectionOrder.clear();
+}
+
+void MainWindow::clearComparisonSession()
+{
+    if (m_comparisonView != nullptr) {
+        m_comparisonView->clearSession();
+    }
+    updateComparisonTabTitle();
+}
+
+void MainWindow::updateComparisonTabTitle()
+{
+    if (m_centralTabs == nullptr || m_comparisonView == nullptr) {
+        return;
+    }
+    const int index = m_centralTabs->indexOf(m_comparisonView);
+    if (index < 0) {
+        return;
+    }
+    const int count = m_comparisonView->itemCount();
+    m_centralTabs->setTabText(index, count > 0
+            ? tr("Compare (%1)").arg(count)
+            : tr("Compare"));
 }
 
 ComparisonRenderSettings MainWindow::comparisonRenderSettings() const

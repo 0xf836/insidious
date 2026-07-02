@@ -83,8 +83,11 @@ public:
         QVector<ComparisonSessionItem> items,
         const ComparisonRenderSettings &settings);
     void clearSession();
+    int appendItems(QVector<ComparisonSessionItem> items);
     void setFullscreenPresentation(bool fullscreen);
     [[nodiscard]] bool hasSession() const;
+    [[nodiscard]] int itemCount() const;
+    [[nodiscard]] bool hasItem(const QString &identityKey) const;
 
 signals:
     void closeRequested();
@@ -108,6 +111,7 @@ private:
     };
 
     void rebuildTiles();
+    ComparisonTileWidget *createTile(int index);
     void scheduleReload();
     void reloadVisibleSession();
     void startDecode(int index, const QSize &targetSize);

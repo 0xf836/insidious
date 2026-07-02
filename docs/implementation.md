@@ -130,11 +130,11 @@ Thumbnail flow:
 Comparison flow:
 
 - `MainWindow` uses a central `QTabWidget` with `Viewer` and `Compare` tabs. The existing `ImageViewWidget` remains the first tab and keeps the normal viewer pipeline.
-- The `List` and `Thumbnails` context menus expose `Compare -> In Row` when 2-8 images are selected in the active folder. Launching compare from viewer fullscreen switches fullscreen content to the same `ComparisonViewWidget` instead of leaving fullscreen.
+- The `List` and `Thumbnails` context menus expose `Compare -> Add to Compare`, `Open Compare`, and `In Row`. `Add to Compare` appends 1+ selected active-folder images to the memory-only compare session without changing the active folder or central tab. `Open Compare` shows the current session. `In Row` replaces the current session with the current 2-8 image selection and opens Compare immediately.
 - `ComparisonViewWidget` receives copied `ImageEntry` values plus any current in-memory archive password needed for those entries. Passwords remain process memory only and are not written to labels, settings, cache keys, or disk.
 - Row comparison decodes each tile asynchronously on a small private thread pool. The row divides the available panel width between tiles, and decode requests fit to the tile viewport size instead of forcing the row wider than the central window. Requests carry current EXIF autorotate, scaling quality, color management, and DPR, and stay independent from the foreground viewer decode watcher.
 - Each tile owns local zoom/pan state. Wheel zoom and drag pan affect only that tile; dragging an unzoomed tile reorders the row. Resize/fullscreen re-decode preserves the current tile zoom and visible center instead of resetting the tile view.
-- Compare cache is bounded and memory-only. Session contents, selected identity order, decoded comparison rasters, and cache entries are cleared by process exit/source changes and are never persisted.
+- Compare cache is bounded and memory-only. Session contents, selected identity order, decoded comparison rasters, and cache entries persist across active-folder changes inside the same source, are cleared by process exit/source changes, and are never persisted.
 - While `Compare` is the active central tab, single-image viewer actions such as next/previous, zoom, rotate, quick jump, and copy original are disabled to avoid mutating hidden viewer state. Fullscreen remains enabled only when the compare tab has an active session.
 
 Quick filename jump:

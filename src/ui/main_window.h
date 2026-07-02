@@ -281,7 +281,11 @@ private:
     [[nodiscard]] QVector<ComparisonSessionItem> comparisonItemsForView(QListView *view) const;
     void showComparisonContextMenu(QListView *view, const QPoint &position);
     void openRowComparison(const QVector<ComparisonSessionItem> &items);
+    void appendToComparison(const QVector<ComparisonSessionItem> &items);
+    void openComparisonSession();
     void clearComparisonSelection();
+    void clearComparisonSession();
+    void updateComparisonTabTitle();
     [[nodiscard]] ComparisonRenderSettings comparisonRenderSettings() const;
     void syncFolderTreeSelection();
     void selectImageFromFileList(const QModelIndex &index);

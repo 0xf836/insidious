@@ -307,6 +307,39 @@ void ComparisonViewWidget::setSession(
     emit statusMessageChanged(tr("Compare: %1 images in row").arg(m_items.size()));
 }
 
+int ComparisonViewWidget::appendItems(QVector<ComparisonSessionItem> items)
+{
+    if (items.isEmpty()) {
+        return 0;
+    }
+
+    int added = 0;
+    if (m_items.isEmpty()) {
+        m_settings = ComparisonRenderSettings {};
+    }
+
+    for (const ComparisonSessionItem &item : std::as_const(items)) {
+        const QString identityKey = item.entry.identityKey();
+        if (identityKey.isEmpty() || hasItem(identityKey)) {
+            continue;
+        }
+        const int index = m_items.size();
+        m_items.append(item);
+        ComparisonTileWidget *tile = createTile(index);
+        m_tiles.append(tile);
+        m_rowLayout->addWidget(tile, 1);
+        ++added;
+    }
+
+    if (added > 0) {
+        m_headerLabel->setText(tr("Compare: Row (%1 images)").arg(m_items.size()));
+        refreshTileIndexes();
+        scheduleReload();
+        emit statusMessageChanged(tr("Compare: %1 images in row").arg(m_items.size()));
+    }
+    return added;
+}
+
 void ComparisonViewWidget::clearSession()
 {
     ++m_generation;
@@ -334,6 +367,24 @@ void ComparisonViewWidget::clearSession()
 bool ComparisonViewWidget::hasSession() const
 {
     return !m_items.isEmpty();
+}
+
+int ComparisonViewWidget::itemCount() const
+{
+    return m_items.size();
+}
+
+bool ComparisonViewWidget::hasItem(const QString &identityKey) const
+{
+    if (identityKey.isEmpty()) {
+        return false;
+    }
+    for (const ComparisonSessionItem &item : m_items) {
+        if (item.entry.identityKey() == identityKey) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void ComparisonViewWidget::setFullscreenPresentation(bool fullscreen)
@@ -368,14 +419,20 @@ void ComparisonViewWidget::rebuildTiles()
 
     m_headerLabel->setText(tr("Compare: Row (%1 images)").arg(m_items.size()));
     for (int index = 0; index < m_items.size(); ++index) {
-        auto *tile = new ComparisonTileWidget(m_rowWidget);
-        tile->setIndex(index);
-        tile->setTitle(itemTitle(m_items.at(index)));
-        tile->setMessage(tr("Loading..."));
-        connect(tile, &ComparisonTileWidget::reorderDropRequested, this, &ComparisonViewWidget::reorderTile);
+        ComparisonTileWidget *tile = createTile(index);
         m_tiles.append(tile);
         m_rowLayout->addWidget(tile, 1);
     }
+}
+
+ComparisonTileWidget *ComparisonViewWidget::createTile(int index)
+{
+    auto *tile = new ComparisonTileWidget(m_rowWidget);
+    tile->setIndex(index);
+    tile->setTitle(itemTitle(m_items.at(index)));
+    tile->setMessage(tr("Loading..."));
+    connect(tile, &ComparisonTileWidget::reorderDropRequested, this, &ComparisonViewWidget::reorderTile);
+    return tile;
 }
 
 void ComparisonViewWidget::scheduleReload()
