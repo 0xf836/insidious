@@ -128,6 +128,23 @@ set_tests_properties(insidious_ui_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
 
+add_executable(insidious_comparison_view_widget_tests
+    tests/comparison_view_widget_tests.cpp
+    src/ui/comparison_view_widget.cpp
+    src/ui/comparison_view_widget.h
+)
+target_link_libraries(insidious_comparison_view_widget_tests
+    PRIVATE
+        insidious_core
+        Qt6::Test
+        Qt6::Widgets
+        Qt6::Concurrent
+)
+add_test(NAME insidious_comparison_view_widget_tests COMMAND insidious_comparison_view_widget_tests)
+set_tests_properties(insidious_comparison_view_widget_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
 add_executable(insidious_thumbnail_list_model_tests
     tests/thumbnail_list_model_tests.cpp
     src/ui/thumbnail_list_model.cpp

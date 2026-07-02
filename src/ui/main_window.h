@@ -280,7 +280,7 @@ private:
     void updateComparisonSelectionOrder(const QItemSelection &selected, const QItemSelection &deselected);
     [[nodiscard]] QVector<ComparisonSessionItem> comparisonItemsForView(QListView *view) const;
     void showComparisonContextMenu(QListView *view, const QPoint &position);
-    void openRowComparison(const QVector<ComparisonSessionItem> &items);
+    void openComparison(const QVector<ComparisonSessionItem> &items, ComparisonMode mode);
     void appendToComparison(const QVector<ComparisonSessionItem> &items);
     void openComparisonSession();
     void clearComparisonSelection();

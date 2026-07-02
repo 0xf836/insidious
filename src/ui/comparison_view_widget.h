@@ -16,7 +16,9 @@
 #include <QWidget>
 
 class QHBoxLayout;
+class QComboBox;
 class QLabel;
+class QStackedLayout;
 class QVBoxLayout;
 
 namespace insidious::ui {
@@ -31,6 +33,11 @@ struct ComparisonRenderSettings {
     core::ScalingQuality scalingQuality = core::ScalingQuality::HighLanczos3;
     bool colorManagementEnabled = true;
     double devicePixelRatio = 1.0;
+};
+
+enum class ComparisonMode {
+    Row,
+    HoverSwitch,
 };
 
 class ComparisonTileWidget : public QWidget {
@@ -73,6 +80,43 @@ private:
     bool m_reorderDragging = false;
 };
 
+class ComparisonHoverSwitchWidget : public QWidget {
+    Q_OBJECT
+
+public:
+    explicit ComparisonHoverSwitchWidget(QWidget *parent = nullptr);
+
+    void setTitles(const QString &firstTitle, const QString &secondTitle);
+    void setMessage(int index, const QString &message);
+    void setDecodedImage(int index, const core::DecodedImage &decoded);
+    void clearImages();
+    void resetView();
+    [[nodiscard]] QSize targetImageSize() const;
+
+protected:
+    void enterEvent(QEnterEvent *event) override;
+    void leaveEvent(QEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
+private:
+    [[nodiscard]] int activeIndex() const;
+    [[nodiscard]] QSizeF imageLogicalSize(int index) const;
+    [[nodiscard]] QRectF imageRect(int index) const;
+
+    QString m_titles[2];
+    QString m_messages[2];
+    core::DecodedImage m_decoded[2];
+    double m_zoomFactor = 1.0;
+    QPointF m_panOffset;
+    QPoint m_lastMousePosition;
+    bool m_hovered = false;
+    bool m_panning = false;
+};
+
 class ComparisonViewWidget : public QWidget {
     Q_OBJECT
 
@@ -81,13 +125,18 @@ public:
 
     void setSession(
         QVector<ComparisonSessionItem> items,
-        const ComparisonRenderSettings &settings);
+        const ComparisonRenderSettings &settings,
+        ComparisonMode mode = ComparisonMode::Row);
     void clearSession();
     int appendItems(QVector<ComparisonSessionItem> items);
+    bool setMode(ComparisonMode mode);
     void setFullscreenPresentation(bool fullscreen);
     [[nodiscard]] bool hasSession() const;
     [[nodiscard]] int itemCount() const;
     [[nodiscard]] bool hasItem(const QString &identityKey) const;
+    [[nodiscard]] ComparisonMode mode() const;
+    [[nodiscard]] bool canAppendItems(int uniqueItemCount) const;
+    [[nodiscard]] static bool supportsItemCount(ComparisonMode mode, int count);
 
 signals:
     void closeRequested();
@@ -111,6 +160,7 @@ private:
     };
 
     void rebuildTiles();
+    void rebuildPresentation();
     ComparisonTileWidget *createTile(int index);
     void scheduleReload();
     void reloadVisibleSession();
@@ -118,6 +168,7 @@ private:
     void handleDecodeFinished(QFutureWatcher<DecodeResult> *watcher);
     [[nodiscard]] core::DecodeRequest decodeRequestForSize(const QSize &targetSize) const;
     [[nodiscard]] QSize targetTileImageSize() const;
+    [[nodiscard]] QSize targetHoverImageSize() const;
     [[nodiscard]] bool tryGetCached(const QString &cacheKey, core::DecodedImage *decoded);
     void insertCached(const QString &cacheKey, const core::DecodedImage &decoded);
     void evictCacheIfNeeded();
@@ -126,12 +177,17 @@ private:
 
     QVector<ComparisonSessionItem> m_items;
     ComparisonRenderSettings m_settings;
+    ComparisonMode m_mode = ComparisonMode::Row;
     QWidget *m_headerWidget = nullptr;
     QLabel *m_headerLabel = nullptr;
+    QComboBox *m_modeComboBox = nullptr;
     QVBoxLayout *m_mainLayout = nullptr;
     QScrollArea *m_scrollArea = nullptr;
+    QWidget *m_contentWidget = nullptr;
+    QStackedLayout *m_contentLayout = nullptr;
     QWidget *m_rowWidget = nullptr;
     QHBoxLayout *m_rowLayout = nullptr;
+    ComparisonHoverSwitchWidget *m_hoverWidget = nullptr;
     QVector<ComparisonTileWidget *> m_tiles;
     QTimer m_reloadTimer;
     QThreadPool m_threadPool;

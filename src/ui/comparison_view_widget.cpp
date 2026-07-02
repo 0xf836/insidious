@@ -3,13 +3,17 @@
 #include "core/vips_image_decoder.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QSignalBlocker>
+#include <QStackedLayout>
 #include <QStyle>
+#include <QVariant>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QtConcurrent>
@@ -37,6 +41,17 @@ double sanitizedDevicePixelRatio(double dpr)
         return 1.0;
     }
     return std::clamp(dpr, 0.25, 8.0);
+}
+
+QString comparisonModeName(ComparisonMode mode)
+{
+    switch (mode) {
+    case ComparisonMode::Row:
+        return QObject::tr("Row");
+    case ComparisonMode::HoverSwitch:
+        return QObject::tr("Hover Switch");
+    }
+    return QObject::tr("Row");
 }
 
 } // namespace
@@ -254,6 +269,209 @@ QRectF ComparisonTileWidget::imageRect() const
         drawSize.height());
 }
 
+ComparisonHoverSwitchWidget::ComparisonHoverSwitchWidget(QWidget *parent)
+    : QWidget(parent)
+{
+    setMinimumSize(TileMinimumWidth, 160);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
+}
+
+void ComparisonHoverSwitchWidget::setTitles(const QString &firstTitle, const QString &secondTitle)
+{
+    m_titles[0] = firstTitle;
+    m_titles[1] = secondTitle;
+    update();
+}
+
+void ComparisonHoverSwitchWidget::setMessage(int index, const QString &message)
+{
+    if (index < 0 || index > 1) {
+        return;
+    }
+    m_messages[index] = message;
+    update();
+}
+
+void ComparisonHoverSwitchWidget::setDecodedImage(int index, const core::DecodedImage &decoded)
+{
+    if (index < 0 || index > 1) {
+        return;
+    }
+
+    const bool preserveView = m_decoded[index].ok() && decoded.ok();
+    m_decoded[index] = decoded;
+    m_messages[index].clear();
+    if (!preserveView && !m_decoded[1 - index].ok()) {
+        resetView();
+        return;
+    }
+    update();
+}
+
+void ComparisonHoverSwitchWidget::clearImages()
+{
+    m_decoded[0] = {};
+    m_decoded[1] = {};
+    m_messages[0].clear();
+    m_messages[1].clear();
+    resetView();
+}
+
+void ComparisonHoverSwitchWidget::resetView()
+{
+    m_zoomFactor = 1.0;
+    m_panOffset = QPointF();
+    m_panning = false;
+    update();
+}
+
+QSize ComparisonHoverSwitchWidget::targetImageSize() const
+{
+    const QSize area = rect()
+            .adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin)
+            .size();
+    return QSize(std::max(1, area.width()), std::max(1, area.height()));
+}
+
+void ComparisonHoverSwitchWidget::enterEvent(QEnterEvent *event)
+{
+    m_hovered = true;
+    update();
+    QWidget::enterEvent(event);
+}
+
+void ComparisonHoverSwitchWidget::leaveEvent(QEvent *event)
+{
+    m_hovered = false;
+    m_panning = false;
+    update();
+    QWidget::leaveEvent(event);
+}
+
+void ComparisonHoverSwitchWidget::paintEvent(QPaintEvent *)
+{
+    QPainter painter(this);
+    painter.fillRect(rect(), palette().color(QPalette::Window));
+
+    const QRect border = rect().adjusted(0, 0, -1, -1);
+    painter.setPen(QPen(palette().color(hasFocus() ? QPalette::Highlight : QPalette::Mid), 1));
+    painter.drawRect(border);
+
+    const int index = activeIndex();
+    const QRect titleRect(TileMargin, 0, width() - TileMargin * 2, TileTitleHeight);
+    const QString prefix = index == 0 ? tr("Base") : tr("Hover");
+    painter.setPen(palette().color(QPalette::Text));
+    painter.drawText(
+        titleRect,
+        Qt::AlignVCenter | Qt::AlignLeft,
+        painter.fontMetrics().elidedText(
+            tr("%1: %2").arg(prefix, m_titles[index]),
+            Qt::ElideRight,
+            titleRect.width()));
+
+    const QRect imageArea = rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin);
+    if (!m_decoded[index].ok()) {
+        painter.setPen(palette().color(QPalette::Disabled, QPalette::Text));
+        painter.drawText(imageArea, Qt::AlignCenter | Qt::TextWordWrap, m_messages[index]);
+        return;
+    }
+
+    painter.save();
+    painter.setClipRect(imageArea);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.drawImage(imageRect(index), m_decoded[index].image);
+    painter.restore();
+}
+
+void ComparisonHoverSwitchWidget::wheelEvent(QWheelEvent *event)
+{
+    if (!m_decoded[activeIndex()].ok()) {
+        event->ignore();
+        return;
+    }
+
+    const double multiplier = event->angleDelta().y() > 0 ? 1.25 : 0.8;
+    m_zoomFactor = std::clamp(m_zoomFactor * multiplier, 1.0, 16.0);
+    if (qFuzzyCompare(m_zoomFactor, 1.0)) {
+        m_panOffset = QPointF();
+    }
+    update();
+    event->accept();
+}
+
+void ComparisonHoverSwitchWidget::mousePressEvent(QMouseEvent *event)
+{
+    setFocus(Qt::MouseFocusReason);
+    if (event->button() != Qt::LeftButton) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+
+    m_lastMousePosition = event->pos();
+    if (m_decoded[activeIndex()].ok() && m_zoomFactor > 1.0) {
+        m_panning = true;
+        event->accept();
+        return;
+    }
+    QWidget::mousePressEvent(event);
+}
+
+void ComparisonHoverSwitchWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if (!m_panning) {
+        QWidget::mouseMoveEvent(event);
+        return;
+    }
+
+    const QPoint delta = event->pos() - m_lastMousePosition;
+    m_lastMousePosition = event->pos();
+    m_panOffset += QPointF(delta);
+    update();
+    event->accept();
+}
+
+void ComparisonHoverSwitchWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && m_panning) {
+        m_panning = false;
+        event->accept();
+        return;
+    }
+    QWidget::mouseReleaseEvent(event);
+}
+
+int ComparisonHoverSwitchWidget::activeIndex() const
+{
+    return m_hovered ? 1 : 0;
+}
+
+QSizeF ComparisonHoverSwitchWidget::imageLogicalSize(int index) const
+{
+    if (index < 0 || index > 1 || !m_decoded[index].ok()) {
+        return QSizeF();
+    }
+    const QSizeF size = m_decoded[index].image.deviceIndependentSize();
+    return QSizeF(std::ceil(size.width()), std::ceil(size.height()));
+}
+
+QRectF ComparisonHoverSwitchWidget::imageRect(int index) const
+{
+    const QRectF imageArea = rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin);
+    const QSizeF baseSize = imageLogicalSize(index);
+    if (baseSize.isEmpty()) {
+        return QRectF();
+    }
+
+    const QSizeF drawSize(baseSize.width() * m_zoomFactor, baseSize.height() * m_zoomFactor);
+    return QRectF(
+        imageArea.x() + (imageArea.width() - drawSize.width()) / 2.0 + m_panOffset.x(),
+        imageArea.y() + (imageArea.height() - drawSize.height()) / 2.0 + m_panOffset.y(),
+        drawSize.width(),
+        drawSize.height());
+}
+
 ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     : QWidget(parent)
 {
@@ -266,6 +484,19 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     headerLayout->setContentsMargins(0, 0, 0, 0);
     m_headerLabel = new QLabel(tr("No comparison session"), m_headerWidget);
     headerLayout->addWidget(m_headerLabel, 1);
+
+    m_modeComboBox = new QComboBox(m_headerWidget);
+    m_modeComboBox->addItem(comparisonModeName(ComparisonMode::Row), static_cast<int>(ComparisonMode::Row));
+    m_modeComboBox->addItem(comparisonModeName(ComparisonMode::HoverSwitch), static_cast<int>(ComparisonMode::HoverSwitch));
+    m_modeComboBox->setEnabled(false);
+    connect(m_modeComboBox, &QComboBox::currentIndexChanged, this, [this](int index) {
+        const ComparisonMode requestedMode = static_cast<ComparisonMode>(m_modeComboBox->itemData(index).toInt());
+        if (!setMode(requestedMode)) {
+            const QSignalBlocker blocker(m_modeComboBox);
+            m_modeComboBox->setCurrentIndex(m_modeComboBox->findData(static_cast<int>(m_mode)));
+        }
+    });
+    headerLayout->addWidget(m_modeComboBox);
 
     auto *closeButton = new QPushButton(tr("Close Compare"), m_headerWidget);
     connect(closeButton, &QPushButton::clicked, this, [this]() {
@@ -280,12 +511,23 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_scrollArea->setFrameShape(QFrame::NoFrame);
-    m_rowWidget = new QWidget(m_scrollArea);
+    m_contentWidget = new QWidget(m_scrollArea);
+    m_contentWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_contentLayout = new QStackedLayout(m_contentWidget);
+    m_contentLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_rowWidget = new QWidget(m_contentWidget);
     m_rowWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_rowLayout = new QHBoxLayout(m_rowWidget);
     m_rowLayout->setContentsMargins(0, 0, 0, 0);
     m_rowLayout->setSpacing(TileSpacing);
-    m_scrollArea->setWidget(m_rowWidget);
+    m_contentLayout->addWidget(m_rowWidget);
+
+    m_hoverWidget = new ComparisonHoverSwitchWidget(m_contentWidget);
+    m_contentLayout->addWidget(m_hoverWidget);
+    m_contentLayout->setCurrentWidget(m_rowWidget);
+
+    m_scrollArea->setWidget(m_contentWidget);
     m_mainLayout->addWidget(m_scrollArea, 1);
 
     m_threadPool.setMaxThreadCount(2);
@@ -296,15 +538,20 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
 
 void ComparisonViewWidget::setSession(
     QVector<ComparisonSessionItem> items,
-    const ComparisonRenderSettings &settings)
+    const ComparisonRenderSettings &settings,
+    ComparisonMode mode)
 {
     clearSession();
+    if (!supportsItemCount(mode, items.size())) {
+        mode = ComparisonMode::Row;
+    }
     m_items = std::move(items);
     m_settings = settings;
+    m_mode = mode;
     ++m_generation;
-    rebuildTiles();
+    rebuildPresentation();
     scheduleReload();
-    emit statusMessageChanged(tr("Compare: %1 images in row").arg(m_items.size()));
+    emit statusMessageChanged(tr("Compare: %1 images in %2").arg(m_items.size()).arg(comparisonModeName(m_mode)));
 }
 
 int ComparisonViewWidget::appendItems(QVector<ComparisonSessionItem> items)
@@ -332,10 +579,10 @@ int ComparisonViewWidget::appendItems(QVector<ComparisonSessionItem> items)
     }
 
     if (added > 0) {
-        m_headerLabel->setText(tr("Compare: Row (%1 images)").arg(m_items.size()));
+        rebuildPresentation();
         refreshTileIndexes();
         scheduleReload();
-        emit statusMessageChanged(tr("Compare: %1 images in row").arg(m_items.size()));
+        emit statusMessageChanged(tr("Compare: %1 images in %2").arg(m_items.size()).arg(comparisonModeName(m_mode)));
     }
     return added;
 }
@@ -360,8 +607,44 @@ void ComparisonViewWidget::clearSession()
     }
     m_items.clear();
     m_tiles.clear();
+    m_mode = ComparisonMode::Row;
     m_headerLabel->setText(tr("No comparison session"));
+    if (m_modeComboBox != nullptr) {
+        const QSignalBlocker blocker(m_modeComboBox);
+        m_modeComboBox->setCurrentIndex(m_modeComboBox->findData(static_cast<int>(m_mode)));
+        m_modeComboBox->setEnabled(false);
+        m_modeComboBox->setItemData(
+            m_modeComboBox->findData(static_cast<int>(ComparisonMode::HoverSwitch)),
+            0,
+            Qt::UserRole - 1);
+    }
+    if (m_contentLayout != nullptr && m_rowWidget != nullptr) {
+        m_contentLayout->setCurrentWidget(m_rowWidget);
+    }
+    if (m_hoverWidget != nullptr) {
+        m_hoverWidget->clearImages();
+    }
     emit statusMessageChanged(QString());
+}
+
+bool ComparisonViewWidget::setMode(ComparisonMode mode)
+{
+    if (!supportsItemCount(mode, m_items.size())) {
+        emit statusMessageChanged(mode == ComparisonMode::HoverSwitch
+                ? tr("Compare: Hover Switch supports exactly 2 images")
+                : tr("Compare: mode is not available for this session"));
+        return false;
+    }
+    if (m_mode == mode) {
+        return true;
+    }
+
+    m_mode = mode;
+    ++m_generation;
+    rebuildPresentation();
+    scheduleReload();
+    emit statusMessageChanged(tr("Compare: %1 images in %2").arg(m_items.size()).arg(comparisonModeName(m_mode)));
+    return true;
 }
 
 bool ComparisonViewWidget::hasSession() const
@@ -383,6 +666,30 @@ bool ComparisonViewWidget::hasItem(const QString &identityKey) const
         if (item.entry.identityKey() == identityKey) {
             return true;
         }
+    }
+    return false;
+}
+
+ComparisonMode ComparisonViewWidget::mode() const
+{
+    return m_mode;
+}
+
+bool ComparisonViewWidget::canAppendItems(int uniqueItemCount) const
+{
+    if (uniqueItemCount <= 0) {
+        return true;
+    }
+    return supportsItemCount(m_mode, m_items.size() + uniqueItemCount);
+}
+
+bool ComparisonViewWidget::supportsItemCount(ComparisonMode mode, int count)
+{
+    switch (mode) {
+    case ComparisonMode::Row:
+        return count >= 1;
+    case ComparisonMode::HoverSwitch:
+        return count == 2;
     }
     return false;
 }
@@ -417,11 +724,54 @@ void ComparisonViewWidget::rebuildTiles()
     }
     m_tiles.clear();
 
-    m_headerLabel->setText(tr("Compare: Row (%1 images)").arg(m_items.size()));
     for (int index = 0; index < m_items.size(); ++index) {
         ComparisonTileWidget *tile = createTile(index);
         m_tiles.append(tile);
         m_rowLayout->addWidget(tile, 1);
+    }
+}
+
+void ComparisonViewWidget::rebuildPresentation()
+{
+    if (m_modeComboBox != nullptr) {
+        const QSignalBlocker blocker(m_modeComboBox);
+        m_modeComboBox->setEnabled(hasSession());
+        m_modeComboBox->setCurrentIndex(m_modeComboBox->findData(static_cast<int>(m_mode)));
+        const bool hoverSwitchEnabled = supportsItemCount(ComparisonMode::HoverSwitch, m_items.size());
+        m_modeComboBox->setItemData(
+            m_modeComboBox->findData(static_cast<int>(ComparisonMode::HoverSwitch)),
+            hoverSwitchEnabled ? QVariant() : QVariant(0),
+            Qt::UserRole - 1);
+    }
+
+    m_headerLabel->setText(hasSession()
+            ? tr("Compare: %1 (%2 images)").arg(comparisonModeName(m_mode)).arg(m_items.size())
+            : tr("No comparison session"));
+
+    if (m_mode == ComparisonMode::Row) {
+        if (m_contentLayout != nullptr && m_rowWidget != nullptr) {
+            m_contentLayout->setCurrentWidget(m_rowWidget);
+        }
+        rebuildTiles();
+        return;
+    }
+
+    while (QLayoutItem *item = m_rowLayout->takeAt(0)) {
+        if (QWidget *widget = item->widget()) {
+            delete widget;
+        }
+        delete item;
+    }
+    m_tiles.clear();
+
+    if (m_hoverWidget != nullptr && m_items.size() == 2) {
+        m_hoverWidget->clearImages();
+        m_hoverWidget->setTitles(itemTitle(m_items.at(0)), itemTitle(m_items.at(1)));
+        m_hoverWidget->setMessage(0, tr("Loading..."));
+        m_hoverWidget->setMessage(1, tr("Loading..."));
+    }
+    if (m_contentLayout != nullptr && m_hoverWidget != nullptr) {
+        m_contentLayout->setCurrentWidget(m_hoverWidget);
     }
 }
 
@@ -447,6 +797,16 @@ void ComparisonViewWidget::reloadVisibleSession()
     }
 
     ++m_generation;
+    if (m_mode == ComparisonMode::HoverSwitch) {
+        if (m_items.size() != 2) {
+            return;
+        }
+        const QSize targetSize = targetHoverImageSize();
+        startDecode(0, targetSize);
+        startDecode(1, targetSize);
+        return;
+    }
+
     const QSize targetSize = targetTileImageSize();
     for (int index = 0; index < m_items.size(); ++index) {
         startDecode(index, targetSize);
@@ -455,7 +815,13 @@ void ComparisonViewWidget::reloadVisibleSession()
 
 void ComparisonViewWidget::startDecode(int index, const QSize &targetSize)
 {
-    if (index < 0 || index >= m_items.size() || index >= m_tiles.size()) {
+    if (index < 0 || index >= m_items.size()) {
+        return;
+    }
+    if (m_mode == ComparisonMode::Row && index >= m_tiles.size()) {
+        return;
+    }
+    if (m_mode == ComparisonMode::HoverSwitch && (m_hoverWidget == nullptr || index > 1)) {
         return;
     }
 
@@ -464,11 +830,19 @@ void ComparisonViewWidget::startDecode(int index, const QSize &targetSize)
     const QString cacheKey = core::cacheKeyFor(item.entry, request);
     core::DecodedImage cached;
     if (tryGetCached(cacheKey, &cached)) {
-        m_tiles.at(index)->setDecodedImage(cached);
+        if (m_mode == ComparisonMode::HoverSwitch) {
+            m_hoverWidget->setDecodedImage(index, cached);
+        } else {
+            m_tiles.at(index)->setDecodedImage(cached);
+        }
         return;
     }
 
-    m_tiles.at(index)->setMessage(tr("Loading..."));
+    if (m_mode == ComparisonMode::HoverSwitch) {
+        m_hoverWidget->setMessage(index, tr("Loading..."));
+    } else {
+        m_tiles.at(index)->setMessage(tr("Loading..."));
+    }
     const quint64 generation = m_generation;
     auto *watcher = new QFutureWatcher<DecodeResult>(this);
     m_decodeWatchers.insert(watcher, index);
@@ -500,17 +874,32 @@ void ComparisonViewWidget::handleDecodeFinished(QFutureWatcher<DecodeResult> *wa
     }
 
     const DecodeResult result = future.result();
-    if (result.generation != m_generation || result.index < 0 || result.index >= m_tiles.size()) {
+    if (result.generation != m_generation || result.index < 0 || result.index >= m_items.size()) {
+        return;
+    }
+    if (m_mode == ComparisonMode::Row && result.index >= m_tiles.size()) {
+        return;
+    }
+    if (m_mode == ComparisonMode::HoverSwitch && (m_hoverWidget == nullptr || result.index > 1)) {
         return;
     }
 
     if (result.decoded.ok()) {
         insertCached(result.cacheKey, result.decoded);
-        m_tiles.at(result.index)->setDecodedImage(result.decoded);
+        if (m_mode == ComparisonMode::HoverSwitch) {
+            m_hoverWidget->setDecodedImage(result.index, result.decoded);
+        } else {
+            m_tiles.at(result.index)->setDecodedImage(result.decoded);
+        }
     } else {
-        m_tiles.at(result.index)->setMessage(result.decoded.errorMessage.isEmpty()
+        const QString message = result.decoded.errorMessage.isEmpty()
                 ? tr("Could not decode image.")
-                : result.decoded.errorMessage);
+                : result.decoded.errorMessage;
+        if (m_mode == ComparisonMode::HoverSwitch) {
+            m_hoverWidget->setMessage(result.index, message);
+        } else {
+            m_tiles.at(result.index)->setMessage(message);
+        }
     }
 }
 
@@ -543,6 +932,14 @@ QSize ComparisonViewWidget::targetTileImageSize() const
     return QSize(
         std::max(1, tileWidth - TileMargin * 2),
         std::max(1, viewportSize.height() - TileTitleHeight - TileMargin * 2));
+}
+
+QSize ComparisonViewWidget::targetHoverImageSize() const
+{
+    if (m_hoverWidget == nullptr) {
+        return QSize(240, 360);
+    }
+    return m_hoverWidget->targetImageSize();
 }
 
 bool ComparisonViewWidget::tryGetCached(const QString &cacheKey, core::DecodedImage *decoded)

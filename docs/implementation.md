@@ -130,10 +130,12 @@ Thumbnail flow:
 Comparison flow:
 
 - `MainWindow` uses a central `QTabWidget` with `Viewer` and `Compare` tabs. The existing `ImageViewWidget` remains the first tab and keeps the normal viewer pipeline.
-- The `List` and `Thumbnails` context menus expose `Compare -> Add to Compare`, `Open Compare`, and `In Row`. `Add to Compare` appends 1+ selected active-folder images to the memory-only compare session without changing the active folder or central tab. `Open Compare` shows the current session. `In Row` replaces the current session with the current 2-8 image selection and opens Compare immediately.
+- The `List` and `Thumbnails` context menus expose `Compare -> Add to Compare`, `Open Compare`, `In Row`, and `Hover Switch`. `Add to Compare` appends 1+ selected active-folder images to the memory-only compare session without changing the active folder or central tab, unless the active mode does not support the resulting item count. `Open Compare` shows the current session. `In Row` replaces the current session with the current 2-8 image selection and opens Compare immediately. `Hover Switch` replaces the current session with exactly 2 selected images and opens Compare immediately.
 - `ComparisonViewWidget` receives copied `ImageEntry` values plus any current in-memory archive password needed for those entries. Passwords remain process memory only and are not written to labels, settings, cache keys, or disk.
+- `ComparisonViewWidget` stores the compare session independently from the current presentation mode. Row supports non-empty sessions up to the `MainWindow` maximum of 8 images; Hover Switch supports exactly 2 images.
 - Row comparison decodes each tile asynchronously on a small private thread pool. The row divides the available panel width between tiles, and decode requests fit to the tile viewport size instead of forcing the row wider than the central window. Requests carry current EXIF autorotate, scaling quality, color management, and DPR, and stay independent from the foreground viewer decode watcher.
 - Each tile owns local zoom/pan state. Wheel zoom and drag pan affect only that tile; dragging an unzoomed tile reorders the row. Resize/fullscreen re-decode preserves the current tile zoom and visible center instead of resetting the tile view.
+- Hover Switch decodes both images asynchronously to the same viewport target and uses a shared zoom/pan state. Mouse enter on the compare viewport shows the second image; mouse leave returns to the first image.
 - Compare cache is bounded and memory-only. Session contents, selected identity order, decoded comparison rasters, and cache entries persist across active-folder changes inside the same source, are cleared by process exit/source changes, and are never persisted.
 - While `Compare` is the active central tab, single-image viewer actions such as next/previous, zoom, rotate, quick jump, and copy original are disabled to avoid mutating hidden viewer state. Fullscreen remains enabled only when the compare tab has an active session.
 
@@ -247,7 +249,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - TIFF, AVIF, JPEG XL, RAW.
 - Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.
 - Advanced thumbnail controls.
-- Advanced comparison modes beyond the current row comparison tab: grid, carousel, two-image hover switch, and alignment presets.
+- Advanced comparison modes beyond the current row and two-image hover switch modes: grid, carousel, and alignment presets.
 - Configurable or fuzzy quick filename jump.
 - Advanced shortcut features such as editing every QAction, profiles/import-export, and configurable shortcut scopes.
 - Advanced settings for display-profile matching, statusbar content, quick jump behavior, and thumbnail generation.

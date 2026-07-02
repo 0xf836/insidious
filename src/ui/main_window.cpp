@@ -4051,6 +4051,9 @@ void MainWindow::showComparisonContextMenu(QListView *view, const QPoint &positi
     } else if (currentCount + uniqueToAdd > MaxComparisonItems) {
         addAction->setText(tr("Add to Compare (max 8 images)"));
         addAction->setEnabled(false);
+    } else if (m_comparisonView != nullptr && !m_comparisonView->canAppendItems(uniqueToAdd)) {
+        addAction->setText(tr("Add to Compare (not available in current mode)"));
+        addAction->setEnabled(false);
     } else {
         connect(addAction, &QAction::triggered, this, [this, items]() {
             appendToComparison(items);
@@ -4073,15 +4076,28 @@ void MainWindow::showComparisonContextMenu(QListView *view, const QPoint &positi
         rowAction->setEnabled(false);
     } else {
         connect(rowAction, &QAction::triggered, this, [this, items]() {
-            openRowComparison(items);
+            openComparison(items, ComparisonMode::Row);
+        });
+    }
+
+    QAction *hoverSwitchAction = compareMenu->addAction(tr("Hover Switch"));
+    if (items.size() != 2) {
+        hoverSwitchAction->setText(tr("Hover Switch (select exactly 2 images)"));
+        hoverSwitchAction->setEnabled(false);
+    } else {
+        connect(hoverSwitchAction, &QAction::triggered, this, [this, items]() {
+            openComparison(items, ComparisonMode::HoverSwitch);
         });
     }
     menu.exec(view->viewport()->mapToGlobal(position));
 }
 
-void MainWindow::openRowComparison(const QVector<ComparisonSessionItem> &items)
+void MainWindow::openComparison(const QVector<ComparisonSessionItem> &items, ComparisonMode mode)
 {
-    if (items.size() < 2 || items.size() > MaxComparisonItems || m_comparisonView == nullptr || m_centralTabs == nullptr) {
+    if (items.size() > MaxComparisonItems
+        || !ComparisonViewWidget::supportsItemCount(mode, items.size())
+        || m_comparisonView == nullptr
+        || m_centralTabs == nullptr) {
         return;
     }
 
@@ -4089,7 +4105,7 @@ void MainWindow::openRowComparison(const QVector<ComparisonSessionItem> &items)
         showNormal();
     }
 
-    m_comparisonView->setSession(items, comparisonRenderSettings());
+    m_comparisonView->setSession(items, comparisonRenderSettings(), mode);
     m_centralTabs->setCurrentWidget(m_comparisonView);
     updateComparisonTabTitle();
     if (m_fullscreenUiActive) {
@@ -4099,7 +4115,9 @@ void MainWindow::openRowComparison(const QVector<ComparisonSessionItem> &items)
         hideFullscreenOverlayPanels();
         updateFullscreenInfoLine();
     }
-    m_comparisonStatusMessage = tr("Compare: %1 images in row").arg(items.size());
+    m_comparisonStatusMessage = mode == ComparisonMode::HoverSwitch
+            ? tr("Compare: 2 images in Hover Switch")
+            : tr("Compare: %1 images in Row").arg(items.size());
     updateStatus(m_comparisonStatusMessage);
     updateActionState();
 }
@@ -4125,10 +4143,16 @@ void MainWindow::appendToComparison(const QVector<ComparisonSessionItem> &items)
         updateStatus(tr("Compare: maximum is 8 images"));
         return;
     }
+    if (!m_comparisonView->canAppendItems(uniqueToAdd)) {
+        updateStatus(m_comparisonView->mode() == ComparisonMode::HoverSwitch
+                ? tr("Compare: Hover Switch supports exactly 2 images")
+                : tr("Compare: current mode does not support that many images"));
+        return;
+    }
 
     int added = 0;
     if (!m_comparisonView->hasSession()) {
-        m_comparisonView->setSession(items, comparisonRenderSettings());
+        m_comparisonView->setSession(items, comparisonRenderSettings(), ComparisonMode::Row);
         added = m_comparisonView->itemCount();
     } else {
         added = m_comparisonView->appendItems(items);
