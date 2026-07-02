@@ -16,6 +16,7 @@ struct DecodeRequest {
     QSize viewportSize;
     QPointF panOffset;
     double scaleFactor = 1.0;
+    double devicePixelRatio = 1.0;
     int rotationDegrees = 0;
     bool fitToWindow = true;
     bool regionRendering = false;
@@ -26,12 +27,13 @@ struct DecodeRequest {
     [[nodiscard]] QString cacheKeySuffix() const
     {
         const QPointF cachePanOffset = regionRendering ? panOffset : QPointF();
-        return QStringLiteral("%1x%2|pan=%3,%4|scale=%5|rot=%6|fit=%7|region=%8|autorot=%9|quality=%10|max=%11")
+        return QStringLiteral("%1x%2|pan=%3,%4|scale=%5|dpr=%6|rot=%7|fit=%8|region=%9|autorot=%10|quality=%11|max=%12")
             .arg(QString::number(viewportSize.width()),
                  QString::number(viewportSize.height()),
                  QString::number(cachePanOffset.x(), 'f', 2),
                  QString::number(cachePanOffset.y(), 'f', 2),
                  QString::number(scaleFactor, 'f', 4),
+                 QString::number(devicePixelRatio, 'f', 3),
                  QString::number(rotationDegrees),
                  fitToWindow ? QStringLiteral("1") : QStringLiteral("0"),
                  regionRendering ? QStringLiteral("1") : QStringLiteral("0"),
@@ -68,6 +70,7 @@ struct DecodedImage {
     QRect sourceRegion;
     QVector<ImageMetadataField> metadataFields;
     double effectiveScale = 1.0;
+    double devicePixelRatio = 1.0;
     bool regionBased = false;
     QString errorMessage;
     DecodeErrorReason errorReason = DecodeErrorReason::None;

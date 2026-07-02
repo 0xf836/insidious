@@ -61,6 +61,8 @@ private slots:
     void renderMemoryEstimateCeilsScaledSize();
     void renderMemoryBudgetTreatsOverflowAsExceeded();
     void decoderLoadsTemporaryPng();
+    void decoderFitHonorsDevicePixelRatio();
+    void decoderActualSizeHonorsDevicePixelRatio();
     void decoderAppliesViewRotation();
     void decoderImageBufferOutlivesDecodedImageCopies();
     void decoderLoadsPngFromArchive();
@@ -68,6 +70,7 @@ private slots:
     void decoderLoadsArchiveEntryWhenBoundedReadWouldFail();
     void decoderReportsMissingArchiveEntry();
     void decoderRegionRenderingLimitsZoomOutput();
+    void decoderRegionRenderingHonorsDevicePixelRatio();
     void decoderReportsRenderTooLargeReason();
     void decoderUsesConfiguredScalingQuality();
     void decoderRejectsBrokenSupportedFile();
@@ -76,6 +79,7 @@ private slots:
     void decodeRequestCacheKeyIncludesRotation();
     void decodeRequestCacheKeyIncludesRegionAndPan();
     void decodeRequestCacheKeyIncludesScalingQuality();
+    void decodeRequestCacheKeyIncludesDevicePixelRatio();
     void prefetchPolicyAllowsOnlyFitSizedRequests();
     void shortcutSettingsDefaultsAndCustomization();
     void appSettingsRoundTripsThroughQSettings();
@@ -781,6 +785,60 @@ void CoreTests::decoderLoadsTemporaryPng()
     QVERIFY(decoded.displaySize.height() <= 8);
 }
 
+void CoreTests::decoderFitHonorsDevicePixelRatio()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(16, 8, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(8, 8);
+    request.devicePixelRatio = 2.0;
+    request.fitToWindow = true;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.sourceSize, QSize(16, 8));
+    QCOMPARE(decoded.image.size(), QSize(16, 8));
+    QCOMPARE(decoded.image.devicePixelRatio(), 2.0);
+    QCOMPARE(decoded.fullDisplaySize, QSize(8, 4));
+    QCOMPARE(decoded.effectiveScale, 1.0);
+    QCOMPARE(decoded.devicePixelRatio, 2.0);
+}
+
+void CoreTests::decoderActualSizeHonorsDevicePixelRatio()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(16, 8, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(8, 8);
+    request.devicePixelRatio = 2.0;
+    request.fitToWindow = false;
+    request.scaleFactor = 1.0;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.sourceSize, QSize(16, 8));
+    QCOMPARE(decoded.image.size(), QSize(16, 8));
+    QCOMPARE(decoded.image.devicePixelRatio(), 2.0);
+    QCOMPARE(decoded.fullDisplaySize, QSize(8, 4));
+    QCOMPARE(decoded.effectiveScale, 1.0);
+}
+
 void CoreTests::decoderAppliesViewRotation()
 {
     QTemporaryDir tempDir;
@@ -983,6 +1041,39 @@ void CoreTests::decoderRegionRenderingLimitsZoomOutput()
     QVERIFY(!regionDecoded.sourceRegion.isEmpty());
 }
 
+void CoreTests::decoderRegionRenderingHonorsDevicePixelRatio()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(400, 300, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(100, 80);
+    request.devicePixelRatio = 2.0;
+    request.fitToWindow = false;
+    request.regionRendering = true;
+    request.scaleFactor = 4.0;
+    request.maxDecodedBytes = 2 * 1024 * 1024;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QVERIFY(decoded.regionBased);
+    QCOMPARE(decoded.sourceSize, QSize(400, 300));
+    QCOMPARE(decoded.fullDisplaySize, QSize(800, 600));
+    QCOMPARE(decoded.image.devicePixelRatio(), 2.0);
+    QCOMPARE(decoded.effectiveScale, 4.0);
+    QCOMPARE(decoded.devicePixelRatio, 2.0);
+    QVERIFY(decoded.image.width() < decoded.fullDisplaySize.width() * decoded.devicePixelRatio);
+    QVERIFY(decoded.image.height() < decoded.fullDisplaySize.height() * decoded.devicePixelRatio);
+    QCOMPARE(decoded.displayRegionOffset, QPoint(decoded.sourceRegion.left() * 2, decoded.sourceRegion.top() * 2));
+}
+
 void CoreTests::decoderReportsRenderTooLargeReason()
 {
     QTemporaryDir tempDir;
@@ -1143,6 +1234,20 @@ void CoreTests::decodeRequestCacheKeyIncludesScalingQuality()
     sharpest.scalingQuality = ScalingQuality::SharpestMks2021;
 
     QVERIFY(highQuality.cacheKeySuffix() != sharpest.cacheKeySuffix());
+}
+
+void CoreTests::decodeRequestCacheKeyIncludesDevicePixelRatio()
+{
+    DecodeRequest normalDpr;
+    normalDpr.viewportSize = QSize(800, 600);
+    normalDpr.scaleFactor = 1.5;
+    normalDpr.fitToWindow = false;
+    normalDpr.devicePixelRatio = 1.0;
+
+    DecodeRequest highDpr = normalDpr;
+    highDpr.devicePixelRatio = 2.0;
+
+    QVERIFY(normalDpr.cacheKeySuffix() != highDpr.cacheKeySuffix());
 }
 
 void CoreTests::prefetchPolicyAllowsOnlyFitSizedRequests()

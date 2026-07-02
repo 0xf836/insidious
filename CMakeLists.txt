@@ -137,6 +137,10 @@ add_test(NAME insidious_image_view_widget_tests COMMAND insidious_image_view_wid
 set_tests_properties(insidious_image_view_widget_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+add_test(NAME insidious_image_view_widget_hidpi_tests COMMAND insidious_image_view_widget_tests)
+set_tests_properties(insidious_image_view_widget_hidpi_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=2;INSIDIOUS_EXPECT_HIDPI=1"
+)
 
 add_executable(insidious_collection_tree_model_tests
     tests/collection_tree_model_tests.cpp

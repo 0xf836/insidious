@@ -91,6 +91,14 @@ double fitScaleFor(QSize imageSize, QSize viewportSize)
     return std::max(0.01, std::min(horizontal, vertical));
 }
 
+double sanitizedDevicePixelRatio(double devicePixelRatio)
+{
+    if (!std::isfinite(devicePixelRatio) || devicePixelRatio <= 0.0) {
+        return 1.0;
+    }
+    return std::clamp(devicePixelRatio, 0.25, 8.0);
+}
+
 QSize scaledSizeFor(QSize imageSize, double scale)
 {
     if (imageSize.isEmpty() || !std::isfinite(scale) || scale <= 0.0) {
@@ -312,31 +320,34 @@ DecodedImage VipsImageDecoder::decode(
         image = applyViewRotation(image, request.rotationDegrees);
 
         const QSize rotatedSize(image.width(), image.height());
-        const double scale = request.fitToWindow
-            ? fitScaleFor(rotatedSize, request.viewportSize)
+        const double devicePixelRatio = sanitizedDevicePixelRatio(request.devicePixelRatio);
+        const QSize physicalViewportSize = scaledSizeFor(request.viewportSize, devicePixelRatio);
+        const double physicalScale = request.fitToWindow
+            ? fitScaleFor(rotatedSize, physicalViewportSize)
             : std::max(0.01, request.scaleFactor);
-        const QSize fullDisplaySize = scaledSizeFor(rotatedSize, scale);
+        const double logicalScale = physicalScale / devicePixelRatio;
+        const QSize fullDisplaySize = scaledSizeFor(rotatedSize, logicalScale);
         QRect sourceRegion(QPoint(0, 0), rotatedSize);
         QPoint displayRegionOffset;
         const bool useRegionRendering = request.regionRendering && !request.fitToWindow;
 
         if (useRegionRendering) {
             const QRect displayRegion = regionDisplayRect(fullDisplaySize, request.viewportSize, request.panOffset);
-            sourceRegion = sourceRegionForDisplayRegion(displayRegion, scale, rotatedSize);
+            sourceRegion = sourceRegionForDisplayRegion(displayRegion, logicalScale, rotatedSize);
             if (sourceRegion.isEmpty()) {
                 result.errorMessage = QObject::tr("Image region is empty.");
                 result.errorReason = DecodeErrorReason::Other;
                 return result;
             }
             displayRegionOffset = QPoint(
-                static_cast<int>(std::floor(sourceRegion.left() * scale)),
-                static_cast<int>(std::floor(sourceRegion.top() * scale)));
+                static_cast<int>(std::floor(sourceRegion.left() * logicalScale)),
+                static_cast<int>(std::floor(sourceRegion.top() * logicalScale)));
         }
 
         if (exceedsRenderMemoryBudget(
                 sourceRegion.size(),
                 image.bands(),
-                scale,
+                physicalScale,
                 request.maxDecodedBytes)) {
             result.errorMessage = QObject::tr("Image is too large to render at the requested scale.");
             result.errorReason = DecodeErrorReason::RenderTooLarge;
@@ -351,8 +362,8 @@ DecodedImage VipsImageDecoder::decode(
                 sourceRegion.height());
         }
 
-        if (std::abs(scale - 1.0) > 0.001) {
-            image = image.resize(scale, vips::VImage::option()->set("kernel", scalingKernel(request.scalingQuality)));
+        if (std::abs(physicalScale - 1.0) > 0.001) {
+            image = image.resize(physicalScale, vips::VImage::option()->set("kernel", scalingKernel(request.scalingQuality)));
         }
 
         image = normalizeBands(image);
@@ -392,13 +403,15 @@ DecodedImage VipsImageDecoder::decode(
             return result;
         }
 
+        view.setDevicePixelRatio(devicePixelRatio);
         result.image = view;
 
         result.displaySize = result.image.size();
         result.fullDisplaySize = fullDisplaySize.isEmpty() ? result.displaySize : fullDisplaySize;
         result.displayRegionOffset = displayRegionOffset;
         result.sourceRegion = sourceRegion;
-        result.effectiveScale = scale;
+        result.effectiveScale = physicalScale;
+        result.devicePixelRatio = devicePixelRatio;
         result.regionBased = useRegionRendering;
     } catch (const vips::VError &error) {
         result.errorMessage = archiveDecodeErrorMessage(archiveStream.get(), error.what());

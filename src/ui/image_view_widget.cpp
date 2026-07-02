@@ -7,8 +7,18 @@
 #include <QPixmap>
 #include <QWheelEvent>
 
+#include <cmath>
+
 namespace insidious::ui {
 namespace {
+
+QSize deviceIndependentImageSize(const QImage &image)
+{
+    const QSizeF size = image.deviceIndependentSize();
+    return QSize(
+        static_cast<int>(std::ceil(size.width())),
+        static_cast<int>(std::ceil(size.height())));
+}
 
 const QCursor &clickZoomCursor()
 {
@@ -54,7 +64,7 @@ ImageViewWidget::ImageViewWidget(QWidget *parent)
 
 void ImageViewWidget::setImage(const QImage &image)
 {
-    setImage(image, image.size(), QPoint());
+    setImage(image, deviceIndependentImageSize(image), QPoint());
 }
 
 void ImageViewWidget::setImage(const QImage &image, QSize fullImageSize, QPoint imageRegionOffset)

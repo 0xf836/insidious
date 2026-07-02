@@ -51,6 +51,7 @@ public:
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    bool event(QEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
@@ -192,6 +193,7 @@ private:
     void cancelDelayedLoadingOverlay();
     void cancelDelayedLoadingOverlayForGeneration(quint64 generation);
     void startDecodeJob(const PendingDecodeRequest &request);
+    void handleDevicePixelRatioChanged();
     bool startPendingDecodeJob();
     void clearPendingDecodeRequest();
     [[nodiscard]] bool isSameDecodeEntry(const PendingDecodeRequest &left, const PendingDecodeRequest &right) const;
@@ -336,6 +338,7 @@ private:
     QTimer m_resizeReloadTimer;
     QTimer m_regionReloadTimer;
     QTimer m_loadingOverlayTimer;
+    double m_devicePixelRatio = 1.0;
     quint64 m_sourceGeneration = 0;
     quint64 m_decodeGeneration = 0;
     quint64 m_loadingOverlayGeneration = 0;

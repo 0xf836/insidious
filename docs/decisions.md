@@ -58,6 +58,8 @@
 
 Обновление: scaling/filter quality настраивается как preset поверх libvips resize kernels: `Fast (linear)`, `Balanced (Mitchell)`, `High quality (Lanczos3)` и `Sharpest (MKS2021)`. Default — `High quality (Lanczos3)`. Значение хранится в privacy-safe settings, входит в `DecodeRequest` и cache key, потому что оно меняет rendered raster. Для preset `Sharpest (MKS2021)` требуется libvips/vips-cpp 8.18.3+.
 
+Обновление: HiDPI rendering использует physical-pixel 1:1 semantics для `actual size / 100%`. `DecodeRequest` хранит logical viewport size и отдельный device pixel ratio; libvips строит physical raster, `QImage` получает DPR, а viewer geometry и input остаются в Qt logical pixels. DPR входит в cache key.
+
 ## ADR-010: MVP избегает recent-file integration
 
 Решение: приложение не использует recent files и persistent cache в MVP; file dialogs открываются в non-native режиме, чтобы не включать toolkit/desktop recent-file integration без явного решения. `QSettings` разрешён только для non-history preferences: viewer defaults, fullscreen trigger zones и layout state.

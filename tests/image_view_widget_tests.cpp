@@ -13,6 +13,8 @@ private slots:
     void middleButtonFitHandPanEmitsPan();
     void ctrlLeftFitHandPanDoesNotClick();
     void disabledFitHandPanIgnoresGestures();
+    void dprAwareImageUsesLogicalGeometry();
+    void highDpiEnvironmentIsActiveWhenRequested();
 };
 
 namespace {
@@ -86,6 +88,34 @@ void ImageViewWidgetTests::disabledFitHandPanIgnoresGestures()
     QCOMPARE(ended.count(), 0);
     QCOMPARE(panChanged.count(), 0);
     QCOMPARE(widget.panOffset(), QPointF());
+}
+
+void ImageViewWidgetTests::dprAwareImageUsesLogicalGeometry()
+{
+    ImageViewWidget widget;
+    widget.resize(320, 240);
+
+    QImage image(100, 50, QImage::Format_RGB32);
+    image.setDevicePixelRatio(2.0);
+    image.fill(Qt::blue);
+    widget.setImage(image);
+
+    const QRectF imageRect = widget.imageRect();
+    QCOMPARE(imageRect.size(), QSizeF(50.0, 25.0));
+    QCOMPARE(imageRect.topLeft(), QPointF(135.0, 107.5));
+}
+
+void ImageViewWidgetTests::highDpiEnvironmentIsActiveWhenRequested()
+{
+    if (qEnvironmentVariableIsEmpty("INSIDIOUS_EXPECT_HIDPI")) {
+        QSKIP("HiDPI environment check is enabled only for the dedicated CTest entry.");
+    }
+
+    ImageViewWidget widget;
+    widget.resize(320, 240);
+    widget.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&widget));
+    QVERIFY(widget.devicePixelRatioF() >= 1.5);
 }
 
 QTEST_MAIN(ImageViewWidgetTests)

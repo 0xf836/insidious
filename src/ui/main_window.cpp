@@ -251,6 +251,17 @@ QPointF clampedPointToRect(const QPointF &point, const QRectF &rect)
         std::clamp(point.y(), rect.top(), rect.bottom()));
 }
 
+double decodedLogicalScale(const core::DecodedImage &decoded)
+{
+    if (decoded.effectiveScale <= 0.0) {
+        return 0.0;
+    }
+    const double devicePixelRatio = std::isfinite(decoded.devicePixelRatio) && decoded.devicePixelRatio > 0.0
+        ? decoded.devicePixelRatio
+        : 1.0;
+    return decoded.effectiveScale / devicePixelRatio;
+}
+
 void appendFoldersInPreorder(const core::CollectionFolderNode *node, QVector<const core::CollectionFolderNode *> *folders)
 {
     if (node == nullptr || folders == nullptr) {
@@ -460,6 +471,7 @@ MainWindow::MainWindow(QWidget *parent)
     setAcceptDrops(true);
 
     m_imageView = new ImageViewWidget(this);
+    m_devicePixelRatio = devicePixelRatioF();
     m_imageView->setMessage(tr("Open an image or folder."));
     setCentralWidget(m_imageView);
 
@@ -613,6 +625,14 @@ void MainWindow::dropEvent(QDropEvent *event)
 
     openPaths(paths);
     event->acceptProposedAction();
+}
+
+bool MainWindow::event(QEvent *event)
+{
+    if (event->type() == QEvent::DevicePixelRatioChange) {
+        handleDevicePixelRatioChanged();
+    }
+    return QMainWindow::event(event);
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)
@@ -828,6 +848,26 @@ void MainWindow::startDecodeJob(const PendingDecodeRequest &request)
     }));
 }
 
+void MainWindow::handleDevicePixelRatioChanged()
+{
+    const double devicePixelRatio = devicePixelRatioF();
+    if (qFuzzyCompare(m_devicePixelRatio, devicePixelRatio)) {
+        return;
+    }
+
+    m_devicePixelRatio = devicePixelRatio;
+    if (!m_controller.hasCollection()) {
+        return;
+    }
+
+    if (m_currentDecoded.ok() && m_controller.zoomMode() != core::ZoomMode::FitToWindow) {
+        loadCurrentImage(false, captureViewRenderState());
+        return;
+    }
+
+    loadCurrentImage(false);
+}
+
 void MainWindow::scheduleDelayedLoadingOverlay(quint64 generation)
 {
     m_loadingOverlayGeneration = generation;
@@ -1009,13 +1049,18 @@ void MainWindow::zoomToRect(const QRect &selectionRect)
     rememberTemporaryZoomReturnMode();
 
     const double currentScale = m_currentDecoded.effectiveScale;
+    const double currentLogicalScale = decodedLogicalScale(m_currentDecoded);
+    if (currentLogicalScale <= 0.0) {
+        return;
+    }
     const double scaleMultiplier = std::min(
         static_cast<double>(m_imageView->width()) / selected.width(),
         static_cast<double>(m_imageView->height()) / selected.height());
     const double newScale = std::clamp(currentScale * scaleMultiplier, core::MinimumZoomFactor, core::MaximumZoomFactor);
+    const double newLogicalScale = currentLogicalScale * newScale / currentScale;
 
     const QPointF selectedCenterInImage = selected.center() - imageRect.topLeft();
-    const QPointF sourceCenter(selectedCenterInImage.x() / currentScale, selectedCenterInImage.y() / currentScale);
+    const QPointF sourceCenter(selectedCenterInImage.x() / currentLogicalScale, selectedCenterInImage.y() / currentLogicalScale);
     const QSize currentDisplaySize = m_currentDecoded.fullDisplaySize.isEmpty()
         ? m_currentDecoded.image.size()
         : m_currentDecoded.fullDisplaySize;
@@ -1026,7 +1071,7 @@ void MainWindow::zoomToRect(const QRect &selectionRect)
         (m_imageView->width() - newDisplaySize.width()) / 2.0,
         (m_imageView->height() - newDisplaySize.height()) / 2.0);
     const QPointF viewportCenter(m_imageView->width() / 2.0, m_imageView->height() / 2.0);
-    const QPointF selectedCenterAtNewScale(sourceCenter.x() * newScale, sourceCenter.y() * newScale);
+    const QPointF selectedCenterAtNewScale(sourceCenter.x() * newLogicalScale, sourceCenter.y() * newLogicalScale);
     const QPointF newPanOffset = viewportCenter - centeredTopLeft - selectedCenterAtNewScale;
 
     applyCustomZoomWithFallback(newScale, newPanOffset);
@@ -2814,6 +2859,10 @@ bool MainWindow::customZoomForAnchor(QPointF anchorPosition, double multiplier, 
     }
 
     const double currentScale = m_currentDecoded.effectiveScale;
+    const double currentLogicalScale = decodedLogicalScale(m_currentDecoded);
+    if (currentLogicalScale <= 0.0) {
+        return false;
+    }
     const double newScale = std::clamp(
         currentScale * multiplier,
         core::MinimumZoomFactor,
@@ -2824,7 +2873,7 @@ bool MainWindow::customZoomForAnchor(QPointF anchorPosition, double multiplier, 
 
     const QPointF anchor = clampedPointToRect(anchorPosition, imageRect);
     const QPointF imagePoint = anchor - imageRect.topLeft();
-    const QPointF sourcePoint(imagePoint.x() / currentScale, imagePoint.y() / currentScale);
+    const QPointF sourcePoint(imagePoint.x() / currentLogicalScale, imagePoint.y() / currentLogicalScale);
     const QSize currentDisplaySize = m_currentDecoded.fullDisplaySize.isEmpty()
         ? m_currentDecoded.image.size()
         : m_currentDecoded.fullDisplaySize;
@@ -2834,7 +2883,8 @@ bool MainWindow::customZoomForAnchor(QPointF anchorPosition, double multiplier, 
     const QPointF centeredTopLeft(
         (m_imageView->width() - newDisplaySize.width()) / 2.0,
         (m_imageView->height() - newDisplaySize.height()) / 2.0);
-    const QPointF pointAtNewScale(sourcePoint.x() * newScale, sourcePoint.y() * newScale);
+    const double newLogicalScale = currentLogicalScale * newScale / currentScale;
+    const QPointF pointAtNewScale(sourcePoint.x() * newLogicalScale, sourcePoint.y() * newLogicalScale);
 
     *zoomFactor = newScale;
     *panOffset = anchor - centeredTopLeft - pointAtNewScale;
@@ -3750,6 +3800,7 @@ core::DecodeRequest MainWindow::currentDecodeRequest() const
     core::DecodeRequest request;
     request.viewportSize = m_imageView->size();
     request.panOffset = m_controller.panOffset();
+    request.devicePixelRatio = m_imageView->devicePixelRatioF();
     request.rotationDegrees = m_controller.rotationDegrees();
     request.fitToWindow = m_controller.zoomMode() == core::ZoomMode::FitToWindow;
     request.regionRendering = m_settings.viewer.regionRenderingEnabled && !request.fitToWindow;
