@@ -92,7 +92,7 @@ Memory-only cache для:
 
 Persistent cache запрещён текущими privacy requirements.
 
-Render-memory budget считается отдельной core-логикой для output raster decode request: полный display-sized raster в `fit`, а в non-fit zoom/actual-size по умолчанию видимый region плюс запас. Scaling quality и device pixel ratio являются частью decode request и cache key, потому что выбранный libvips kernel и DPR меняют output raster. Если пользователь отключает region-based rendering, non-fit request снова проверяет полный scaled raster тем же budget guard. Текущая оценка не является total peak memory budget: поверх неё остаются libvips working/cache memory, source-reader buffering, displayed raster и decoded cache.
+Render-memory budget считается отдельной core-логикой для output raster decode request: полный display-sized raster в `fit`, а в non-fit zoom/actual-size по умолчанию видимый region плюс запас. Scaling quality, color management и device pixel ratio являются частью decode request и cache key, потому что выбранный libvips kernel, ICC conversion mode и DPR меняют output raster. Если пользователь отключает region-based rendering, non-fit request снова проверяет полный scaled raster тем же budget guard. Текущая оценка не является total peak memory budget: поверх неё остаются libvips working/cache memory, source-reader buffering, displayed raster и decoded cache.
 
 Total peak memory проверяется отдельным developer-only audit tooling (`insidious_memory_audit` + `tools/memory_audit.py`) и документируется в `docs/memory-audit.md`. Этот audit не является runtime guard и не пишет persistent data.
 
@@ -116,6 +116,7 @@ Total peak memory проверяется отдельным developer-only audit
 - wheel / Ctrl+wheel / Shift+wheel actions;
 - shared zoom step percent;
 - scaling quality preset;
+- embedded color profile conversion;
 - core viewer keyboard/mouse shortcuts;
 - fullscreen edge trigger ratios;
 - pinned fullscreen info line visibility/font/size/color;

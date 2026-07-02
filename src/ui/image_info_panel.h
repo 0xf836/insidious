@@ -23,7 +23,11 @@ public:
 
 private:
     void setInfoMessage(const QString &message);
-    void setEntryInfoFields(const core::ImageEntry &entry, const QString &state, const QString &dimensions);
+    void setEntryInfoFields(
+        const core::ImageEntry &entry,
+        const QString &state,
+        const QString &dimensions,
+        const QString &colorProfile = QString());
     void setInfoFields(const QVector<core::ImageMetadataField> &fields);
     void setExifFields(const QVector<core::ImageMetadataField> &fields);
     void setExifMessage(const QString &message);

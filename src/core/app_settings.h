@@ -81,6 +81,7 @@ struct ViewerSettings {
     WheelAction shiftWheelAction = WheelAction::NoAction;
     double zoomStepPercent = 25.0;
     ScalingQuality scalingQuality = ScalingQuality::HighLanczos3;
+    bool colorManagementEnabled = true;
     bool regionRenderingEnabled = true;
 };
 

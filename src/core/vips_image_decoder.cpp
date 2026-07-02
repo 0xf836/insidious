@@ -5,6 +5,7 @@
 
 #include <QImage>
 #include <QObject>
+#include <QColorSpace>
 #include <QtGlobal>
 
 #include <algorithm>
@@ -15,6 +16,8 @@
 
 namespace insidious::core {
 namespace {
+
+constexpr const char *SrgbProfileName = "srgb";
 
 vips::VImage applyViewRotation(vips::VImage image, int rotationDegrees)
 {
@@ -28,6 +31,11 @@ vips::VImage applyViewRotation(vips::VImage image, int rotationDegrees)
     default:
         return image;
     }
+}
+
+bool hasEmbeddedProfile(const vips::VImage &image)
+{
+    return image.get_typeof(VIPS_META_ICC_NAME) != 0;
 }
 
 vips::VImage normalizeBands(vips::VImage image)
@@ -63,6 +71,49 @@ vips::VImage normalizeBands(vips::VImage image)
     }
 
     return image.extract_band(0, vips::VImage::option()->set("n", 3));
+}
+
+int normalizedOutputBands(const vips::VImage &image)
+{
+    return image.bands() == 2 || image.bands() >= 4 ? 4 : 3;
+}
+
+vips::VImage applyColorManagement(vips::VImage image, bool enabled, ColorProfileState *colorProfileState)
+{
+    if (!enabled) {
+        if (colorProfileState != nullptr) {
+            *colorProfileState = ColorProfileState::ColorManagementOff;
+        }
+        return normalizeBands(image);
+    }
+
+    if (!vips_icc_present()) {
+        if (colorProfileState != nullptr) {
+            *colorProfileState = ColorProfileState::UnavailableFallback;
+        }
+        return normalizeBands(image);
+    }
+
+    const bool embeddedProfile = hasEmbeddedProfile(image);
+    try {
+        image = image.icc_transform(
+            SrgbProfileName,
+            vips::VImage::option()
+                ->set("embedded", TRUE)
+                ->set("intent", VIPS_INTENT_RELATIVE)
+                ->set("black_point_compensation", TRUE));
+        if (colorProfileState != nullptr) {
+            *colorProfileState = embeddedProfile
+                ? ColorProfileState::ConvertedToSrgb
+                : ColorProfileState::SrgbAssumed;
+        }
+        return normalizeBands(image);
+    } catch (const vips::VError &) {
+        if (colorProfileState != nullptr) {
+            *colorProfileState = ColorProfileState::FallbackToSrgb;
+        }
+        return normalizeBands(image);
+    }
 }
 
 VipsKernel scalingKernel(ScalingQuality quality)
@@ -344,9 +395,10 @@ DecodedImage VipsImageDecoder::decode(
                 static_cast<int>(std::floor(sourceRegion.top() * logicalScale)));
         }
 
+        const int outputBands = normalizedOutputBands(image);
         if (exceedsRenderMemoryBudget(
                 sourceRegion.size(),
-                image.bands(),
+                outputBands,
                 physicalScale,
                 request.maxDecodedBytes)) {
             result.errorMessage = QObject::tr("Image is too large to render at the requested scale.");
@@ -366,12 +418,13 @@ DecodedImage VipsImageDecoder::decode(
             image = image.resize(physicalScale, vips::VImage::option()->set("kernel", scalingKernel(request.scalingQuality)));
         }
 
-        image = normalizeBands(image);
+        const vips::VImage imageBeforeColorManagement = image;
+        image = applyColorManagement(image, request.colorManagementEnabled, &result.colorProfileState);
         if (image.format() != VIPS_FORMAT_UCHAR) {
             image = image.cast(VIPS_FORMAT_UCHAR);
         }
 
-        const int bands = image.bands();
+        int bands = image.bands();
         if (bands != 3 && bands != 4) {
             result.errorMessage = QObject::tr("Decoded image has an unsupported channel layout.");
             result.errorReason = DecodeErrorReason::Other;
@@ -379,7 +432,27 @@ DecodedImage VipsImageDecoder::decode(
         }
 
         size_t memorySize = 0;
-        void *memory = image.write_to_memory(&memorySize);
+        void *memory = nullptr;
+        try {
+            memory = image.write_to_memory(&memorySize);
+        } catch (const vips::VError &) {
+            if (!request.colorManagementEnabled || result.colorProfileState == ColorProfileState::ColorManagementOff) {
+                throw;
+            }
+
+            result.colorProfileState = ColorProfileState::FallbackToSrgb;
+            image = normalizeBands(imageBeforeColorManagement);
+            if (image.format() != VIPS_FORMAT_UCHAR) {
+                image = image.cast(VIPS_FORMAT_UCHAR);
+            }
+            bands = image.bands();
+            if (bands != 3 && bands != 4) {
+                result.errorMessage = QObject::tr("Decoded image has an unsupported channel layout.");
+                result.errorReason = DecodeErrorReason::Other;
+                return result;
+            }
+            memory = image.write_to_memory(&memorySize);
+        }
         if (memory == nullptr || memorySize == 0) {
             result.errorMessage = QObject::tr("Decoded image memory allocation failed.");
             result.errorReason = DecodeErrorReason::Other;
@@ -404,6 +477,9 @@ DecodedImage VipsImageDecoder::decode(
         }
 
         view.setDevicePixelRatio(devicePixelRatio);
+        if (result.colorProfileState != ColorProfileState::ColorManagementOff) {
+            view.setColorSpace(QColorSpace::SRgb);
+        }
         result.image = view;
 
         result.displaySize = result.image.size();

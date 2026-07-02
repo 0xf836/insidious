@@ -32,7 +32,7 @@ AVIF и JPEG XL зависят от поддержки в выбранном ima
 - high-quality scaling;
 - правильная обработка alpha;
 - корректная ориентация;
-- ICC/color management;
+- display-profile / monitor-profile matching;
 - отсутствие лишнего размытия;
 - регрессии HiDPI при будущих изменениях render pipeline.
 

@@ -60,6 +60,8 @@
 
 Обновление: HiDPI rendering использует physical-pixel 1:1 semantics для `actual size / 100%`. `DecodeRequest` хранит logical viewport size и отдельный device pixel ratio; libvips строит physical raster, `QImage` получает DPR, а viewer geometry и input остаются в Qt logical pixels. DPR входит в cache key.
 
+Обновление: embedded ICC color management включён по умолчанию и настраивается в Preferences. Значение хранится в privacy-safe settings, входит в `DecodeRequest` и cache key, потому что оно меняет rendered raster. Целевой профиль v1 — sRGB: libvips/lcms2 конвертирует embedded profiles через `icc_transform("srgb")` с relative colorimetric intent и black point compensation, изображения без профиля считаются sRGB, а битые профили или отсутствие lcms2 дают мягкий sRGB fallback вместо ошибки текущего entry. Display-profile/monitor-profile matching остаётся отдельным будущим этапом.
+
 ## ADR-010: MVP избегает recent-file integration
 
 Решение: приложение не использует recent files и persistent cache в MVP; file dialogs открываются в non-native режиме, чтобы не включать toolkit/desktop recent-file integration без явного решения. `QSettings` разрешён только для non-history preferences: viewer defaults, fullscreen trigger zones и layout state.
@@ -98,7 +100,7 @@
 
 ## ADR-016: Настройки разделены на core schema и UI dialog
 
-Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, scaling quality, core viewer keyboard/mouse shortcuts, fullscreen edge trigger ratios, normal-mode theme и layout state.
+Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, scaling quality, color management, core viewer keyboard/mouse shortcuts, fullscreen edge trigger ratios, normal-mode theme и layout state.
 
 Причина: настройки должны быть расширяемыми и тестируемыми без GUI. Core-слой валидирует enum/string conversion и clamp числовых значений, а UI остаётся тонким слоем отображения. Privacy boundary остаётся явным: не сохранять recent files, viewed paths, archive paths, passwords, thumbnails, decoded cache или file logs.
 

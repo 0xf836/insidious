@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QBuffer>
 #include <QColor>
+#include <QColorSpace>
 #include <QFileInfo>
 #include <QImage>
 #include <QProcess>
@@ -61,6 +62,9 @@ private slots:
     void renderMemoryEstimateCeilsScaledSize();
     void renderMemoryBudgetTreatsOverflowAsExceeded();
     void decoderLoadsTemporaryPng();
+    void decoderColorManagementTagsSrgb();
+    void decoderColorManagementCanBeDisabled();
+    void decoderReportsEmbeddedIccConversion();
     void decoderFitHonorsDevicePixelRatio();
     void decoderActualSizeHonorsDevicePixelRatio();
     void decoderAppliesViewRotation();
@@ -79,6 +83,7 @@ private slots:
     void decodeRequestCacheKeyIncludesRotation();
     void decodeRequestCacheKeyIncludesRegionAndPan();
     void decodeRequestCacheKeyIncludesScalingQuality();
+    void decodeRequestCacheKeyIncludesColorManagement();
     void decodeRequestCacheKeyIncludesDevicePixelRatio();
     void prefetchPolicyAllowsOnlyFitSizedRequests();
     void shortcutSettingsDefaultsAndCustomization();
@@ -161,6 +166,22 @@ bool writeEncryptedZipArchive(const QString &archivePath, const QString &entryNa
         sourcePath,
     };
     return QProcess::execute(zip, arguments) == 0;
+}
+
+bool writeSrgbIccTaggedPng(const QString &sourcePath, const QString &targetPath)
+{
+    try {
+        vips::VImage image = vips::VImage::new_from_file(sourcePath.toUtf8().constData());
+        image = image.icc_transform(
+            "srgb",
+            vips::VImage::option()
+                ->set("intent", VIPS_INTENT_RELATIVE)
+                ->set("black_point_compensation", TRUE));
+        image.write_to_file(targetPath.toUtf8().constData());
+        return true;
+    } catch (const vips::VError &) {
+        return false;
+    }
 }
 
 } // namespace
@@ -785,6 +806,76 @@ void CoreTests::decoderLoadsTemporaryPng()
     QVERIFY(decoded.displaySize.height() <= 8);
 }
 
+void CoreTests::decoderColorManagementTagsSrgb()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(16, 8, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(8, 8);
+    request.fitToWindow = true;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.colorProfileState, ColorProfileState::SrgbAssumed);
+    QCOMPARE(decoded.image.colorSpace(), QColorSpace(QColorSpace::SRgb));
+}
+
+void CoreTests::decoderColorManagementCanBeDisabled()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(16, 8, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(8, 8);
+    request.fitToWindow = true;
+    request.colorManagementEnabled = false;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.colorProfileState, ColorProfileState::ColorManagementOff);
+    QVERIFY(!decoded.image.colorSpace().isValid());
+}
+
+void CoreTests::decoderReportsEmbeddedIccConversion()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QDir root(tempDir.path());
+    const QString sourcePath = root.filePath(QStringLiteral("source.png"));
+    const QString taggedPath = root.filePath(QStringLiteral("tagged.png"));
+
+    QImage source(16, 8, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QVERIFY(source.save(sourcePath));
+    QVERIFY(writeSrgbIccTaggedPng(sourcePath, taggedPath));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(taggedPath));
+    DecodeRequest request;
+    request.viewportSize = QSize(8, 8);
+    request.fitToWindow = true;
+
+    VipsImageDecoder decoder;
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.colorProfileState, ColorProfileState::ConvertedToSrgb);
+    QCOMPARE(decoded.image.colorSpace(), QColorSpace(QColorSpace::SRgb));
+}
+
 void CoreTests::decoderFitHonorsDevicePixelRatio()
 {
     QTemporaryDir tempDir;
@@ -1236,6 +1327,20 @@ void CoreTests::decodeRequestCacheKeyIncludesScalingQuality()
     QVERIFY(highQuality.cacheKeySuffix() != sharpest.cacheKeySuffix());
 }
 
+void CoreTests::decodeRequestCacheKeyIncludesColorManagement()
+{
+    DecodeRequest enabled;
+    enabled.viewportSize = QSize(800, 600);
+    enabled.scaleFactor = 1.5;
+    enabled.fitToWindow = false;
+    enabled.colorManagementEnabled = true;
+
+    DecodeRequest disabled = enabled;
+    disabled.colorManagementEnabled = false;
+
+    QVERIFY(enabled.cacheKeySuffix() != disabled.cacheKeySuffix());
+}
+
 void CoreTests::decodeRequestCacheKeyIncludesDevicePixelRatio()
 {
     DecodeRequest normalDpr;
@@ -1283,6 +1388,7 @@ void CoreTests::shortcutSettingsDefaultsAndCustomization()
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::ExifAutorotate), QStringList());
     QVERIFY(values.viewer.regionRenderingEnabled);
     QCOMPARE(values.viewer.scalingQuality, ScalingQuality::HighLanczos3);
+    QVERIFY(values.viewer.colorManagementEnabled);
     QVERIFY(values.fullscreen.infoLineEnabled);
     QCOMPARE(values.fullscreen.infoLineFontFamily, QStringLiteral("DejaVu Sans"));
     QCOMPARE(values.fullscreen.infoLineFontPointSize, 10);
@@ -1331,6 +1437,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.viewer.shiftWheelAction = WheelAction::Zoom;
     values.viewer.zoomStepPercent = 40.0;
     values.viewer.scalingQuality = ScalingQuality::HighLanczos3;
+    values.viewer.colorManagementEnabled = false;
     values.viewer.regionRenderingEnabled = false;
     values.fullscreen.sideTriggerRatio = 0.12;
     values.fullscreen.verticalTriggerRatio = 0.08;
@@ -1365,6 +1472,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.viewer.shiftWheelAction, WheelAction::Zoom);
     QCOMPARE(loaded.viewer.zoomStepPercent, 40.0);
     QCOMPARE(loaded.viewer.scalingQuality, ScalingQuality::HighLanczos3);
+    QVERIFY(!loaded.viewer.colorManagementEnabled);
     QVERIFY(!loaded.viewer.regionRenderingEnabled);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.12);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.08);
@@ -1400,6 +1508,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     writeSettings.setValue(QStringLiteral("shiftWheelAction"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("zoomStepPercent"), 999.0);
     writeSettings.setValue(QStringLiteral("scalingQuality"), QStringLiteral("invalid"));
+    writeSettings.setValue(QStringLiteral("colorManagementEnabled"), true);
     writeSettings.setValue(QStringLiteral("regionRenderingEnabled"), QStringLiteral("invalid"));
     writeSettings.endGroup();
     writeSettings.beginGroup(QStringLiteral("fullscreen"));
@@ -1436,6 +1545,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     QCOMPARE(loaded.viewer.shiftWheelAction, WheelAction::NoAction);
     QCOMPARE(loaded.viewer.zoomStepPercent, 100.0);
     QCOMPARE(loaded.viewer.scalingQuality, ScalingQuality::HighLanczos3);
+    QVERIFY(loaded.viewer.colorManagementEnabled);
     QVERIFY(loaded.viewer.regionRenderingEnabled);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.01);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.30);

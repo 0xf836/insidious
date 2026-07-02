@@ -26,6 +26,7 @@
 - поддерживать pan при увеличении;
 - давать выбирать quality preset для scaling/filtering без смешивания raster cache между разными preset values;
 - по умолчанию экономить память region-based rendering для zoom/actual size, но давать отключить это в Preferences ради более плавного pan;
+- по умолчанию учитывать embedded ICC profiles и конвертировать rendered raster в sRGB, с возможностью отключить это в Preferences;
 - не мерцать при переключении изображений;
 - не блокировать весь интерфейс во время загрузки следующего изображения.
 - при transient loading во время переключения оставлять предыдущий raster на экране и показывать ненавязчивый полупрозрачный overlay вместо чёрного экрана; при zoom не показывать loading-надпись и не двигать старый raster до готовности нового.
@@ -108,13 +109,14 @@ EXIF date в status/fullscreen line показывается только как
 - формат;
 - размер файла;
 - dimensions после decode;
+- статус color profile;
 - дата изменения;
 - компактный набор полезных EXIF-полей, которые отдаёт libvips.
 
 Позже панель может показывать расширенную информацию:
 
 - технические параметры изображения;
-- возможно, ICC/color profile information.
+- расширенные ICC/profile details beyond the current profile status.
 
 ## Fullscreen
 
@@ -148,7 +150,7 @@ Pinned fullscreen info line:
 
 `Edit -> Preferences` открывает базовое окно настроек. Оно состоит из вкладок:
 
-- `Viewer` — секции `View Defaults`, `Zoom and Rendering`, `Wheel Actions`: default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), EXIF autorotate, режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), multiplier для temporary click zoom, общий zoom step, scaling quality preset, region-based rendering и действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
+- `Viewer` — секции `View Defaults`, `Zoom and Rendering`, `Wheel Actions`: default zoom mode, поведение при переключении изображений (`reset zoom and pan` или `preserve current view`), EXIF autorotate, режим ЛКМ zoom (`click to zoom / restore` или `hold to zoom, drag to pan`), multiplier для temporary click zoom, общий zoom step, scaling quality preset, embedded color profile conversion, region-based rendering и действия для wheel / `Ctrl+wheel` / `Shift+wheel`.
 - `Shortcuts` — секция `Assignments` для core viewer shortcuts: открыть файл/папку, навигация по изображениям и папкам, quick jump, Preferences, zoom/fit/actual size, rotate, EXIF orientation и fullscreen. Команду можно назначить на keyboard shortcut и/или mouse button shortcut с optional modifiers.
 - `Fullscreen` — секции `Edge Overlays` и `Pinned Info Line`: размер edge trigger zones для боковых и верхней/нижней overlay-панелей, включение и presentation settings для pinned fullscreen info line.
 - `Interface` — секции `Appearance` и `Layout`: light/dark theme для normal mode, запоминание layout окна, dock-панелей и splitter sizes. Fullscreen chrome остаётся темным без отдельного выбора темы.

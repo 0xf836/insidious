@@ -63,6 +63,25 @@ QString formattedDimensions(const QSize &size)
         .arg(QLocale::system().toString(megapixels, 'f', 2));
 }
 
+QString colorProfileText(core::ColorProfileState state)
+{
+    switch (state) {
+    case core::ColorProfileState::ColorManagementOff:
+        return QObject::tr("Color management off");
+    case core::ColorProfileState::SrgbAssumed:
+        return QObject::tr("sRGB assumed");
+    case core::ColorProfileState::ConvertedToSrgb:
+        return QObject::tr("Embedded ICC converted to sRGB");
+    case core::ColorProfileState::FallbackToSrgb:
+        return QObject::tr("Profile conversion failed; sRGB fallback");
+    case core::ColorProfileState::UnavailableFallback:
+        return QObject::tr("ICC support unavailable; sRGB fallback");
+    case core::ColorProfileState::Unknown:
+        break;
+    }
+    return QObject::tr("Unknown");
+}
+
 } // namespace
 
 ImageInfoPanel::ImageInfoPanel(QWidget *parent)
@@ -107,7 +126,7 @@ void ImageInfoPanel::showEntry(const core::ImageEntry &entry, const QString &sta
 
 void ImageInfoPanel::showDecodedImage(const core::ImageEntry &entry, const core::DecodedImage &decoded)
 {
-    setEntryInfoFields(entry, tr("Ready"), formattedDimensions(decoded.sourceSize));
+    setEntryInfoFields(entry, tr("Ready"), formattedDimensions(decoded.sourceSize), colorProfileText(decoded.colorProfileState));
     setExifFields(decoded.metadataFields);
 }
 
@@ -123,7 +142,7 @@ void ImageInfoPanel::setInfoMessage(const QString &message)
     addFieldRow(m_infoForm, m_infoRows, tr("State"), message);
 }
 
-void ImageInfoPanel::setEntryInfoFields(const core::ImageEntry &entry, const QString &state, const QString &dimensions)
+void ImageInfoPanel::setEntryInfoFields(const core::ImageEntry &entry, const QString &state, const QString &dimensions, const QString &colorProfile)
 {
     QVector<core::ImageMetadataField> fields;
     fields.append({tr("State"), state});
@@ -132,6 +151,7 @@ void ImageInfoPanel::setEntryInfoFields(const core::ImageEntry &entry, const QSt
     fields.append({tr("Format"), entry.formatHint});
     fields.append({tr("File size"), formattedFileSize(entry.fileSize)});
     fields.append({tr("Dimensions"), dimensions});
+    fields.append({tr("Color profile"), colorProfile});
     fields.append({tr("Modified"), formattedDateTime(entry.modifiedTime)});
     setInfoFields(fields);
 }

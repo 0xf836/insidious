@@ -25,7 +25,7 @@ The build creates:
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, single/multi-path open and drag'n'drop classification, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
 - The normal main menu is built from the same `QAction` objects as toolbars but is hidden by default; a plain `Alt` key press shows it transiently for keyboard menu navigation, and it hides again after action trigger, popup close, or focus loss. The normal toolbar exposes a right-aligned compact app menu button, while the fullscreen toolbar keeps the same button inside the main button cluster so the right edge overlay does not cover it.
 - `src/ui/settings_dialog.*` implements the Preferences dialog. It edits an `AppSettings` value and leaves persistence/schema/defaults to core.
-- `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, and EXIF metadata fields collected by the decoder; it does not read files.
+- `src/ui/image_info_panel.*` shows current-entry information in the right `Info` dock. It consumes `ImageEntry`, `DecodedImage::sourceSize`, color profile status, and EXIF metadata fields collected by the decoder; it does not read files.
 - `src/ui/collection_tree_model.*` exposes the current source folder tree to `QTreeView` instances in the normal and fullscreen `Files` panels. It keeps path/node row indexes for large trees and updates lazy-loaded folders with targeted row insertions instead of resetting the whole model.
 - `src/ui/image_list_model.*` exposes the active folder's image entries to `QListView` instances in the left `Files` panel. It is UI-only and does not scan sources, decode images, or build thumbnails.
 - `src/ui/image_view_widget.*` paints the current decoded `QImage`, shows loading/error messages, and translates mouse events into high-level commands.
@@ -43,7 +43,7 @@ The build creates:
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, region-render metadata, metadata fields, and machine-readable decode error reasons.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
 - `src/core/render_memory_budget.*` estimates the memory required for an output raster and exposes the shared render-budget guard. For `fit` this is the full display-sized raster; for non-fit zoom/actual-size this is the decoded visible region plus overscan when region rendering is enabled, or the full scaled raster when it is disabled.
-- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert to sRGB-like 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
+- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert embedded ICC profiles to sRGB when color management is enabled, normalize to 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
 
@@ -65,7 +65,7 @@ Transient loading display:
 - Cache misses during zoom keep the previous raster and decoded state visible without showing a loading label and without moving the old raster before the new decode is ready.
 - HiDPI decode requests carry logical `viewportSize` plus `devicePixelRatio`. The decoder builds physical rasters for libvips, sets `QImage::devicePixelRatio`, and reports logical display geometry through `fullDisplaySize` / `displayRegionOffset`. Cache keys include DPR so rasters are not reused across screens with different scale factors.
 - Non-fit zoom and actual-size requests use region-based rendering by default: `DecodeRequest` carries the viewport and pan offset, the decoder renders the visible virtual-image area plus overscan, and `ImageViewWidget` positions that tile inside the virtual full image rectangle. Region tiles are not stored in the shared decoded image cache. `Preferences -> Viewer -> Render only visible zoom region` can disable this and render the full scaled raster for smoother panning at higher memory cost; full-raster non-fit cache keys ignore pan offset because pan does not change the decoded output.
-- Scaling/filter quality is a viewer setting carried by `DecodeRequest` and included in decoded cache keys. The decoder maps presets to libvips resize kernels: linear, Mitchell, Lanczos3, or MKS2021. Changing the preset reloads the current image; non-fit reloads preserve the previous view state until the new raster is ready.
+- Scaling/filter quality and color management are viewer settings carried by `DecodeRequest` and included in decoded cache keys. The decoder maps scaling presets to libvips resize kernels: linear, Mitchell, Lanczos3, or MKS2021. When color management is enabled, embedded ICC profiles are converted to sRGB through libvips/lcms2 with relative colorimetric intent and black point compensation; images without profiles are treated as sRGB, and invalid profiles fall back without failing the image. Changing either setting reloads the current image; non-fit reloads preserve the previous view state until the new raster is ready.
 - While a stale raster is displayed, image-specific interactions such as pan, click zoom, rectangle zoom, wheel zoom, toolbar zoom, fit/actual size, and rotate are disabled; image navigation and fullscreen remain available.
 - If a zoom-triggered decode exceeds the render budget, `VipsImageDecoder` reports `DecodeErrorReason::RenderTooLarge`; `MainWindow` restores the previous zoom/pan/raster and shows a compact `Too large to render` overlay instead of replacing the image with a full error message.
 - This budget is calculated by `render_memory_budget` and estimates the final output raster only; total peak memory can also include libvips working/cache memory, source-reader buffering, the displayed raster, and decoded cache contents.
@@ -151,7 +151,7 @@ Right info panel:
 - The panel shows `ImageEntry` metadata immediately when the current entry changes.
 - The widget groups rows into compact `Info` and `EXIF` sections; empty values are rendered as `N/A`.
 - Decoded dimensions are filled from `DecodedImage::sourceSize` after successful decode.
-- EXIF is displayed from `DecodedImage::metadataFields`; only a compact set of useful libvips `exif-*` string fields is collected during decode.
+- Color profile status is displayed from `DecodedImage::colorProfileState`; EXIF is displayed from `DecodedImage::metadataFields`; only a compact set of useful libvips `exif-*` string fields is collected during decode.
 - Current-entry errors keep entry metadata visible and mark dimensions unavailable.
 
 Settings:
@@ -159,7 +159,7 @@ Settings:
 - `Edit -> Preferences` opens `SettingsDialog`.
 - Settings are loaded in `MainWindow` construction and saved on Apply/OK and window close through `QSettings` using the application/organization name `Insidious`.
 - `SettingsDialog` keeps the persistence schema in `AppSettings` and presents existing controls in sectioned pages: viewer defaults/zoom/wheel actions, shortcut assignments, fullscreen edge/info-line settings, and interface appearance/layout.
-- Viewer settings currently include default zoom mode, image-switch view policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, shared zoom step, scaling quality, region rendering, and wheel / Ctrl+wheel / Shift+wheel actions. EXIF autorotate is also exposed as a synced checkable action in the `View` menu, main toolbar, and fullscreen top overlay.
+- Viewer settings currently include default zoom mode, image-switch view policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, shared zoom step, scaling quality, color management, region rendering, and wheel / Ctrl+wheel / Shift+wheel actions. EXIF autorotate is also exposed as a synced checkable action in the `View` menu, main toolbar, and fullscreen top overlay.
 - Shortcut settings currently include core viewer commands only. `AppSettings` owns stable command ids, keyboard/mouse input strings, defaults, QSettings read/write, reset behavior, and invalid-input fallback. `MainWindow` maps keyboard inputs onto existing `QAction` shortcuts and triggers the same actions for matching mouse button inputs, so menus, the normal toolbar, and the fullscreen top overlay share command routing. `CopyOriginalImage` defaults to `Ctrl+C`.
 - `SettingsDialog` exposes a `Shortcuts` page where a command can have keyboard and mouse inputs at the same time, be cleared, or reset to defaults. `Set Keyboard` replaces only keyboard inputs for that command, while `Set Mouse` replaces only mouse inputs. Apply/OK rejects duplicate non-empty inputs across the editable command set.
 - Fullscreen settings currently include side and top/bottom edge trigger ratios plus pinned info line enabled/font family/font size/color.
@@ -225,7 +225,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - Thumbnail panel.
 - Configurable or fuzzy quick filename jump.
 - Advanced shortcut features such as editing every QAction, profiles/import-export, and configurable shortcut scopes.
-- Advanced settings for color management, statusbar content, quick jump behavior, and thumbnail generation.
+- Advanced settings for display-profile matching, statusbar content, quick jump behavior, and thumbnail generation.
 
 ## Change guidance
 

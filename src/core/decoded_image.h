@@ -22,12 +22,13 @@ struct DecodeRequest {
     bool regionRendering = false;
     bool exifAutorotate = true;
     ScalingQuality scalingQuality = ScalingQuality::HighLanczos3;
+    bool colorManagementEnabled = true;
     qint64 maxDecodedBytes = 384LL * 1024LL * 1024LL;
 
     [[nodiscard]] QString cacheKeySuffix() const
     {
         const QPointF cachePanOffset = regionRendering ? panOffset : QPointF();
-        return QStringLiteral("%1x%2|pan=%3,%4|scale=%5|dpr=%6|rot=%7|fit=%8|region=%9|autorot=%10|quality=%11|max=%12")
+        return QStringLiteral("%1x%2|pan=%3,%4|scale=%5|dpr=%6|rot=%7|fit=%8|region=%9|autorot=%10|quality=%11|cm=%12|max=%13")
             .arg(QString::number(viewportSize.width()),
                  QString::number(viewportSize.height()),
                  QString::number(cachePanOffset.x(), 'f', 2),
@@ -39,6 +40,7 @@ struct DecodeRequest {
                  regionRendering ? QStringLiteral("1") : QStringLiteral("0"),
                  exifAutorotate ? QStringLiteral("1") : QStringLiteral("0"),
                  scalingQualityToSettingsString(scalingQuality),
+                 colorManagementEnabled ? QStringLiteral("1") : QStringLiteral("0"),
                  QString::number(maxDecodedBytes));
     }
 };
@@ -61,6 +63,15 @@ enum class DecodeErrorReason {
     Other,
 };
 
+enum class ColorProfileState {
+    Unknown,
+    ColorManagementOff,
+    SrgbAssumed,
+    ConvertedToSrgb,
+    FallbackToSrgb,
+    UnavailableFallback,
+};
+
 struct DecodedImage {
     QImage image;
     QSize sourceSize;
@@ -72,6 +83,7 @@ struct DecodedImage {
     double effectiveScale = 1.0;
     double devicePixelRatio = 1.0;
     bool regionBased = false;
+    ColorProfileState colorProfileState = ColorProfileState::Unknown;
     QString errorMessage;
     DecodeErrorReason errorReason = DecodeErrorReason::None;
 

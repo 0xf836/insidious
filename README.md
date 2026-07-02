@@ -25,7 +25,7 @@
 
 ## Начальный принцип разработки
 
-Сначала делается маленькая, стабильная версия viewer pipeline: открыть изображение, несколько выбранных изображений, папку или архив, навигация, масштабирование, fullscreen, drag'n'drop, информация и настройки без следов просмотра. RAW, JPEG XL, thumbnail panel, color management и продвинутая настройка rendering добавляются отдельными milestones после стабилизации базового просмотра.
+Сначала делается маленькая, стабильная версия viewer pipeline: открыть изображение, несколько выбранных изображений, папку или архив, навигация, масштабирование, fullscreen, drag'n'drop, информация и настройки без следов просмотра. RAW, JPEG XL, thumbnail panel, display-profile matching и продвинутая настройка rendering добавляются отдельными milestones после стабилизации базового просмотра.
 
 ## Текущая реализация
 
@@ -46,7 +46,7 @@
 
 `Edit -> Copy Original Image` (`Ctrl+C`) копирует в clipboard исходные bytes текущего image с MIME исходного формата и добавляет совместимое clipboard image data, декодированное из этих же исходных bytes. Команда не использует rendered raster, поэтому zoom, rotate, fit, EXIF autorotate и display scaling не меняют копируемые данные. Для archive entries bytes читаются из архива в память без распаковки на диск; это bounded full-read path, отдельный от streaming display decode.
 
-Правая панель `Info` по умолчанию скрыта и включается через `View -> Info`. Она группирует сведения в компактные секции `Info` и `EXIF`: базовая информация о текущем entry, dimensions после decode и набор полезных EXIF-полей, которые отдаёт libvips.
+Правая панель `Info` по умолчанию скрыта и включается через `View -> Info`. Она группирует сведения в компактные секции `Info` и `EXIF`: базовая информация о текущем entry, dimensions после decode, статус color profile и набор полезных EXIF-полей, которые отдаёт libvips.
 
 Fullscreen показывает только область изображения по умолчанию. Панели появляются как overlay поверх изображения при приближении мыши к краю: слева `Files`, справа `Info`, сверху основные actions, снизу status text. Hover-панели не меняют размер viewer и не запускают перерендер изображения; зоны срабатывания по умолчанию — 7% ширины для боковых краёв и 5% высоты для верхнего/нижнего. В левом верхнем углу fullscreen по умолчанию показывается pinned info line: `name (resolution | filesize) [index/count] zoom`; её можно выключить и настроить font, size и color в Preferences. Default preset: `DejaVu Sans`, `10 pt`, `#00ff00`.
 
@@ -54,11 +54,11 @@ Statusbar и fullscreen bottom overlay используют одну компа�
 
 Верхний toolbar сгруппирован в компактные блоки source, browse, files и view; fullscreen top overlay использует те же действия в тёмной полупрозрачной компактной панели. Кнопка `Sort` в toolbar сортирует список изображений активной папки по name, type, size или date, для каждого режима asc/desc. Сортировка не меняет порядок папок или top-level multi-source roots, не сохраняется в настройки и при запуске всегда начинается с natural name ascending; выбранный runtime-режим применяется к новым папкам/архивам до закрытия приложения. Временная коллекция из нескольких выбранных файлов сначала сохраняет порядок выбора, а явное применение Sort сортирует её как обычный активный список.
 
-`Edit -> Preferences` открывает базовый диалог настроек. Сейчас он сохраняет default zoom mode, поведение zoom/pan при переключении изображений, режим ЛКМ zoom, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, scaling quality preset, region-based rendering для zoom/actual size, core viewer shortcuts с keyboard или mouse button bindings, fullscreen edge trigger zones, pinned fullscreen info line presentation и запоминание layout. EXIF autorotate также доступен как быстрый toggle в `View` и верхней панели; rotate left/right доступны из `View`, верхней панели, fullscreen top overlay и shortcuts, не меняют исходный файл и сбрасываются при переходе на другое изображение. Настройки пишутся через `QSettings` в стандартное пользовательское config-хранилище Qt и не содержат историю открытых файлов, путей, паролей архивов, thumbnails или decoded cache.
+`Edit -> Preferences` открывает базовый диалог настроек. Сейчас он сохраняет default zoom mode, поведение zoom/pan при переключении изображений, режим ЛКМ zoom, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, scaling quality preset, embedded color profile conversion, region-based rendering для zoom/actual size, core viewer shortcuts с keyboard или mouse button bindings, fullscreen edge trigger zones, pinned fullscreen info line presentation и запоминание layout. EXIF autorotate также доступен как быстрый toggle в `View` и верхней панели; rotate left/right доступны из `View`, верхней панели, fullscreen top overlay и shortcuts, не меняют исходный файл и сбрасываются при переходе на другое изображение. Настройки пишутся через `QSettings` в стандартное пользовательское config-хранилище Qt и не содержат историю открытых файлов, путей, паролей архивов, thumbnails или decoded cache.
 
 Если текущий файл удалён, стал нечитаемым или не декодируется, viewer показывает ошибку для этого entry, но сохраняет коллекцию и навигацию. Ошибки загрузки не попадают в memory cache.
 
-При переключении heavy images текущий raster остаётся на экране до готовности нового decode result; transient `Loading image...` показывается полупрозрачным overlay поверх изображения только после короткой задержки, чтобы быстрые decode-переходы не мигали loading-надписью. При zoom старый raster тоже остаётся на месте, но loading-надпись не показывается, чтобы изображение не дёргалось визуально; non-fit zoom/actual-size по умолчанию декодирует видимую область плюс запас вместо полного zoomed raster. HiDPI rendering строит physical rasters и хранит DPR в decode cache key; `actual size / 100%` означает один image pixel на один physical screen pixel. Scaling quality выбирается в Preferences как preset libvips kernel; default — `High quality (Lanczos3)`. Region rendering можно отключить для более плавного pan ценой памяти. Дополнительные zoom/view-transform команды не наслаиваются, пока render не завершился. Если zoom-запрос слишком большой для render budget, viewer возвращает предыдущие zoom/pan/raster и показывает компактный overlay `Too large to render`. Остальные ошибки и пустые состояния по-прежнему очищают изображение и показывают полноценное сообщение.
+При переключении heavy images текущий raster остаётся на экране до готовности нового decode result; transient `Loading image...` показывается полупрозрачным overlay поверх изображения только после короткой задержки, чтобы быстрые decode-переходы не мигали loading-надписью. При zoom старый raster тоже остаётся на месте, но loading-надпись не показывается, чтобы изображение не дёргалось визуально; non-fit zoom/actual-size по умолчанию декодирует видимую область плюс запас вместо полного zoomed raster. HiDPI rendering строит physical rasters и хранит DPR в decode cache key; `actual size / 100%` означает один image pixel на один physical screen pixel. Scaling quality выбирается в Preferences как preset libvips kernel; default — `High quality (Lanczos3)`. Embedded ICC profiles по умолчанию конвертируются в sRGB через libvips/lcms2; изображения без профиля считаются sRGB, а при ошибке профиля viewer мягко возвращается к sRGB fallback. Region rendering можно отключить для более плавного pan ценой памяти. Дополнительные zoom/view-transform команды не наслаиваются, пока render не завершился. Если zoom-запрос слишком большой для render budget, viewer возвращает предыдущие zoom/pan/raster и показывает компактный overlay `Too large to render`. Остальные ошибки и пустые состояния по-прежнему очищают изображение и показывают полноценное сообщение.
 
 Для ориентации по коду см. `docs/implementation.md`.
 
@@ -79,7 +79,7 @@ Statusbar и fullscreen bottom overlay используют одну компа�
 
 ## Build
 
-MVP implementation uses C++20, Qt6 Widgets, libvips/vips-cpp 8.18.3+ and libarchive.
+MVP implementation uses C++20, Qt6 Widgets, libvips/vips-cpp 8.18.3+ with lcms2 ICC support when available, and libarchive.
 
 Arch-like systems:
 

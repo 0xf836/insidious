@@ -10,7 +10,7 @@
 namespace insidious::core {
 namespace {
 
-constexpr int CurrentSettingsSchemaVersion = 1;
+constexpr int CurrentSettingsSchemaVersion = 2;
 constexpr double MinClickZoomMultiplier = 1.1;
 constexpr double MaxClickZoomMultiplier = 8.0;
 constexpr double MinZoomStepPercent = 5.0;
@@ -148,6 +148,9 @@ AppSettings AppSettings::read(QSettings &settings)
     result.viewer.scalingQuality = scalingQualityFromSettingsString(
         settings.value(QStringLiteral("scalingQuality"), scalingQualityToSettingsString(defaults.viewer.scalingQuality)).toString(),
         defaults.viewer.scalingQuality);
+    result.viewer.colorManagementEnabled = settings.value(
+        QStringLiteral("colorManagementEnabled"),
+        defaults.viewer.colorManagementEnabled).toBool();
     result.viewer.regionRenderingEnabled = settings.value(
         QStringLiteral("regionRenderingEnabled"),
         defaults.viewer.regionRenderingEnabled).toBool();
@@ -231,6 +234,7 @@ void AppSettings::write(QSettings &settings) const
     settings.setValue(QStringLiteral("shiftWheelAction"), wheelActionToSettingsString(viewer.shiftWheelAction));
     settings.setValue(QStringLiteral("zoomStepPercent"), std::clamp(viewer.zoomStepPercent, MinZoomStepPercent, MaxZoomStepPercent));
     settings.setValue(QStringLiteral("scalingQuality"), scalingQualityToSettingsString(viewer.scalingQuality));
+    settings.setValue(QStringLiteral("colorManagementEnabled"), viewer.colorManagementEnabled);
     settings.setValue(QStringLiteral("regionRenderingEnabled"), viewer.regionRenderingEnabled);
     settings.endGroup();
 

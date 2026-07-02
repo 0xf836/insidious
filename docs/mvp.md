@@ -21,6 +21,7 @@ MVP не должен пытаться сразу закрыть все треб
 - Отображение имени файла.
 - `fit to window`.
 - `actual size` / 100%.
+- Embedded ICC color management с конвертацией rendered raster в sRGB, включённый по умолчанию и отключаемый в настройках.
 - Zoom in / zoom out.
 - Перетаскивание увеличенного изображения.
 - View-only rotate на 90° влево/вправо через `View`, toolbar, fullscreen top overlay и shortcuts; поворот сбрасывается при переходе на другое изображение.
@@ -28,9 +29,9 @@ MVP не должен пытаться сразу закрыть все треб
 - Drag'n'drop и Open File для одного файла/архива или однородного набора изображений либо архивов; drag'n'drop также принимает однородный набор папок; смешанные наборы отклоняются.
 - Базовая статусная строка.
 - Левая панель `Files` с деревом папок и списком изображений выбранной папки без thumbnails; toolbar `Sorting` меняет runtime-сортировку файлов по name/type/size/date asc/desc.
-- Правая панель `Info` с базовой информацией и компактным EXIF.
+- Правая панель `Info` с базовой информацией, статусом color profile и компактным EXIF.
 - Быстрый переход по имени файла.
-- Базовое окно настроек для viewer/input defaults, режима ЛКМ zoom, wheel actions, zoom step, core viewer keyboard/mouse shortcuts, fullscreen edge trigger zones и запоминания layout без истории просмотра.
+- Базовое окно настроек для viewer/input defaults, режима ЛКМ zoom, wheel actions, zoom step, color management, core viewer keyboard/mouse shortcuts, fullscreen edge trigger zones и запоминания layout без истории просмотра.
 - Асинхронная загрузка изображения или загрузка без блокировки UI.
 - Memory cache для текущего, предыдущего и следующего изображения.
 - Понятные сообщения об ошибках без сброса текущей коллекции и навигации.
@@ -63,6 +64,7 @@ MVP не должен пытаться сразу закрыть все треб
 - JPEG XL.
 - Панель миниатюр.
 - Глубокая настройка антиалиасинга/фильтров.
+- Display-profile/monitor-profile matching.
 - Расширенные настройки rendering/statusbar/quick jump/thumbnails.
 - Настраиваемый или fuzzy быстрый переход по имени файла.
 - Рекурсивная коллекция, автоматически включающая все изображения из подпапок.
