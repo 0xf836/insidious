@@ -130,12 +130,12 @@ Thumbnail flow:
 Comparison flow:
 
 - `MainWindow` uses a central `QTabWidget` with `Viewer` and `Compare` tabs. The existing `ImageViewWidget` remains the first tab and keeps the normal viewer pipeline.
-- The `List` and `Thumbnails` context menus expose `Compare -> In Row` when 2-8 images are selected in the active folder. Launching compare from fullscreen exits fullscreen first because compare is a normal-mode tab in this slice.
+- The `List` and `Thumbnails` context menus expose `Compare -> In Row` when 2-8 images are selected in the active folder. Launching compare from viewer fullscreen switches fullscreen content to the same `ComparisonViewWidget` instead of leaving fullscreen.
 - `ComparisonViewWidget` receives copied `ImageEntry` values plus any current in-memory archive password needed for those entries. Passwords remain process memory only and are not written to labels, settings, cache keys, or disk.
 - Row comparison decodes each tile asynchronously on a small private thread pool. The row divides the available panel width between tiles, and decode requests fit to the tile viewport size instead of forcing the row wider than the central window. Requests carry current EXIF autorotate, scaling quality, color management, and DPR, and stay independent from the foreground viewer decode watcher.
-- Each tile owns local zoom/pan state. Wheel zoom and drag pan affect only that tile; dragging an unzoomed tile reorders the row.
+- Each tile owns local zoom/pan state. Wheel zoom and drag pan affect only that tile; dragging an unzoomed tile reorders the row. Resize/fullscreen re-decode preserves the current tile zoom and visible center instead of resetting the tile view.
 - Compare cache is bounded and memory-only. Session contents, selected identity order, decoded comparison rasters, and cache entries are cleared by process exit/source changes and are never persisted.
-- While `Compare` is the active central tab, single-image viewer actions such as next/previous, zoom, rotate, fullscreen, quick jump, and copy original are disabled to avoid mutating hidden viewer state.
+- While `Compare` is the active central tab, single-image viewer actions such as next/previous, zoom, rotate, quick jump, and copy original are disabled to avoid mutating hidden viewer state. Fullscreen remains enabled only when the compare tab has an active session.
 
 Quick filename jump:
 
@@ -153,9 +153,10 @@ Clipboard:
 - Clipboard reads run on a separate `QFutureWatcher`, are limited to 256 MiB, and stale results are ignored if the current entry changes before the read finishes.
 - Clipboard payload stores image bytes and decoded image data only. Archive passwords and filesystem/archive paths are not written into clipboard metadata.
 
-Fullscreen overlay UI:
+Fullscreen UI:
 
 - Entering fullscreen stores the previous non-fullscreen window state plus normal visibility of the menu bar, main toolbar, statusbar, `Files` dock, and `Info` dock, hides the UI chrome, and makes the central image viewer occupy the window. Exiting fullscreen restores the saved non-fullscreen window state instead of calling `showNormal()`, which keeps tiling/maximized window-manager geometry more predictable.
+- `MainWindow` tracks whether fullscreen is showing viewer content or compare content. Viewer fullscreen uses edge overlays; compare fullscreen hides overlays, statusbar, toolbar, docks, menu bar, central tab bar, and the compare header.
 - Fullscreen edge UI is implemented as child overlay widgets of `MainWindow`, not as dock widgets and not as layout participants. Showing or hiding these overlays must not resize `ImageViewWidget`, alter zoom/pan, or trigger image reload.
 - The left overlay owns a second `QTreeView`, list view, and thumbnail view backed by the same tree/list/thumbnail models as the normal `Files` dock. The views have separate selection models and are synchronized from the active folder and `ViewerController::currentIndex()`.
 - The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.
@@ -164,7 +165,7 @@ Fullscreen overlay UI:
 - A separate pinned fullscreen info line is a child `QLabel` over the image area, not part of the edge panel set and not hidden by `hideFullscreenOverlayPanels()`. It is enabled by default, anchored at the top-left of the fullscreen window, uses `name (resolution | filesize) [index/count] zoom`, and may be visually covered by edge panels.
 - Hover detection uses settings-backed `FullscreenOverlaySettings`: side triggers are 7% of window width by default, top/bottom triggers are 5% of window height by default. Side overlays have priority in corners.
 - `Ctrl+F` quick jump suppresses fullscreen edge overlays while its in-window modal overlay is open.
-- Exiting fullscreen hides all edge overlays, returns to normal window mode, and restores the stored normal UI visibility.
+- Exiting fullscreen hides all edge overlays, returns to normal window mode, restores the stored normal UI visibility, and leaves the current central tab active.
 
 Right info panel:
 

@@ -33,7 +33,7 @@
 - если zoom-запрос слишком большой для render budget, оставлять предыдущий raster, zoom и pan на месте и показывать компактный overlay `Too large to render`.
 - пока новый raster еще рендерится, не наслаивать дополнительные zoom/view-transform команды; навигация между изображениями при этом остается доступной.
 
-Вкладка `Compare` используется для временных compare-сессий. В текущем срезе она поддерживает режим `In Row`: выбранные изображения располагаются горизонтально, равномерно делят доступную ширину панели, подгоняются в размер своих tiles, получают небольшие отступы и отдельные tile-заголовки. Compare layout не должен расширять центральную вкладку шире окна из-за исходных размеров изображений. В normal mode вкладка видна рядом с `Viewer`; в fullscreen compare-режим не является overlay и при запуске сравнения приложение возвращается в normal mode.
+Вкладка `Compare` используется для временных compare-сессий. В текущем срезе она поддерживает режим `In Row`: выбранные изображения располагаются горизонтально, равномерно делят доступную ширину панели, подгоняются в размер своих tiles, получают небольшие отступы и отдельные tile-заголовки. Compare layout не должен расширять центральную вкладку шире окна из-за исходных размеров изображений. В normal mode вкладка видна рядом с `Viewer`; `F11` переводит активную compare-сессию в чистый fullscreen без application chrome и edge overlays.
 
 Изображения для сравнения выбираются в `Files -> List` или `Files -> Thumbnails` через `Ctrl`/`Shift` multi-select. ПКМ открывает меню `Compare` с пунктом `In Row`; пункт активен только для 2-8 изображений текущей активной папки. Порядок сравнения следует порядку multi-select, а для range selection дополняется порядком строк. Обычный click без modifiers продолжает переключать текущее изображение во вкладке `Viewer`.
 
@@ -43,8 +43,9 @@ Compare rendering:
 - decode использует текущие настройки EXIF autorotate, scaling quality и embedded color profile conversion;
 - compare cache хранится только в памяти процесса и не пишется в settings или на диск;
 - каждый tile имеет независимый zoom через wheel и pan через ЛКМ-drag при увеличении;
+- при переходе в fullscreen и обратно сохраняются порядок tiles, per-tile zoom и pan;
 - изображения можно менять местами drag'n'drop между tiles;
-- single-image toolbar actions во вкладке `Compare` отключены, чтобы случайно не менять скрытый viewer state.
+- single-image toolbar actions во вкладке `Compare` отключены, чтобы случайно не менять скрытый viewer state; fullscreen action остаётся доступным при активной compare-сессии.
 
 Следующие режимы сравнения остаются будущими итерациями: grid, carousel/temporary collection, two-image hover switch, alignment presets by top-left/center/same viewport/same image size.
 
@@ -139,7 +140,7 @@ EXIF date в status/fullscreen line показывается только как
 
 ## Fullscreen
 
-Fullscreen режим максимально чистый. По умолчанию видна только область изображения, без menu bar, toolbar, statusbar и dock-панелей. Остальной UI появляется как overlay поверх изображения и не должен менять размер viewer, zoom, pan или запускать новый render/decode.
+Viewer fullscreen максимально чистый. По умолчанию видна только область изображения, без menu bar, toolbar, statusbar и dock-панелей. Остальной UI появляется как overlay поверх изображения и не должен менять размер viewer, zoom, pan или запускать новый render/decode.
 
 Edge behavior:
 
@@ -152,6 +153,14 @@ Edge behavior:
 - панели появляются и скрываются сразу, без animation;
 - `Ctrl+F` в fullscreen открывает quick jump поверх изображения и временно скрывает edge overlays;
 - `Esc` выходит из fullscreen.
+
+Compare fullscreen:
+
+- включается через `F11`, когда активна вкладка `Compare` с текущей сессией;
+- показывает только compare layout без menu bar, toolbar, statusbar, dock-панелей, tabbar и edge overlays;
+- сохраняет порядок изображений, per-tile zoom и pan между normal и fullscreen;
+- wheel zoom, ЛКМ pan при увеличении и drag reorder остаются доступными;
+- `Esc` или `F11` возвращают normal mode на вкладку `Compare`.
 
 Trigger zones:
 

@@ -37,6 +37,7 @@ class QItemSelection;
 class QListView;
 class QModelIndex;
 class QSplitter;
+class QTabBar;
 class QTabWidget;
 class QToolBar;
 class QToolButton;
@@ -141,6 +142,7 @@ private:
         bool statusBarVisible = true;
         bool fileDockVisible = true;
         bool infoDockVisible = false;
+        bool centralTabBarVisible = true;
     };
 
     struct ViewRenderState {
@@ -162,6 +164,12 @@ private:
     enum class FilePanelMode {
         List,
         Thumbnails,
+    };
+
+    enum class FullscreenContentMode {
+        None,
+        Viewer,
+        Compare,
     };
 
     void setupActions();
@@ -285,6 +293,9 @@ private:
     void enterFullscreenMode();
     void exitFullscreenMode();
     void refreshNormalLayoutAfterFullscreen();
+    [[nodiscard]] bool compareTabActive() const;
+    [[nodiscard]] bool compareFullscreenAvailable() const;
+    void setCentralTabBarVisible(bool visible);
     void hideFullscreenOverlayPanels();
     void updateFullscreenOverlayGeometry();
     void updateFullscreenOverlayVisibility();
@@ -401,6 +412,7 @@ private:
     FullscreenOverlaySettings m_fullscreenOverlaySettings;
     FullscreenUiState m_preFullscreenUiState;
     bool m_fullscreenUiActive = false;
+    FullscreenContentMode m_fullscreenContentMode = FullscreenContentMode::None;
 };
 
 } // namespace insidious::ui

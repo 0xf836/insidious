@@ -29,7 +29,7 @@ MVP не должен пытаться сразу закрыть все треб
 - Drag'n'drop и Open File для одного файла/архива или однородного набора изображений либо архивов; drag'n'drop также принимает однородный набор папок; смешанные наборы отклоняются.
 - Базовая статусная строка.
 - Левая панель `Files` с деревом папок и нижними вкладками `List`/`Thumbnails` для изображений выбранной папки; thumbnail generation lazy/asynchronous, только при открытой видимой вкладке, с memory-only cache. Toolbar `Sorting` меняет runtime-сортировку файлов по name/type/size/date asc/desc.
-- Базовое сравнение изображений: multi-select в `List`/`Thumbnails`, контекстное меню `Compare -> In Row`, 2-8 изображений активной папки, асинхронный memory-only decode/cache, normal-mode вкладка `Compare`.
+- Базовое сравнение изображений: multi-select в `List`/`Thumbnails`, контекстное меню `Compare -> In Row`, 2-8 изображений активной папки, асинхронный memory-only decode/cache, вкладка `Compare` и clean fullscreen compare layout без edge overlays.
 - Правая панель `Info` с базовой информацией, статусом color profile и компактным EXIF.
 - Быстрый переход по имени файла.
 - Базовое окно настроек для viewer/input defaults, режима ЛКМ zoom, wheel actions, zoom step, color management, core viewer keyboard/mouse shortcuts, fullscreen edge trigger zones и запоминания layout без истории просмотра.

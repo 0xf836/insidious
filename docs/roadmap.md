@@ -18,7 +18,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Large tree UI scaling: indexed `CollectionTreeModel`, targeted lazy-load row insertions, and cached source-tree preorder traversal for adjacent-folder navigation.
 - Архивы: ZIP/7z/RAR через libarchive, password prompt, без распаковки на диск, пароль только в памяти.
 - Source completeness: несколько выбранных изображений как временная коллекция, homogeneous multi-file/multi-folder/multi-archive drag'n'drop и Open File через synthetic source roots.
-- Basic image comparison: multi-select в `List`/`Thumbnails`, контекстное меню `Compare -> In Row`, normal-mode вкладка `Compare`, 2-8 изображений, per-tile zoom/pan, reorder drag, async memory-only decode/cache.
+- Basic image comparison: multi-select в `List`/`Thumbnails`, контекстное меню `Compare -> In Row`, вкладка `Compare`, clean compare fullscreen, 2-8 изображений, per-tile zoom/pan, reorder drag, async memory-only decode/cache.
 - `Info` panel с компактной информацией об entry, color profile status и полезными EXIF-полями из libvips metadata.
 - Quick Jump по имени файла в активной папке, включая fullscreen in-window overlay.
 - True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.

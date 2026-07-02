@@ -52,6 +52,7 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QStyledItemDelegate>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QToolBar>
 #include <QToolButton>
@@ -772,13 +773,17 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
-    if (m_fullscreenUiActive || isFullScreen()) {
+    if (m_fullscreenUiActive && m_fullscreenContentMode == FullscreenContentMode::Viewer) {
         updateFullscreenOverlayGeometry();
         updateFullscreenOverlayVisibility();
+    } else if (m_fullscreenUiActive || isFullScreen()) {
+        hideFullscreenOverlayPanels();
     } else {
         hideFullscreenOverlayPanels();
     }
-    scheduleFitReload();
+    if (!m_fullscreenUiActive || m_fullscreenContentMode != FullscreenContentMode::Compare) {
+        scheduleFitReload();
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -1216,8 +1221,97 @@ void MainWindow::toggleFullscreen()
 {
     if (isFullScreen()) {
         exitFullscreenMode();
-    } else {
+    } else if (!compareTabActive() || compareFullscreenAvailable()) {
         enterFullscreenMode();
+    }
+}
+
+bool MainWindow::compareTabActive() const
+{
+    return m_centralTabs != nullptr
+        && m_comparisonView != nullptr
+        && m_centralTabs->currentWidget() == m_comparisonView;
+}
+
+bool MainWindow::compareFullscreenAvailable() const
+{
+    return compareTabActive()
+        && m_comparisonView != nullptr
+        && m_comparisonView->hasSession();
+}
+
+void MainWindow::setCentralTabBarVisible(bool visible)
+{
+    if (m_centralTabs == nullptr) {
+        return;
+    }
+    if (QTabBar *tabBar = m_centralTabs->findChild<QTabBar *>()) {
+        tabBar->setVisible(visible);
+    }
+}
+
+void MainWindow::enterFullscreenMode()
+{
+    if (m_fullscreenUiActive) {
+        return;
+    }
+
+    m_fullscreenContentMode = compareFullscreenAvailable()
+        ? FullscreenContentMode::Compare
+        : FullscreenContentMode::Viewer;
+
+    if (m_fullscreenContentMode == FullscreenContentMode::Viewer
+        && m_centralTabs != nullptr
+        && m_imageView != nullptr) {
+        m_centralTabs->setCurrentWidget(m_imageView);
+    }
+
+    hideTransientMenuBar();
+    m_preFullscreenUiState.windowState = windowState() & ~Qt::WindowFullScreen;
+    m_preFullscreenUiState.menuBarVisible = menuBar()->isVisible();
+    m_preFullscreenUiState.toolBarVisible = m_mainToolBar != nullptr && m_mainToolBar->isVisible();
+    m_preFullscreenUiState.statusBarVisible = statusBar()->isVisible();
+    m_preFullscreenUiState.fileDockVisible = m_fileListDock != nullptr && m_fileListDock->isVisible();
+    m_preFullscreenUiState.infoDockVisible = m_infoDock != nullptr && m_infoDock->isVisible();
+    if (m_centralTabs != nullptr) {
+        if (QTabBar *tabBar = m_centralTabs->findChild<QTabBar *>()) {
+            m_preFullscreenUiState.centralTabBarVisible = tabBar->isVisible();
+        }
+    }
+
+    captureLayoutSettings();
+    m_fullscreenUiActive = true;
+    hideFullscreenOverlayPanels();
+    setCentralTabBarVisible(false);
+    if (m_comparisonView != nullptr) {
+        m_comparisonView->setFullscreenPresentation(m_fullscreenContentMode == FullscreenContentMode::Compare);
+    }
+    if (m_fullscreenAction != nullptr) {
+        m_fullscreenAction->setText(tr("Exit Fullscreen"));
+    }
+
+    menuBar()->hide();
+    if (m_mainToolBar != nullptr) {
+        m_mainToolBar->hide();
+    }
+    statusBar()->hide();
+    if (m_fileListDock != nullptr) {
+        m_fileListDock->hide();
+    }
+    if (m_infoDock != nullptr) {
+        m_infoDock->hide();
+    }
+
+    showFullScreen();
+    if (m_fullscreenContentMode == FullscreenContentMode::Viewer) {
+        updateFullscreenOverlayGeometry();
+        syncFullscreenFileListSelection();
+        updateFullscreenStatusText();
+        updateFullscreenInfoLine();
+        updateFullscreenOverlayVisibility();
+    } else {
+        hideFullscreenOverlayPanels();
+        updateFullscreenInfoLine();
     }
 }
 
@@ -2849,9 +2943,7 @@ void MainWindow::showImageLoadError(const core::ImageEntry &entry, const QString
 void MainWindow::updateStatus(const QString &message)
 {
     QString effectiveMessage = message;
-    const bool compareActive = m_centralTabs != nullptr
-        && m_comparisonView != nullptr
-        && m_centralTabs->currentWidget() == m_comparisonView;
+    const bool compareActive = compareTabActive();
     if (compareActive && !m_comparisonStatusMessage.isEmpty()) {
         effectiveMessage = m_comparisonStatusMessage;
     }
@@ -2900,7 +2992,9 @@ void MainWindow::updateActionState()
     m_actualSizeAction->setEnabled(!compareActive && canChangeView);
     m_rotateLeftAction->setEnabled(!compareActive && canChangeView);
     m_rotateRightAction->setEnabled(!compareActive && canChangeView);
-    m_fullscreenAction->setEnabled(!compareActive && hasImage);
+    m_fullscreenAction->setEnabled(isFullScreen()
+        || (!compareActive && hasImage)
+        || (compareActive && m_comparisonView != nullptr && m_comparisonView->hasSession()));
 }
 
 void MainWindow::updateInteractionState()
@@ -3954,14 +4048,19 @@ void MainWindow::openRowComparison(const QVector<ComparisonSessionItem> &items)
         return;
     }
 
-    if (m_fullscreenUiActive) {
-        exitFullscreenMode();
-    } else if (isFullScreen()) {
+    if (!m_fullscreenUiActive && isFullScreen()) {
         showNormal();
     }
 
     m_comparisonView->setSession(items, comparisonRenderSettings());
     m_centralTabs->setCurrentWidget(m_comparisonView);
+    if (m_fullscreenUiActive) {
+        m_fullscreenContentMode = FullscreenContentMode::Compare;
+        m_comparisonView->setFullscreenPresentation(true);
+        setCentralTabBarVisible(false);
+        hideFullscreenOverlayPanels();
+        updateFullscreenInfoLine();
+    }
     m_comparisonStatusMessage = tr("Compare: %1 images in row").arg(items.size());
     updateStatus(m_comparisonStatusMessage);
     updateActionState();
@@ -4076,57 +4175,17 @@ bool MainWindow::restoreTemporaryZoomReturnMode()
     return true;
 }
 
-void MainWindow::enterFullscreenMode()
-{
-    if (m_fullscreenUiActive) {
-        return;
-    }
-
-    if (m_centralTabs != nullptr && m_imageView != nullptr) {
-        m_centralTabs->setCurrentWidget(m_imageView);
-    }
-
-    hideTransientMenuBar();
-    m_preFullscreenUiState.windowState = windowState() & ~Qt::WindowFullScreen;
-    m_preFullscreenUiState.menuBarVisible = menuBar()->isVisible();
-    m_preFullscreenUiState.toolBarVisible = m_mainToolBar != nullptr && m_mainToolBar->isVisible();
-    m_preFullscreenUiState.statusBarVisible = statusBar()->isVisible();
-    m_preFullscreenUiState.fileDockVisible = m_fileListDock != nullptr && m_fileListDock->isVisible();
-    m_preFullscreenUiState.infoDockVisible = m_infoDock != nullptr && m_infoDock->isVisible();
-
-    captureLayoutSettings();
-    m_fullscreenUiActive = true;
-    hideFullscreenOverlayPanels();
-    if (m_fullscreenAction != nullptr) {
-        m_fullscreenAction->setText(tr("Exit Fullscreen"));
-    }
-
-    menuBar()->hide();
-    if (m_mainToolBar != nullptr) {
-        m_mainToolBar->hide();
-    }
-    statusBar()->hide();
-    if (m_fileListDock != nullptr) {
-        m_fileListDock->hide();
-    }
-    if (m_infoDock != nullptr) {
-        m_infoDock->hide();
-    }
-
-    showFullScreen();
-    updateFullscreenOverlayGeometry();
-    syncFullscreenFileListSelection();
-    updateFullscreenStatusText();
-    updateFullscreenInfoLine();
-    updateFullscreenOverlayVisibility();
-}
-
 void MainWindow::exitFullscreenMode()
 {
     hideFullscreenOverlayPanels();
 
     const bool shouldRestoreUi = m_fullscreenUiActive;
     m_fullscreenUiActive = false;
+    m_fullscreenContentMode = FullscreenContentMode::None;
+    setCentralTabBarVisible(m_preFullscreenUiState.centralTabBarVisible);
+    if (m_comparisonView != nullptr) {
+        m_comparisonView->setFullscreenPresentation(false);
+    }
     updateFullscreenInfoLine();
     if (m_fullscreenAction != nullptr) {
         m_fullscreenAction->setText(tr("Fullscreen"));
@@ -4253,7 +4312,10 @@ void MainWindow::updateFullscreenOverlayGeometry()
 
 void MainWindow::updateFullscreenOverlayVisibility()
 {
-    if (!m_fullscreenUiActive || !isFullScreen() || m_quickJumpDialogOpen) {
+    if (!m_fullscreenUiActive
+        || m_fullscreenContentMode != FullscreenContentMode::Viewer
+        || !isFullScreen()
+        || m_quickJumpDialogOpen) {
         hideFullscreenOverlayPanels();
         return;
     }
@@ -4372,6 +4434,7 @@ void MainWindow::updateFullscreenInfoLine()
     }
 
     const bool shouldShow = m_fullscreenUiActive
+        && m_fullscreenContentMode == FullscreenContentMode::Viewer
         && isFullScreen()
         && m_settings.fullscreen.infoLineEnabled
         && m_controller.currentEntry() != nullptr;

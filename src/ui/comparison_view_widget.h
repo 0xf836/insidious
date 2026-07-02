@@ -17,6 +17,7 @@
 
 class QHBoxLayout;
 class QLabel;
+class QVBoxLayout;
 
 namespace insidious::ui {
 
@@ -82,6 +83,7 @@ public:
         QVector<ComparisonSessionItem> items,
         const ComparisonRenderSettings &settings);
     void clearSession();
+    void setFullscreenPresentation(bool fullscreen);
     [[nodiscard]] bool hasSession() const;
 
 signals:
@@ -120,7 +122,9 @@ private:
 
     QVector<ComparisonSessionItem> m_items;
     ComparisonRenderSettings m_settings;
+    QWidget *m_headerWidget = nullptr;
     QLabel *m_headerLabel = nullptr;
+    QVBoxLayout *m_mainLayout = nullptr;
     QScrollArea *m_scrollArea = nullptr;
     QWidget *m_rowWidget = nullptr;
     QHBoxLayout *m_rowLayout = nullptr;

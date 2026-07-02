@@ -69,9 +69,41 @@ void ComparisonTileWidget::setMessage(const QString &message)
 
 void ComparisonTileWidget::setDecodedImage(const core::DecodedImage &decoded)
 {
+    const bool preserveView = m_decoded.ok() && decoded.ok();
+    QPointF normalizedCenter(0.5, 0.5);
+    if (preserveView) {
+        const QRectF area = rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin);
+        const QRectF oldRect = imageRect();
+        if (!area.isEmpty() && !oldRect.isEmpty() && m_zoomFactor > 0.0) {
+            const QPointF imagePoint = (area.center() - oldRect.topLeft()) / m_zoomFactor;
+            const QSizeF oldSize = imageLogicalSize();
+            if (!oldSize.isEmpty()) {
+                normalizedCenter = QPointF(
+                    imagePoint.x() / oldSize.width(),
+                    imagePoint.y() / oldSize.height());
+            }
+        }
+    }
+
     m_decoded = decoded;
     m_message.clear();
-    resetView();
+    if (!preserveView) {
+        resetView();
+        return;
+    }
+
+    const QRectF area = rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin);
+    const QSizeF newSize = imageLogicalSize();
+    if (!area.isEmpty() && !newSize.isEmpty()) {
+        const QSizeF drawSize(newSize.width() * m_zoomFactor, newSize.height() * m_zoomFactor);
+        const QPointF defaultTopLeft(
+            area.x() + (area.width() - drawSize.width()) / 2.0,
+            area.y() + (area.height() - drawSize.height()) / 2.0);
+        const QPointF desiredTopLeft = area.center() - QPointF(
+            normalizedCenter.x() * newSize.width() * m_zoomFactor,
+            normalizedCenter.y() * newSize.height() * m_zoomFactor);
+        m_panOffset = desiredTopLeft - defaultTopLeft;
+    }
     update();
 }
 
@@ -225,21 +257,23 @@ QRectF ComparisonTileWidget::imageRect() const
 ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     : QWidget(parent)
 {
-    auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(8, 8, 8, 8);
-    mainLayout->setSpacing(8);
+    m_mainLayout = new QVBoxLayout(this);
+    m_mainLayout->setContentsMargins(8, 8, 8, 8);
+    m_mainLayout->setSpacing(8);
 
-    auto *headerLayout = new QHBoxLayout;
-    m_headerLabel = new QLabel(tr("No comparison session"), this);
+    m_headerWidget = new QWidget(this);
+    auto *headerLayout = new QHBoxLayout(m_headerWidget);
+    headerLayout->setContentsMargins(0, 0, 0, 0);
+    m_headerLabel = new QLabel(tr("No comparison session"), m_headerWidget);
     headerLayout->addWidget(m_headerLabel, 1);
 
-    auto *closeButton = new QPushButton(tr("Close Compare"), this);
+    auto *closeButton = new QPushButton(tr("Close Compare"), m_headerWidget);
     connect(closeButton, &QPushButton::clicked, this, [this]() {
         clearSession();
         emit closeRequested();
     });
     headerLayout->addWidget(closeButton);
-    mainLayout->addLayout(headerLayout);
+    m_mainLayout->addWidget(m_headerWidget);
 
     m_scrollArea = new QScrollArea(this);
     m_scrollArea->setWidgetResizable(true);
@@ -252,7 +286,7 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     m_rowLayout->setContentsMargins(0, 0, 0, 0);
     m_rowLayout->setSpacing(TileSpacing);
     m_scrollArea->setWidget(m_rowWidget);
-    mainLayout->addWidget(m_scrollArea, 1);
+    m_mainLayout->addWidget(m_scrollArea, 1);
 
     m_threadPool.setMaxThreadCount(2);
     m_reloadTimer.setSingleShot(true);
@@ -300,6 +334,18 @@ void ComparisonViewWidget::clearSession()
 bool ComparisonViewWidget::hasSession() const
 {
     return !m_items.isEmpty();
+}
+
+void ComparisonViewWidget::setFullscreenPresentation(bool fullscreen)
+{
+    if (m_headerWidget != nullptr) {
+        m_headerWidget->setVisible(!fullscreen);
+    }
+    if (m_mainLayout != nullptr) {
+        m_mainLayout->setContentsMargins(fullscreen ? QMargins() : QMargins(8, 8, 8, 8));
+        m_mainLayout->setSpacing(fullscreen ? 0 : 8);
+    }
+    scheduleReload();
 }
 
 void ComparisonViewWidget::resizeEvent(QResizeEvent *event)
