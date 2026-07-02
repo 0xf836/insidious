@@ -72,7 +72,7 @@ Statusbar и fullscreen bottom overlay используют одну компа�
 - ЛКМ по умолчанию работает как click zoom: простой клик включает временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика, следующий клик после click/rectangle zoom возвращает исходный режим `fit` или `actual size`.
 - В режимах ЛКМ zoom magnifier cursor виден в idle-состоянии только когда действие доступно: изображение уже показано, render не ожидается и не активен hold zoom.
 - В Preferences можно переключить ЛКМ в hold zoom: зажатие сразу включает временный zoom всего изображения, движение сдвигает увеличенный raster, отпускание возвращает исходный view.
-- В базовом `fit`-режиме уже увеличенное изображение можно двигать рукой через зажатую среднюю кнопку мыши или `Ctrl+ЛКМ`; эти жесты не включают zoom сами по себе.
+- В non-fit view, включая `actual size`, уже увеличенное или крупное изображение можно двигать рукой через зажатую среднюю кнопку мыши или `Ctrl+ЛКМ`; эти жесты не включают zoom сами по себе.
 - Зажатая правая кнопка мыши — прямоугольник zoom-to-selection.
 - Double click — fullscreen; temporary click zoom is suppressed for double clicks.
 - In fullscreen, edge hover shows overlay panels without leaving fullscreen; `Esc` exits fullscreen.

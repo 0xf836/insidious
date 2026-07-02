@@ -2664,8 +2664,7 @@ void MainWindow::updateInteractionState()
         && !m_imageRenderPending
         && !m_activeHoldZoom.has_value()
         && m_currentDecoded.ok()
-        && m_baseZoomMode == core::ZoomMode::FitToWindow
-        && m_controller.zoomMode() == core::ZoomMode::Custom
+        && m_controller.zoomMode() != core::ZoomMode::FitToWindow
         && displayedImageExceedsViewport;
     const bool clickZoomCursorEnabled = m_controller.hasCollection()
         && !m_imageRenderPending

@@ -107,7 +107,7 @@ Current MVP mouse behavior:
 - Rotate left/right is a view-only transform exposed through `View`, the normal toolbar, the fullscreen top overlay, and configurable shortcuts. It applies after EXIF autorotate, participates in the decode cache key, does not change copied original image bytes, and resets when the current image changes.
 - Core viewer shortcuts are configurable in Preferences through stable command ids stored in `AppSettings`. The first supported set covers open file/folder, navigation, quick jump, copy original image bytes, Preferences, zoom/fit/actual size, rotate, EXIF orientation, and fullscreen. Commands may have keyboard shortcuts and mouse button shortcuts at the same time. Empty shortcuts are allowed, duplicate non-empty shortcuts must be rejected before save, and `Quit` plus dock toggles remain static for now.
 - Normal mode supports a persistent light/dark theme setting. Fullscreen chrome remains dark-only.
-- In default left-button mode, hold left mouse button and drag pans the image only outside base `fit to window`. When the base mode is `fit to window` but the current image has already been zoomed into a larger custom view, hold middle mouse button or `Ctrl+left mouse button` to pan the enlarged image.
+- In default left-button mode, hold left mouse button and drag pans the image only outside base `fit to window`. Hold middle mouse button or `Ctrl+left mouse button` pans any non-fit view whose displayed image is larger than the viewport, including `actual size`.
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
 - Double click toggles fullscreen and must not also trigger temporary click zoom.
 
