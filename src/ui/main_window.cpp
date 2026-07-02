@@ -190,10 +190,33 @@ QString applicationStyleSheet(core::UiTheme theme)
         "}"
         "QScrollBar:vertical, QScrollBar:horizontal {"
         "  background: #20242a;"
+        "  margin: 1px;"
+        "}"
+        "QScrollBar:vertical {"
+        "  width: 10px;"
+        "}"
+        "QScrollBar:horizontal {"
+        "  height: 10px;"
         "}"
         "QScrollBar::handle:vertical, QScrollBar::handle:horizontal {"
         "  background: #4a5563;"
-        "  border-radius: 3px;"
+        "  border-radius: 4px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "  min-height: 24px;"
+        "}"
+        "QScrollBar::handle:horizontal {"
+        "  min-width: 24px;"
+        "}"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
+        "  height: 0;"
+        "}"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {"
+        "  width: 0;"
+        "}"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,"
+        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {"
+        "  background: transparent;"
         "}");
 }
 
@@ -315,6 +338,7 @@ void configureThumbnailView(QListView *view, bool fullscreen)
     view->setUniformItemSizes(true);
     view->setWordWrap(false);
     view->setTextElideMode(Qt::ElideRight);
+    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setIconSize(QSize(ThumbnailImageSize, ThumbnailImageSize));
     view->setGridSize(QSize(ThumbnailGridWidth, ThumbnailGridHeight));
     view->setSpacing(fullscreen ? 4 : 6);
@@ -1701,6 +1725,8 @@ void MainWindow::setupFileListPanel()
     m_fileTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_fileTreeView->setAnimated(false);
     m_fileTreeView->setUniformRowHeights(true);
+    m_fileTreeView->setTextElideMode(Qt::ElideRight);
+    m_fileTreeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     m_fileListView = new QListView(this);
     m_fileListView->setModel(m_fileListModel);
@@ -1709,6 +1735,8 @@ void MainWindow::setupFileListPanel()
     m_fileListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_fileListView->setAlternatingRowColors(true);
     m_fileListView->setUniformItemSizes(true);
+    m_fileListView->setTextElideMode(Qt::ElideRight);
+    m_fileListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     m_thumbnailListView = new QListView(this);
     m_thumbnailListView->setModel(m_thumbnailListModel);
@@ -1815,6 +1843,8 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenFileTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_fullscreenFileTreeView->setAnimated(false);
     m_fullscreenFileTreeView->setUniformRowHeights(true);
+    m_fullscreenFileTreeView->setTextElideMode(Qt::ElideRight);
+    m_fullscreenFileTreeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_fullscreenFileTreeView->setAutoFillBackground(false);
     m_fullscreenFileTreeView->setMouseTracking(true);
     m_fullscreenFileTreeView->installEventFilter(this);
@@ -1836,6 +1866,8 @@ void MainWindow::setupFullscreenOverlayPanels()
     m_fullscreenFileListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_fullscreenFileListView->setAlternatingRowColors(false);
     m_fullscreenFileListView->setUniformItemSizes(true);
+    m_fullscreenFileListView->setTextElideMode(Qt::ElideRight);
+    m_fullscreenFileListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_fullscreenFileListView->setSpacing(1);
     m_fullscreenFileListView->setAutoFillBackground(false);
     m_fullscreenFileListView->setMouseTracking(true);
