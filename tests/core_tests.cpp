@@ -69,11 +69,13 @@ private slots:
     void decoderReportsMissingArchiveEntry();
     void decoderRegionRenderingLimitsZoomOutput();
     void decoderReportsRenderTooLargeReason();
+    void decoderUsesConfiguredScalingQuality();
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
     void decodeRequestCacheKeyIncludesExifAutorotate();
     void decodeRequestCacheKeyIncludesRotation();
     void decodeRequestCacheKeyIncludesRegionAndPan();
+    void decodeRequestCacheKeyIncludesScalingQuality();
     void prefetchPolicyAllowsOnlyFitSizedRequests();
     void shortcutSettingsDefaultsAndCustomization();
     void appSettingsRoundTripsThroughQSettings();
@@ -1005,6 +1007,41 @@ void CoreTests::decoderReportsRenderTooLargeReason()
     QCOMPARE(decoded.errorReason, DecodeErrorReason::RenderTooLarge);
 }
 
+void CoreTests::decoderUsesConfiguredScalingQuality()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
+
+    QImage source(16, 8, QImage::Format_RGB32);
+    for (int y = 0; y < source.height(); ++y) {
+        for (int x = 0; x < source.width(); ++x) {
+            source.setPixelColor(x, y, QColor((x * 17) % 255, (y * 31) % 255, ((x + y) * 11) % 255));
+        }
+    }
+    QVERIFY(source.save(path));
+
+    const ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(24, 12);
+    request.fitToWindow = false;
+    request.scaleFactor = 1.5;
+    request.scalingQuality = ScalingQuality::SharpestMks2021;
+
+    VipsImageDecoder decoder;
+    const DecodedImage sharpest = decoder.decode(entry, request);
+    QVERIFY2(sharpest.ok(), qPrintable(sharpest.errorMessage));
+    QCOMPARE(sharpest.image.size(), QSize(24, 12));
+    QCOMPARE(sharpest.fullDisplaySize, QSize(24, 12));
+    QCOMPARE(sharpest.sourceSize, QSize(16, 8));
+    QCOMPARE(sharpest.effectiveScale, 1.5);
+
+    request.scalingQuality = ScalingQuality::HighLanczos3;
+    const DecodedImage highQuality = decoder.decode(entry, request);
+    QVERIFY2(highQuality.ok(), qPrintable(highQuality.errorMessage));
+    QCOMPARE(highQuality.image.size(), sharpest.image.size());
+}
+
 void CoreTests::decoderRejectsBrokenSupportedFile()
 {
     QTemporaryDir tempDir;
@@ -1094,6 +1131,20 @@ void CoreTests::decodeRequestCacheKeyIncludesRegionAndPan()
     QVERIFY(region.cacheKeySuffix() != panned.cacheKeySuffix());
 }
 
+void CoreTests::decodeRequestCacheKeyIncludesScalingQuality()
+{
+    DecodeRequest highQuality;
+    highQuality.viewportSize = QSize(800, 600);
+    highQuality.scaleFactor = 1.5;
+    highQuality.fitToWindow = false;
+    highQuality.scalingQuality = ScalingQuality::HighLanczos3;
+
+    DecodeRequest sharpest = highQuality;
+    sharpest.scalingQuality = ScalingQuality::SharpestMks2021;
+
+    QVERIFY(highQuality.cacheKeySuffix() != sharpest.cacheKeySuffix());
+}
+
 void CoreTests::prefetchPolicyAllowsOnlyFitSizedRequests()
 {
     DecodeRequest fit;
@@ -1126,6 +1177,7 @@ void CoreTests::shortcutSettingsDefaultsAndCustomization()
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::CopyOriginalImage), QStringList({ QStringLiteral("Ctrl+C") }));
     QCOMPARE(shortcutSequences(values.shortcuts, ShortcutCommand::ExifAutorotate), QStringList());
     QVERIFY(values.viewer.regionRenderingEnabled);
+    QCOMPARE(values.viewer.scalingQuality, ScalingQuality::HighLanczos3);
     QVERIFY(values.fullscreen.infoLineEnabled);
     QCOMPARE(values.fullscreen.infoLineFontFamily, QStringLiteral("DejaVu Sans"));
     QCOMPARE(values.fullscreen.infoLineFontPointSize, 10);
@@ -1173,6 +1225,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.viewer.ctrlWheelAction = WheelAction::NavigateImages;
     values.viewer.shiftWheelAction = WheelAction::Zoom;
     values.viewer.zoomStepPercent = 40.0;
+    values.viewer.scalingQuality = ScalingQuality::HighLanczos3;
     values.viewer.regionRenderingEnabled = false;
     values.fullscreen.sideTriggerRatio = 0.12;
     values.fullscreen.verticalTriggerRatio = 0.08;
@@ -1206,6 +1259,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::NavigateImages);
     QCOMPARE(loaded.viewer.shiftWheelAction, WheelAction::Zoom);
     QCOMPARE(loaded.viewer.zoomStepPercent, 40.0);
+    QCOMPARE(loaded.viewer.scalingQuality, ScalingQuality::HighLanczos3);
     QVERIFY(!loaded.viewer.regionRenderingEnabled);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.12);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.08);
@@ -1240,6 +1294,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     writeSettings.setValue(QStringLiteral("ctrlWheelAction"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("shiftWheelAction"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("zoomStepPercent"), 999.0);
+    writeSettings.setValue(QStringLiteral("scalingQuality"), QStringLiteral("invalid"));
     writeSettings.setValue(QStringLiteral("regionRenderingEnabled"), QStringLiteral("invalid"));
     writeSettings.endGroup();
     writeSettings.beginGroup(QStringLiteral("fullscreen"));
@@ -1275,6 +1330,7 @@ void CoreTests::appSettingsFallbacksAndClampsInvalidValues()
     QCOMPARE(loaded.viewer.ctrlWheelAction, WheelAction::Zoom);
     QCOMPARE(loaded.viewer.shiftWheelAction, WheelAction::NoAction);
     QCOMPARE(loaded.viewer.zoomStepPercent, 100.0);
+    QCOMPARE(loaded.viewer.scalingQuality, ScalingQuality::HighLanczos3);
     QVERIFY(loaded.viewer.regionRenderingEnabled);
     QCOMPARE(loaded.fullscreen.sideTriggerRatio, 0.01);
     QCOMPARE(loaded.fullscreen.verticalTriggerRatio, 0.30);

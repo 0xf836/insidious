@@ -250,6 +250,13 @@ void SettingsDialog::setupViewerPage()
     m_zoomStepSpin->setSuffix(QStringLiteral("%"));
     zoomForm->addRow(tr("Zoom step:"), m_zoomStepSpin);
 
+    m_scalingQualityCombo = stabilizeFieldHeight(new QComboBox(page));
+    m_scalingQualityCombo->addItem(tr("Fast (linear)"), static_cast<int>(core::ScalingQuality::FastLinear));
+    m_scalingQualityCombo->addItem(tr("Balanced (Mitchell)"), static_cast<int>(core::ScalingQuality::BalancedMitchell));
+    m_scalingQualityCombo->addItem(tr("High quality (Lanczos3)"), static_cast<int>(core::ScalingQuality::HighLanczos3));
+    m_scalingQualityCombo->addItem(tr("Sharpest (MKS2021)"), static_cast<int>(core::ScalingQuality::SharpestMks2021));
+    zoomForm->addRow(tr("Scaling quality:"), m_scalingQualityCombo);
+
     m_regionRenderingCheck = new QCheckBox(tr("Render only visible zoom region"), page);
     m_regionRenderingCheck->setToolTip(tr("Use less memory for zoom and actual size renders. Disable for smoother panning at higher memory cost."));
     zoomForm->addRow(QString(), m_regionRenderingCheck);
@@ -413,6 +420,7 @@ void SettingsDialog::updateControlsFromSettings()
     m_exifAutorotateCheck->setChecked(m_settings.viewer.exifAutorotate);
     m_clickZoomSpin->setValue(m_settings.viewer.clickZoomMultiplier);
     m_zoomStepSpin->setValue(m_settings.viewer.zoomStepPercent);
+    setComboToData(m_scalingQualityCombo, static_cast<int>(m_settings.viewer.scalingQuality));
     m_regionRenderingCheck->setChecked(m_settings.viewer.regionRenderingEnabled);
     setComboToData(m_wheelActionCombo, static_cast<int>(m_settings.viewer.wheelAction));
     setComboToData(m_ctrlWheelActionCombo, static_cast<int>(m_settings.viewer.ctrlWheelAction));
@@ -436,6 +444,7 @@ void SettingsDialog::updateSettingsFromControls()
     m_settings.viewer.exifAutorotate = m_exifAutorotateCheck->isChecked();
     m_settings.viewer.clickZoomMultiplier = m_clickZoomSpin->value();
     m_settings.viewer.zoomStepPercent = m_zoomStepSpin->value();
+    m_settings.viewer.scalingQuality = static_cast<core::ScalingQuality>(m_scalingQualityCombo->currentData().toInt());
     m_settings.viewer.regionRenderingEnabled = m_regionRenderingCheck->isChecked();
     m_settings.viewer.wheelAction = static_cast<core::WheelAction>(m_wheelActionCombo->currentData().toInt());
     m_settings.viewer.ctrlWheelAction = static_cast<core::WheelAction>(m_ctrlWheelActionCombo->currentData().toInt());

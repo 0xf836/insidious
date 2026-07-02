@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/app_settings.h"
+
 #include <QImage>
 #include <QPoint>
 #include <QPointF>
@@ -18,12 +20,13 @@ struct DecodeRequest {
     bool fitToWindow = true;
     bool regionRendering = false;
     bool exifAutorotate = true;
+    ScalingQuality scalingQuality = ScalingQuality::HighLanczos3;
     qint64 maxDecodedBytes = 384LL * 1024LL * 1024LL;
 
     [[nodiscard]] QString cacheKeySuffix() const
     {
         const QPointF cachePanOffset = regionRendering ? panOffset : QPointF();
-        return QStringLiteral("%1x%2|pan=%3,%4|scale=%5|rot=%6|fit=%7|region=%8|autorot=%9|max=%10")
+        return QStringLiteral("%1x%2|pan=%3,%4|scale=%5|rot=%6|fit=%7|region=%8|autorot=%9|quality=%10|max=%11")
             .arg(QString::number(viewportSize.width()),
                  QString::number(viewportSize.height()),
                  QString::number(cachePanOffset.x(), 'f', 2),
@@ -33,6 +36,7 @@ struct DecodeRequest {
                  fitToWindow ? QStringLiteral("1") : QStringLiteral("0"),
                  regionRendering ? QStringLiteral("1") : QStringLiteral("0"),
                  exifAutorotate ? QStringLiteral("1") : QStringLiteral("0"),
+                 scalingQualityToSettingsString(scalingQuality),
                  QString::number(maxDecodedBytes));
     }
 };

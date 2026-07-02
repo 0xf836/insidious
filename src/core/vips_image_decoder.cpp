@@ -65,6 +65,21 @@ vips::VImage normalizeBands(vips::VImage image)
     return image.extract_band(0, vips::VImage::option()->set("n", 3));
 }
 
+VipsKernel scalingKernel(ScalingQuality quality)
+{
+    switch (quality) {
+    case ScalingQuality::FastLinear:
+        return VIPS_KERNEL_LINEAR;
+    case ScalingQuality::BalancedMitchell:
+        return VIPS_KERNEL_MITCHELL;
+    case ScalingQuality::HighLanczos3:
+        return VIPS_KERNEL_LANCZOS3;
+    case ScalingQuality::SharpestMks2021:
+        return VIPS_KERNEL_MKS2021;
+    }
+    return VIPS_KERNEL_LANCZOS3;
+}
+
 double fitScaleFor(QSize imageSize, QSize viewportSize)
 {
     if (imageSize.isEmpty() || viewportSize.isEmpty()) {
@@ -337,7 +352,7 @@ DecodedImage VipsImageDecoder::decode(
         }
 
         if (std::abs(scale - 1.0) > 0.001) {
-            image = image.resize(scale, vips::VImage::option()->set("kernel", VIPS_KERNEL_LANCZOS3));
+            image = image.resize(scale, vips::VImage::option()->set("kernel", scalingKernel(request.scalingQuality)));
         }
 
         image = normalizeBands(image);

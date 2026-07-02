@@ -65,6 +65,7 @@ private:
     QComboBox *m_ctrlWheelActionCombo = nullptr;
     QComboBox *m_shiftWheelActionCombo = nullptr;
     QDoubleSpinBox *m_zoomStepSpin = nullptr;
+    QComboBox *m_scalingQualityCombo = nullptr;
     QCheckBox *m_regionRenderingCheck = nullptr;
     QTableWidget *m_shortcutTable = nullptr;
     QVector<core::ShortcutCommand> m_shortcutCommands;

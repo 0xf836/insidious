@@ -145,6 +145,9 @@ AppSettings AppSettings::read(QSettings &settings)
         defaults.viewer.zoomStepPercent,
         MinZoomStepPercent,
         MaxZoomStepPercent);
+    result.viewer.scalingQuality = scalingQualityFromSettingsString(
+        settings.value(QStringLiteral("scalingQuality"), scalingQualityToSettingsString(defaults.viewer.scalingQuality)).toString(),
+        defaults.viewer.scalingQuality);
     result.viewer.regionRenderingEnabled = settings.value(
         QStringLiteral("regionRenderingEnabled"),
         defaults.viewer.regionRenderingEnabled).toBool();
@@ -227,6 +230,7 @@ void AppSettings::write(QSettings &settings) const
     settings.setValue(QStringLiteral("ctrlWheelAction"), wheelActionToSettingsString(viewer.ctrlWheelAction));
     settings.setValue(QStringLiteral("shiftWheelAction"), wheelActionToSettingsString(viewer.shiftWheelAction));
     settings.setValue(QStringLiteral("zoomStepPercent"), std::clamp(viewer.zoomStepPercent, MinZoomStepPercent, MaxZoomStepPercent));
+    settings.setValue(QStringLiteral("scalingQuality"), scalingQualityToSettingsString(viewer.scalingQuality));
     settings.setValue(QStringLiteral("regionRenderingEnabled"), viewer.regionRenderingEnabled);
     settings.endGroup();
 
@@ -387,6 +391,39 @@ WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fall
     }
     if (normalized == QLatin1String("none")) {
         return WheelAction::NoAction;
+    }
+    return fallback;
+}
+
+QString scalingQualityToSettingsString(ScalingQuality quality)
+{
+    switch (quality) {
+    case ScalingQuality::FastLinear:
+        return QStringLiteral("fast-linear");
+    case ScalingQuality::BalancedMitchell:
+        return QStringLiteral("balanced-mitchell");
+    case ScalingQuality::HighLanczos3:
+        return QStringLiteral("high-lanczos3");
+    case ScalingQuality::SharpestMks2021:
+        return QStringLiteral("sharpest-mks2021");
+    }
+    return QStringLiteral("high-lanczos3");
+}
+
+ScalingQuality scalingQualityFromSettingsString(const QString &value, ScalingQuality fallback)
+{
+    const QString normalized = value.toCaseFolded();
+    if (normalized == QLatin1String("fast-linear")) {
+        return ScalingQuality::FastLinear;
+    }
+    if (normalized == QLatin1String("balanced-mitchell")) {
+        return ScalingQuality::BalancedMitchell;
+    }
+    if (normalized == QLatin1String("high-lanczos3")) {
+        return ScalingQuality::HighLanczos3;
+    }
+    if (normalized == QLatin1String("sharpest-mks2021")) {
+        return ScalingQuality::SharpestMks2021;
     }
     return fallback;
 }

@@ -56,6 +56,8 @@
 
 Обновление: non-fit zoom/actual-size rendering по умолчанию декодирует видимую область плюс запас вместо полного zoomed raster. Это можно отключить в Preferences для более плавного pan ценой памяти. Render budget применяется к фактическому output raster: region при включенной настройке или полный scaled raster при выключенной; total peak memory всё ещё зависит от libvips working memory и source/cache state.
 
+Обновление: scaling/filter quality настраивается как preset поверх libvips resize kernels: `Fast (linear)`, `Balanced (Mitchell)`, `High quality (Lanczos3)` и `Sharpest (MKS2021)`. Default — `High quality (Lanczos3)`. Значение хранится в privacy-safe settings, входит в `DecodeRequest` и cache key, потому что оно меняет rendered raster. Для preset `Sharpest (MKS2021)` требуется libvips/vips-cpp 8.18.3+.
+
 ## ADR-010: MVP избегает recent-file integration
 
 Решение: приложение не использует recent files и persistent cache в MVP; file dialogs открываются в non-native режиме, чтобы не включать toolkit/desktop recent-file integration без явного решения. `QSettings` разрешён только для non-history preferences: viewer defaults, fullscreen trigger zones и layout state.
@@ -94,7 +96,7 @@
 
 ## ADR-016: Настройки разделены на core schema и UI dialog
 
-Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, core viewer keyboard/mouse shortcuts, fullscreen edge trigger ratios, normal-mode theme и layout state.
+Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, scaling quality, core viewer keyboard/mouse shortcuts, fullscreen edge trigger ratios, normal-mode theme и layout state.
 
 Причина: настройки должны быть расширяемыми и тестируемыми без GUI. Core-слой валидирует enum/string conversion и clamp числовых значений, а UI остаётся тонким слоем отображения. Privacy boundary остаётся явным: не сохранять recent files, viewed paths, archive paths, passwords, thumbnails, decoded cache или file logs.
 

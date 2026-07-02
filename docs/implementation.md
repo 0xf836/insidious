@@ -64,6 +64,7 @@ Transient loading display:
 - Cache misses during navigation keep the previous `ImageViewWidget` raster visible and show `Loading image...` as a translucent overlay only after a short UI-thread timer delay, so fast decodes do not flash a loading label.
 - Cache misses during zoom keep the previous raster and decoded state visible without showing a loading label and without moving the old raster before the new decode is ready.
 - Non-fit zoom and actual-size requests use region-based rendering by default: `DecodeRequest` carries the viewport and pan offset, the decoder renders the visible virtual-image area plus overscan, and `ImageViewWidget` positions that tile inside the virtual full image rectangle. Region tiles are not stored in the shared decoded image cache. `Preferences -> Viewer -> Render only visible zoom region` can disable this and render the full scaled raster for smoother panning at higher memory cost; full-raster non-fit cache keys ignore pan offset because pan does not change the decoded output.
+- Scaling/filter quality is a viewer setting carried by `DecodeRequest` and included in decoded cache keys. The decoder maps presets to libvips resize kernels: linear, Mitchell, Lanczos3, or MKS2021. Changing the preset reloads the current image; non-fit reloads preserve the previous view state until the new raster is ready.
 - While a stale raster is displayed, image-specific interactions such as pan, click zoom, rectangle zoom, wheel zoom, toolbar zoom, fit/actual size, and rotate are disabled; image navigation and fullscreen remain available.
 - If a zoom-triggered decode exceeds the render budget, `VipsImageDecoder` reports `DecodeErrorReason::RenderTooLarge`; `MainWindow` restores the previous zoom/pan/raster and shows a compact `Too large to render` overlay instead of replacing the image with a full error message.
 - This budget is calculated by `render_memory_budget` and estimates the final output raster only; total peak memory can also include libvips working/cache memory, source-reader buffering, the displayed raster, and decoded cache contents.
@@ -157,7 +158,7 @@ Settings:
 - `Edit -> Preferences` opens `SettingsDialog`.
 - Settings are loaded in `MainWindow` construction and saved on Apply/OK and window close through `QSettings` using the application/organization name `Insidious`.
 - `SettingsDialog` keeps the persistence schema in `AppSettings` and presents existing controls in sectioned pages: viewer defaults/zoom/wheel actions, shortcut assignments, fullscreen edge/info-line settings, and interface appearance/layout.
-- Viewer settings currently include default zoom mode, image-switch view policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, shared zoom step, and wheel / Ctrl+wheel / Shift+wheel actions. EXIF autorotate is also exposed as a synced checkable action in the `View` menu, main toolbar, and fullscreen top overlay.
+- Viewer settings currently include default zoom mode, image-switch view policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, shared zoom step, scaling quality, region rendering, and wheel / Ctrl+wheel / Shift+wheel actions. EXIF autorotate is also exposed as a synced checkable action in the `View` menu, main toolbar, and fullscreen top overlay.
 - Shortcut settings currently include core viewer commands only. `AppSettings` owns stable command ids, keyboard/mouse input strings, defaults, QSettings read/write, reset behavior, and invalid-input fallback. `MainWindow` maps keyboard inputs onto existing `QAction` shortcuts and triggers the same actions for matching mouse button inputs, so menus, the normal toolbar, and the fullscreen top overlay share command routing. `CopyOriginalImage` defaults to `Ctrl+C`.
 - `SettingsDialog` exposes a `Shortcuts` page where a command can have keyboard and mouse inputs at the same time, be cleared, or reset to defaults. `Set Keyboard` replaces only keyboard inputs for that command, while `Set Mouse` replaces only mouse inputs. Apply/OK rejects duplicate non-empty inputs across the editable command set.
 - Fullscreen settings currently include side and top/bottom edge trigger ratios plus pinned info line enabled/font family/font size/color.
@@ -223,7 +224,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - Thumbnail panel.
 - Configurable or fuzzy quick filename jump.
 - Advanced shortcut features such as editing every QAction, profiles/import-export, and configurable shortcut scopes.
-- Advanced settings for rendering quality, statusbar content, quick jump behavior, and thumbnail generation.
+- Advanced settings for color management, statusbar content, quick jump behavior, and thumbnail generation.
 
 ## Change guidance
 

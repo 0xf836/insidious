@@ -34,6 +34,13 @@ enum class ClickZoomBehavior {
     HoldToZoomPan,
 };
 
+enum class ScalingQuality {
+    FastLinear,
+    BalancedMitchell,
+    HighLanczos3,
+    SharpestMks2021,
+};
+
 enum class ShortcutCommand {
     OpenFile,
     OpenFolder,
@@ -73,6 +80,7 @@ struct ViewerSettings {
     WheelAction ctrlWheelAction = WheelAction::Zoom;
     WheelAction shiftWheelAction = WheelAction::NoAction;
     double zoomStepPercent = 25.0;
+    ScalingQuality scalingQuality = ScalingQuality::HighLanczos3;
     bool regionRenderingEnabled = true;
 };
 
@@ -129,6 +137,8 @@ struct AppSettings {
 [[nodiscard]] ClickZoomBehavior clickZoomBehaviorFromSettingsString(const QString &value, ClickZoomBehavior fallback);
 [[nodiscard]] QString wheelActionToSettingsString(WheelAction action);
 [[nodiscard]] WheelAction wheelActionFromSettingsString(const QString &value, WheelAction fallback);
+[[nodiscard]] QString scalingQualityToSettingsString(ScalingQuality quality);
+[[nodiscard]] ScalingQuality scalingQualityFromSettingsString(const QString &value, ScalingQuality fallback);
 [[nodiscard]] QString uiThemeToSettingsString(UiTheme theme);
 [[nodiscard]] UiTheme uiThemeFromSettingsString(const QString &value, UiTheme fallback);
 [[nodiscard]] QVector<ShortcutCommand> shortcutCommands();

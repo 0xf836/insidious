@@ -10,7 +10,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom around cursor, toolbar/shortcut zoom around viewport center, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
 - Настраиваемые режимы ЛКМ zoom: click-to-zoom/restore по умолчанию и hold-to-zoom-pan с возвратом на release.
 - Magnifier cursor для режимов ЛКМ zoom показывается только когда zoom/restore или hold-to-zoom доступен.
-- Async decode pipeline через libvips: display-sized fit rasters, configurable region-based non-fit zoom/actual-size rendering, streaming archive display decode without full entry buffering, stale-result guards, same-entry render coalescing, immediate foreground decode on image switch, fit-sized tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
+- Async decode pipeline через libvips: display-sized fit rasters, configurable scaling/filter quality presets, configurable region-based non-fit zoom/actual-size rendering, streaming archive display decode without full entry buffering, stale-result guards, same-entry render coalescing, immediate foreground decode on image switch, fit-sized tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
 - Zoom render budget guard: если zoom-запрос слишком большой для decode budget, viewer откатывает предыдущий raster/zoom/pan и показывает компактный overlay вместо full-screen ошибки.
 - Total peak memory audit tooling and baseline for large filesystem image, archive image, zoom render, and prefetch scenarios.
 - Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
@@ -25,7 +25,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Optional pinned fullscreen info line: `name (resolution | filesize) [index/count] zoom`, separate from edge overlays, with fullscreen settings for visibility, font, size, and color.
 - Clipboard: copy current original image bytes to clipboard with the source image MIME type.
 - Runtime file sorting from the toolbar: name natural order, type, size, and date; each supports ascending/descending without persistent settings.
-- Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, click zoom multiplier, explicit previous/next folder actions, configurable core viewer keyboard/mouse shortcuts with conflict detection and restore defaults, fullscreen trigger zones, normal-mode light/dark theme, layout persistence.
+- Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, scaling quality, click zoom multiplier, explicit previous/next folder actions, configurable core viewer keyboard/mouse shortcuts with conflict detection and restore defaults, fullscreen trigger zones, normal-mode light/dark theme, layout persistence.
 - Preferences dialog groups controls into compact sectioned pages for viewer behavior, shortcuts, fullscreen presentation, and interface settings.
 - Main menu is hidden by default in normal mode and is available through Alt-driven transient navigation plus toolbar app menu buttons in normal and fullscreen modes.
 
@@ -52,7 +52,6 @@ Roadmap — живой backlog реализации, а не обещание р
   - добавить будущий отдельный режим temporary view: при удержании ЛКМ zoom следует за курсором (размеры области настраиваются), после отпускания возврат к исходному состоянию.
 - Advanced rendering:
   - ICC/color management;
-  - configurable scaling/filter quality;
   - HiDPI correctness audit.
 - Advanced formats:
   - AVIF;

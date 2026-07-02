@@ -28,7 +28,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 ## Current implementation quick map
 
-The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp, and libarchive.
+The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.3+, and libarchive.
 
 - `CMakeLists.txt` defines the build, `insidious_core`, the `insidious` GUI executable, and `insidious_core_tests`.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
@@ -86,7 +86,7 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 
 ## MVP boundaries
 
-Current implementation should stay focused on a stable viewer pipeline for regular filesystem images, folders, archives, navigation, fullscreen, metadata, configurable core viewer shortcuts, and privacy-safe settings. RAW support, advanced metadata, advanced shortcut features, password persistence, and thumbnail panels are later milestones unless explicitly requested.
+Current implementation should stay focused on a stable viewer pipeline for regular filesystem images, folders, archives, navigation, fullscreen, metadata, configurable scaling quality, configurable core viewer shortcuts, and privacy-safe settings. RAW support, advanced metadata, advanced shortcut features, password persistence, and thumbnail panels are later milestones unless explicitly requested.
 
 Current MVP supports regular filesystem images, temporary selected-file collections, filesystem folder trees with lazy per-folder loading, ZIP/7z/RAR archive trees through libarchive without disk extraction, homogeneous multi-image/multi-folder/multi-archive open and drag'n'drop, and a basic Preferences dialog. Password-protected archives prompt on open and keep passwords only in memory for the current source; multi-archive open asks once and applies that password to the selected archives, failing the open if any later archive rejects it. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, thumbnails, advanced metadata backends, advanced shortcut features, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
 
@@ -102,6 +102,7 @@ Current MVP mouse behavior:
 - Left button zoom behavior is configurable. The default `ToggleOnClick` mode uses simple left click to enter temporary zoom relative to the current displayed scale, centered on the clicked image point; the next click after click/rectangle zoom restores fit or actual size. `HoldToZoomPan` starts temporary zoom immediately on left press, left-drag pans the zoomed raster, and release restores the exact previous view.
 - In left-button zoom modes, show the idle magnifier cursor only while zoom/restore or hold-to-zoom is available: a decoded image is visible, no render is pending, and hold zoom is not active.
 - Toolbar, shortcut, and wheel zoom use the same configurable zoom step. The default is 25%. Toolbar and shortcut zoom anchor at the viewport center.
+- Scaling/filter quality is configurable in Preferences as a preset over libvips resize kernels. The default is `High quality (Lanczos3)`, so the project requires libvips/vips-cpp 8.18.3 or newer.
 - Rotate left/right is a view-only transform exposed through `View`, the normal toolbar, the fullscreen top overlay, and configurable shortcuts. It applies after EXIF autorotate, participates in the decode cache key, does not change copied original image bytes, and resets when the current image changes.
 - Core viewer shortcuts are configurable in Preferences through stable command ids stored in `AppSettings`. The first supported set covers open file/folder, navigation, quick jump, copy original image bytes, Preferences, zoom/fit/actual size, rotate, EXIF orientation, and fullscreen. Commands may have keyboard shortcuts and mouse button shortcuts at the same time. Empty shortcuts are allowed, duplicate non-empty shortcuts must be rejected before save, and `Quit` plus dock toggles remain static for now.
 - Normal mode supports a persistent light/dark theme setting. Fullscreen chrome remains dark-only.
@@ -132,7 +133,7 @@ Current MVP fullscreen behavior:
 - When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, `docs/`, `README.md`, and this file together.
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
 - Transient loading during image navigation should preserve the currently displayed raster and use a delayed subtle overlay so fast decodes do not flash a loading label. Zoom-triggered loading should preserve the displayed raster and decoded state without showing a loading label or moving the old image. Do not stack additional zoom/view-transform requests while an image render is pending; navigation may still cancel the pending render. Zoom-triggered render-too-large errors should restore the previous zoom/pan/raster and show a compact overlay instead of clearing the image. Error, empty, and scanning states may clear the image and show a full message.
-- Prefer display-sized rasters for `fit` and region-sized rasters for non-fit zoom/actual-size rendering by default. The viewer setting `regionRenderingEnabled` may disable region rendering for smoother panning at higher memory cost; this must still go through the shared render-memory budget and fallback path.
+- Prefer display-sized rasters for `fit` and region-sized rasters for non-fit zoom/actual-size rendering by default. The viewer setting `regionRenderingEnabled` may disable region rendering for smoother panning at higher memory cost; this must still go through the shared render-memory budget and fallback path. The viewer scaling quality setting must flow through `DecodeRequest` and the decoded image cache key.
 - Use `src/core/render_memory_budget.*` for render-memory checks. Do not duplicate ad hoc raster byte math in decoders, cache code, or UI code.
 - Decoder-owned `QImage` data must either own its backing buffer through a Qt cleanup callback or be a real copy; never return a `QImage` pointing at freed libvips memory.
 - EXIF autorotate is a viewer setting and a synced checkable `View`/toolbar action. It must flow through `DecodeRequest` and the decoded image cache key so autorotated and non-autorotated rasters never collide.

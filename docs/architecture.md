@@ -92,7 +92,7 @@ Memory-only cache для:
 
 Persistent cache запрещён текущими privacy requirements.
 
-Render-memory budget считается отдельной core-логикой для output raster decode request: полный display-sized raster в `fit`, а в non-fit zoom/actual-size по умолчанию видимый region плюс запас. Если пользователь отключает region-based rendering, non-fit request снова проверяет полный scaled raster тем же budget guard. Текущая оценка не является total peak memory budget: поверх неё остаются libvips working/cache memory, source-reader buffering, displayed raster и decoded cache.
+Render-memory budget считается отдельной core-логикой для output raster decode request: полный display-sized raster в `fit`, а в non-fit zoom/actual-size по умолчанию видимый region плюс запас. Scaling quality является частью decode request и cache key, потому что выбранный libvips kernel меняет output raster. Если пользователь отключает region-based rendering, non-fit request снова проверяет полный scaled raster тем же budget guard. Текущая оценка не является total peak memory budget: поверх неё остаются libvips working/cache memory, source-reader buffering, displayed raster и decoded cache.
 
 Total peak memory проверяется отдельным developer-only audit tooling (`insidious_memory_audit` + `tools/memory_audit.py`) и документируется в `docs/memory-audit.md`. Этот audit не является runtime guard и не пишет persistent data.
 
@@ -115,12 +115,13 @@ Total peak memory проверяется отдельным developer-only audit
 - click zoom multiplier;
 - wheel / Ctrl+wheel / Shift+wheel actions;
 - shared zoom step percent;
+- scaling quality preset;
 - core viewer keyboard/mouse shortcuts;
 - fullscreen edge trigger ratios;
 - pinned fullscreen info line visibility/font/size/color;
 - window/dock/splitter layout, если включено.
 
-Позже сюда можно добавить default sort mode, advanced shortcut preferences и rendering preferences. Даже будущие настройки не должны хранить историю просмотра, recent paths, archive passwords, thumbnails или decoded cache.
+Позже сюда можно добавить default sort mode, advanced shortcut preferences и color-management rendering preferences. Даже будущие настройки не должны хранить историю просмотра, recent paths, archive passwords, thumbnails или decoded cache.
 
 ## Поток открытия файла
 

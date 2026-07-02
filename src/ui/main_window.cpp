@@ -1833,6 +1833,7 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
     const bool defaultZoomChanged = settings.viewer.defaultZoomMode != m_settings.viewer.defaultZoomMode;
     const bool exifAutorotateChanged = settings.viewer.exifAutorotate != m_settings.viewer.exifAutorotate;
     const bool regionRenderingChanged = settings.viewer.regionRenderingEnabled != m_settings.viewer.regionRenderingEnabled;
+    const bool scalingQualityChanged = settings.viewer.scalingQuality != m_settings.viewer.scalingQuality;
 
     m_settings = settings;
     applyTheme();
@@ -1873,7 +1874,7 @@ void MainWindow::applySettings(const core::AppSettings &settings, bool reloadCur
             m_imageView->resetPan();
             updateInteractionState();
             loadCurrentImage(false);
-        } else if (exifAutorotateChanged || regionRenderingChanged) {
+        } else if (exifAutorotateChanged || regionRenderingChanged || scalingQualityChanged) {
             if (m_controller.zoomMode() == core::ZoomMode::FitToWindow) {
                 loadCurrentImage(false);
             } else {
@@ -3753,6 +3754,7 @@ core::DecodeRequest MainWindow::currentDecodeRequest() const
     request.fitToWindow = m_controller.zoomMode() == core::ZoomMode::FitToWindow;
     request.regionRendering = m_settings.viewer.regionRenderingEnabled && !request.fitToWindow;
     request.exifAutorotate = m_settings.viewer.exifAutorotate;
+    request.scalingQuality = m_settings.viewer.scalingQuality;
     request.scaleFactor = m_controller.zoomMode() == core::ZoomMode::ActualSize ? 1.0 : m_controller.zoomFactor();
     return request;
 }
