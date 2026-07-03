@@ -56,6 +56,7 @@ public:
 signals:
     void reorderDropRequested(int sourceIndex, QPoint globalPosition);
     void focused(int index);
+    void toggleFullscreenRequested();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -63,6 +64,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
 
 private:
     [[nodiscard]] QSizeF imageLogicalSize() const;
@@ -93,6 +95,9 @@ public:
     void resetView();
     [[nodiscard]] QSize targetImageSize() const;
 
+signals:
+    void toggleFullscreenRequested();
+
 protected:
     void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
@@ -101,6 +106,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
 
 private:
     [[nodiscard]] int activeIndex() const;
@@ -141,6 +147,7 @@ public:
 signals:
     void closeRequested();
     void statusMessageChanged(const QString &message);
+    void toggleFullscreenRequested();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;

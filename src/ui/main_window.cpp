@@ -1641,6 +1641,7 @@ void MainWindow::setupConnections()
             updateStatus(message);
         }
     });
+    connect(m_comparisonView, &ComparisonViewWidget::toggleFullscreenRequested, this, &MainWindow::toggleFullscreen);
     connect(m_fileTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFolderTreeSelection) {
             return;

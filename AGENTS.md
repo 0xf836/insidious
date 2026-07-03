@@ -123,7 +123,7 @@ Current MVP fullscreen behavior:
 - Default fullscreen trigger zones are 7% of window width for side panels and 5% of window height for top/bottom panels. They are stored in app settings.
 - Side panels have priority in fullscreen corners.
 - Showing or hiding fullscreen overlays must not resize the image viewport, alter zoom/pan, call image reload/decode, or cause visible image flicker.
-- Compare fullscreen is intentionally separate from viewer overlay fullscreen: show only the compare layout, preserve compare mode, order, zoom/pan, and keep compare sessions memory-only.
+- Compare fullscreen is intentionally separate from viewer overlay fullscreen: show only the compare layout, preserve compare mode, order, zoom/pan, keep compare sessions memory-only, and allow `F11`, `Esc`, or left double click on the compare layout to leave fullscreen.
 
 ## Implementation constraints
 

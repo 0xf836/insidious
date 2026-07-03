@@ -158,7 +158,7 @@ Clipboard:
 Fullscreen UI:
 
 - Entering fullscreen stores the previous non-fullscreen window state plus normal visibility of the menu bar, main toolbar, statusbar, `Files` dock, and `Info` dock, hides the UI chrome, and makes the central image viewer occupy the window. Exiting fullscreen restores the saved non-fullscreen window state instead of calling `showNormal()`, which keeps tiling/maximized window-manager geometry more predictable.
-- `MainWindow` tracks whether fullscreen is showing viewer content or compare content. Viewer fullscreen uses edge overlays; compare fullscreen hides overlays, statusbar, toolbar, docks, menu bar, central tab bar, and the compare header.
+- `MainWindow` tracks whether fullscreen is showing viewer content or compare content. Viewer fullscreen uses edge overlays; compare fullscreen hides overlays, statusbar, toolbar, docks, menu bar, central tab bar, and the compare header. Compare tiles and the Hover Switch viewport forward left double click to the same fullscreen toggle as `F11`.
 - Fullscreen edge UI is implemented as child overlay widgets of `MainWindow`, not as dock widgets and not as layout participants. Showing or hiding these overlays must not resize `ImageViewWidget`, alter zoom/pan, or trigger image reload.
 - The left overlay owns a second `QTreeView`, list view, and thumbnail view backed by the same tree/list/thumbnail models as the normal `Files` dock. The views have separate selection models and are synchronized from the active folder and `ViewerController::currentIndex()`.
 - The right overlay owns a second `ImageInfoPanel` and receives the same entry/decode/error updates as the normal `Info` dock.

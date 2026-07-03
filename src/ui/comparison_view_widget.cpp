@@ -244,6 +244,19 @@ void ComparisonTileWidget::mouseReleaseEvent(QMouseEvent *event)
     QWidget::mouseReleaseEvent(event);
 }
 
+void ComparisonTileWidget::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        m_panning = false;
+        m_reorderDragging = false;
+        unsetCursor();
+        emit toggleFullscreenRequested();
+        event->accept();
+        return;
+    }
+    QWidget::mouseDoubleClickEvent(event);
+}
+
 QSizeF ComparisonTileWidget::imageLogicalSize() const
 {
     if (!m_decoded.ok()) {
@@ -442,6 +455,17 @@ void ComparisonHoverSwitchWidget::mouseReleaseEvent(QMouseEvent *event)
     QWidget::mouseReleaseEvent(event);
 }
 
+void ComparisonHoverSwitchWidget::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        m_panning = false;
+        emit toggleFullscreenRequested();
+        event->accept();
+        return;
+    }
+    QWidget::mouseDoubleClickEvent(event);
+}
+
 int ComparisonHoverSwitchWidget::activeIndex() const
 {
     return m_hovered ? 1 : 0;
@@ -524,6 +548,7 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     m_contentLayout->addWidget(m_rowWidget);
 
     m_hoverWidget = new ComparisonHoverSwitchWidget(m_contentWidget);
+    connect(m_hoverWidget, &ComparisonHoverSwitchWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
     m_contentLayout->addWidget(m_hoverWidget);
     m_contentLayout->setCurrentWidget(m_rowWidget);
 
@@ -782,6 +807,7 @@ ComparisonTileWidget *ComparisonViewWidget::createTile(int index)
     tile->setTitle(itemTitle(m_items.at(index)));
     tile->setMessage(tr("Loading..."));
     connect(tile, &ComparisonTileWidget::reorderDropRequested, this, &ComparisonViewWidget::reorderTile);
+    connect(tile, &ComparisonTileWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
     return tile;
 }
 
