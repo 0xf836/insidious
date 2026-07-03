@@ -15,9 +15,35 @@ private slots:
     void supportsCarouselCounts();
     void supportsHoverSwitchCounts();
     void keepsCarouselSessionState();
+    void removesRowItem();
+    void removesGridItem();
+    void removesCarouselItem();
+    void removingLastItemClearsSession();
+    void doesNotRemoveHoverSwitchItem();
     void comparisonDragMimeDataKeepsItems();
     void exposesAlignmentPresetState();
 };
+
+namespace {
+
+ui::ComparisonSessionItem comparisonItem(const QString &path)
+{
+    ui::ComparisonSessionItem item;
+    item.entry.absolutePath = path;
+    item.entry.displayName = QFileInfo(path).fileName();
+    return item;
+}
+
+QVector<ui::ComparisonSessionItem> comparisonItems(int count)
+{
+    QVector<ui::ComparisonSessionItem> items;
+    for (int index = 0; index < count; ++index) {
+        items.append(comparisonItem(QStringLiteral("/tmp/compare-remove-%1.jpg").arg(index)));
+    }
+    return items;
+}
+
+} // namespace
 
 void ComparisonViewWidgetTests::supportsRowCounts()
 {
@@ -50,18 +76,11 @@ void ComparisonViewWidgetTests::supportsHoverSwitchCounts()
 
 void ComparisonViewWidgetTests::keepsCarouselSessionState()
 {
-    auto item = [](const QString &path) {
-        ui::ComparisonSessionItem item;
-        item.entry.absolutePath = path;
-        item.entry.displayName = QFileInfo(path).fileName();
-        return item;
-    };
-
     ui::ComparisonViewWidget widget;
     widget.setSession(
         QVector<ui::ComparisonSessionItem> {
-            item(QStringLiteral("/tmp/compare-carousel-a.jpg")),
-            item(QStringLiteral("/tmp/compare-carousel-b.jpg")),
+            comparisonItem(QStringLiteral("/tmp/compare-carousel-a.jpg")),
+            comparisonItem(QStringLiteral("/tmp/compare-carousel-b.jpg")),
         },
         ui::ComparisonRenderSettings {},
         ui::ComparisonMode::Carousel);
@@ -70,12 +89,71 @@ void ComparisonViewWidgetTests::keepsCarouselSessionState()
     QCOMPARE(widget.itemCount(), 2);
 
     const int added = widget.appendItems(QVector<ui::ComparisonSessionItem> {
-        item(QStringLiteral("/tmp/compare-carousel-c.jpg")),
+        comparisonItem(QStringLiteral("/tmp/compare-carousel-c.jpg")),
     });
 
     QCOMPARE(added, 1);
     QCOMPARE(widget.mode(), ui::ComparisonMode::Carousel);
     QCOMPARE(widget.itemCount(), 3);
+}
+
+void ComparisonViewWidgetTests::removesRowItem()
+{
+    ui::ComparisonViewWidget widget;
+    widget.setSession(comparisonItems(3), ui::ComparisonRenderSettings {}, ui::ComparisonMode::Row);
+
+    QVERIFY(widget.removeItemAt(1));
+
+    QCOMPARE(widget.mode(), ui::ComparisonMode::Row);
+    QCOMPARE(widget.itemCount(), 2);
+    QVERIFY(widget.hasSession());
+}
+
+void ComparisonViewWidgetTests::removesGridItem()
+{
+    ui::ComparisonViewWidget widget;
+    widget.setSession(comparisonItems(3), ui::ComparisonRenderSettings {}, ui::ComparisonMode::Grid);
+
+    QVERIFY(widget.removeItemAt(0));
+
+    QCOMPARE(widget.mode(), ui::ComparisonMode::Grid);
+    QCOMPARE(widget.itemCount(), 2);
+    QVERIFY(widget.hasSession());
+}
+
+void ComparisonViewWidgetTests::removesCarouselItem()
+{
+    ui::ComparisonViewWidget widget;
+    widget.setSession(comparisonItems(3), ui::ComparisonRenderSettings {}, ui::ComparisonMode::Carousel);
+
+    QVERIFY(widget.removeItemAt(2));
+
+    QCOMPARE(widget.mode(), ui::ComparisonMode::Carousel);
+    QCOMPARE(widget.itemCount(), 2);
+    QVERIFY(widget.hasSession());
+}
+
+void ComparisonViewWidgetTests::removingLastItemClearsSession()
+{
+    ui::ComparisonViewWidget widget;
+    widget.setSession(comparisonItems(1), ui::ComparisonRenderSettings {}, ui::ComparisonMode::Row);
+
+    QVERIFY(widget.removeItemAt(0));
+
+    QCOMPARE(widget.itemCount(), 0);
+    QVERIFY(!widget.hasSession());
+}
+
+void ComparisonViewWidgetTests::doesNotRemoveHoverSwitchItem()
+{
+    ui::ComparisonViewWidget widget;
+    widget.setSession(comparisonItems(2), ui::ComparisonRenderSettings {}, ui::ComparisonMode::HoverSwitch);
+
+    QVERIFY(!widget.removeItemAt(0));
+
+    QCOMPARE(widget.mode(), ui::ComparisonMode::HoverSwitch);
+    QCOMPARE(widget.itemCount(), 2);
+    QVERIFY(widget.hasSession());
 }
 
 void ComparisonViewWidgetTests::comparisonDragMimeDataKeepsItems()

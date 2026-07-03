@@ -3,8 +3,10 @@
 #include "core/vips_image_decoder.h"
 #include "ui/comparison_drag_mime_data.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
@@ -13,6 +15,7 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
@@ -311,6 +314,29 @@ void ComparisonTileWidget::resetView()
 double ComparisonTileWidget::sourceLogicalScale() const
 {
     return decodedSourceLogicalScale(m_decoded);
+}
+
+void ComparisonTileWidget::contextMenuEvent(QContextMenuEvent *event)
+{
+    emit focused(m_index);
+    setFocus(Qt::MouseFocusReason);
+
+    QMenu menu(this);
+    QAction *removeAction = menu.addAction(tr("Remove from Compare"));
+    if (menu.exec(event->globalPos()) == removeAction) {
+        emit removeRequested(m_index);
+    }
+    event->accept();
+}
+
+void ComparisonTileWidget::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Delete) {
+        emit removeRequested(m_index);
+        event->accept();
+        return;
+    }
+    QWidget::keyPressEvent(event);
 }
 
 void ComparisonTileWidget::paintEvent(QPaintEvent *)
@@ -840,6 +866,10 @@ double ComparisonCarouselWidget::sourceLogicalScale() const
 void ComparisonCarouselWidget::keyPressEvent(QKeyEvent *event)
 {
     switch (event->key()) {
+    case Qt::Key_Delete:
+        emit removeCurrentRequested();
+        event->accept();
+        return;
     case Qt::Key_Left:
     case Qt::Key_PageUp:
         emit previousRequested();
@@ -862,6 +892,18 @@ void ComparisonCarouselWidget::keyPressEvent(QKeyEvent *event)
         break;
     }
     QWidget::keyPressEvent(event);
+}
+
+void ComparisonCarouselWidget::contextMenuEvent(QContextMenuEvent *event)
+{
+    setFocus(Qt::MouseFocusReason);
+
+    QMenu menu(this);
+    QAction *removeAction = menu.addAction(tr("Remove from Compare"));
+    if (menu.exec(event->globalPos()) == removeAction) {
+        emit removeCurrentRequested();
+    }
+    event->accept();
 }
 
 void ComparisonCarouselWidget::paintEvent(QPaintEvent *)
@@ -1102,6 +1144,9 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     connect(m_carouselWidget, &ComparisonCarouselWidget::lastRequested, this, [this]() {
         setCarouselIndex(m_items.size() - 1);
     });
+    connect(m_carouselWidget, &ComparisonCarouselWidget::removeCurrentRequested, this, [this]() {
+        scheduleRemoveItemAt(m_carouselIndex);
+    });
     connect(m_carouselWidget, &ComparisonCarouselWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
     m_contentLayout->addWidget(m_carouselWidget);
     m_contentLayout->setCurrentWidget(m_rowWidget);
@@ -1145,6 +1190,7 @@ void ComparisonViewWidget::setSession(
     m_mode = mode;
     m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
     m_carouselIndex = 0;
+    m_currentItemIndex = 0;
     ++m_generation;
     rebuildPresentation();
     scheduleReload();
@@ -1183,6 +1229,53 @@ int ComparisonViewWidget::appendItems(QVector<ComparisonSessionItem> items)
     return added;
 }
 
+bool ComparisonViewWidget::removeItemAt(int index)
+{
+    if (m_mode == ComparisonMode::HoverSwitch || index < 0 || index >= m_items.size()) {
+        return false;
+    }
+
+    if (m_items.size() == 1) {
+        clearSession();
+        emit sessionChanged();
+        emit statusMessageChanged(tr("Compare: session cleared"));
+        return true;
+    }
+
+    ++m_generation;
+    m_reloadTimer.stop();
+    m_cache.clear();
+    m_knownSourceSizes.clear();
+    m_cacheBytes = 0;
+
+    const QString removedTitle = itemTitle(m_items.at(index));
+    m_items.removeAt(index);
+
+    if (m_mode == ComparisonMode::Carousel) {
+        if (index < m_carouselIndex) {
+            --m_carouselIndex;
+        }
+        if (m_carouselIndex >= m_items.size()) {
+            m_carouselIndex = m_items.size() - 1;
+        }
+    } else {
+        if (index < m_currentItemIndex) {
+            --m_currentItemIndex;
+        }
+        if (m_currentItemIndex >= m_items.size()) {
+            m_currentItemIndex = m_items.size() - 1;
+        }
+    }
+
+    rebuildPresentation();
+    refreshTileIndexes();
+    focusCurrentTile();
+    scheduleReload();
+    emit sessionChanged();
+    emit statusMessageChanged(tr("Compare: removed %1").arg(removedTitle));
+    return true;
+}
+
 void ComparisonViewWidget::clearSession()
 {
     ++m_generation;
@@ -1202,6 +1295,7 @@ void ComparisonViewWidget::clearSession()
     m_mode = ComparisonMode::Row;
     m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
     m_carouselIndex = 0;
+    m_currentItemIndex = 0;
     m_headerLabel->setText(tr("No comparison session"));
     if (m_modeComboBox != nullptr) {
         const QSignalBlocker blocker(m_modeComboBox);
@@ -1538,6 +1632,12 @@ ComparisonTileWidget *ComparisonViewWidget::createTile(int index)
     tile->setTitle(itemTitle(m_items.at(index)));
     tile->setMessage(tr("Loading..."));
     tile->setAlignmentPreset(m_alignmentPreset);
+    connect(tile, &ComparisonTileWidget::focused, this, [this](int focusedIndex) {
+        if (focusedIndex >= 0 && focusedIndex < m_items.size()) {
+            m_currentItemIndex = focusedIndex;
+        }
+    });
+    connect(tile, &ComparisonTileWidget::removeRequested, this, &ComparisonViewWidget::scheduleRemoveItemAt);
     connect(tile, &ComparisonTileWidget::reorderDropRequested, this, &ComparisonViewWidget::reorderTile);
     connect(tile, &ComparisonTileWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
     installDropTarget(tile);
@@ -1817,6 +1917,13 @@ void ComparisonViewWidget::moveCarouselIndex(int offset)
     setCarouselIndex(m_carouselIndex + offset);
 }
 
+void ComparisonViewWidget::scheduleRemoveItemAt(int index)
+{
+    QTimer::singleShot(0, this, [this, index]() {
+        removeItemAt(index);
+    });
+}
+
 int ComparisonViewWidget::wrappedCarouselIndex(int index) const
 {
     if (m_items.isEmpty()) {
@@ -1998,9 +2105,24 @@ void ComparisonViewWidget::reorderTile(int sourceIndex, QPoint globalPosition)
 
     m_items.move(sourceIndex, targetIndex);
     m_tiles.move(sourceIndex, targetIndex);
+    m_currentItemIndex = targetIndex;
     layoutTiles();
     refreshTileIndexes();
+    focusCurrentTile();
     scheduleReload();
+}
+
+void ComparisonViewWidget::focusCurrentTile()
+{
+    if (m_mode != ComparisonMode::Row && m_mode != ComparisonMode::Grid) {
+        return;
+    }
+    if (m_currentItemIndex < 0 || m_currentItemIndex >= m_tiles.size()) {
+        return;
+    }
+    if (ComparisonTileWidget *tile = m_tiles.at(m_currentItemIndex); tile != nullptr) {
+        tile->setFocus(Qt::OtherFocusReason);
+    }
 }
 
 void ComparisonViewWidget::refreshTileIndexes()

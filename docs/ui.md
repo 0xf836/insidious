@@ -52,6 +52,7 @@ Compare rendering:
 - alignment presets применяются к Row/Grid tiles, Carousel viewport и Hover Switch viewport, не сохраняются в settings и сбрасываются при новой compare-сессии;
 - при переходе в fullscreen и обратно сохраняются режим, alignment, порядок, zoom и pan;
 - в Row и Grid изображения можно менять местами drag'n'drop между tiles;
+- в Row, Grid и Carousel текущее изображение можно убрать из compare-сессии через context menu `Remove from Compare` или клавишу `Delete`; удаление последнего изображения очищает сессию, а Hover Switch не поддерживает remove, потому что требует ровно 2 изображения;
 - single-image toolbar actions во вкладке `Compare` отключены, чтобы случайно не менять скрытый viewer state; Carousel navigation реализована внутри Compare widget, fullscreen action остаётся доступным при активной compare-сессии.
 
 ## Верхняя панель
@@ -164,7 +165,7 @@ Compare fullscreen:
 - включается через `F11` или ЛКМ double click по compare layout, когда активна вкладка `Compare` с текущей сессией;
 - показывает только compare layout без menu bar, toolbar, statusbar, dock-панелей, tabbar и edge overlays;
 - сохраняет порядок изображений, per-tile zoom и pan между normal и fullscreen;
-- compare-local controls остаются доступными: wheel zoom в Row/Grid/Hover, wheel navigation и `Ctrl+wheel` zoom в Carousel, ЛКМ pan при увеличении и drag reorder там, где он поддерживается;
+- compare-local controls остаются доступными: wheel zoom в Row/Grid/Hover, wheel navigation и `Ctrl+wheel` zoom в Carousel, ЛКМ pan при увеличении, drag reorder и remove там, где они поддерживаются;
 - `Esc`, `F11` или ЛКМ double click по compare layout возвращают normal mode на вкладку `Compare`.
 
 Trigger zones:

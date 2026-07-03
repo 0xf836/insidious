@@ -1709,6 +1709,16 @@ void MainWindow::setupConnections()
             updateStatus(message);
         }
     });
+    connect(m_comparisonView, &ComparisonViewWidget::sessionChanged, this, [this]() {
+        updateComparisonTabTitle();
+        if (m_fullscreenUiActive
+            && m_fullscreenContentMode == FullscreenContentMode::Compare
+            && m_comparisonView != nullptr
+            && !m_comparisonView->hasSession()) {
+            exitFullscreenMode();
+        }
+        updateActionState();
+    });
     connect(m_comparisonView, &ComparisonViewWidget::toggleFullscreenRequested, this, &MainWindow::toggleFullscreen);
     connect(m_comparisonView, &ComparisonViewWidget::itemsDropped, this, [this](const QVector<ComparisonSessionItem> &items) {
         appendToComparison(items);

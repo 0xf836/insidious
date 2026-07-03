@@ -17,6 +17,7 @@
 
 class QHBoxLayout;
 class QComboBox;
+class QContextMenuEvent;
 class QDragEnterEvent;
 class QDragMoveEvent;
 class QDropEvent;
@@ -79,9 +80,12 @@ public:
 signals:
     void reorderDropRequested(int sourceIndex, QPoint globalPosition);
     void focused(int index);
+    void removeRequested(int index);
     void toggleFullscreenRequested();
 
 protected:
+    void contextMenuEvent(QContextMenuEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
@@ -182,9 +186,11 @@ signals:
     void nextRequested();
     void firstRequested();
     void lastRequested();
+    void removeCurrentRequested();
     void toggleFullscreenRequested();
 
 protected:
+    void contextMenuEvent(QContextMenuEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -223,6 +229,7 @@ public:
         ComparisonMode mode = ComparisonMode::Row);
     void clearSession();
     int appendItems(QVector<ComparisonSessionItem> items);
+    bool removeItemAt(int index);
     bool setMode(ComparisonMode mode);
     void setAlignmentPreset(ComparisonAlignmentPreset preset);
     void setFullscreenPresentation(bool fullscreen);
@@ -239,6 +246,7 @@ signals:
     void statusMessageChanged(const QString &message);
     void toggleFullscreenRequested();
     void itemsDropped(QVector<ComparisonSessionItem> items);
+    void sessionChanged();
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
@@ -276,6 +284,7 @@ private:
     void updateCarouselControls();
     void setCarouselIndex(int index);
     void moveCarouselIndex(int offset);
+    void scheduleRemoveItemAt(int index);
     [[nodiscard]] int wrappedCarouselIndex(int index) const;
     [[nodiscard]] core::DecodeRequest decodeRequestForSize(const QSize &targetSize) const;
     [[nodiscard]] QSize targetTileImageSize() const;
@@ -287,6 +296,7 @@ private:
     void insertCached(const QString &cacheKey, const core::DecodedImage &decoded);
     void evictCacheIfNeeded();
     void reorderTile(int sourceIndex, QPoint globalPosition);
+    void focusCurrentTile();
     void refreshTileIndexes();
     void refreshAlignmentState();
     [[nodiscard]] QSize adjustedDecodeTargetSize(int index, const QSize &baseTargetSize) const;
@@ -321,6 +331,7 @@ private:
     quint64 m_cacheClock = 0;
     quint64 m_generation = 0;
     int m_carouselIndex = 0;
+    int m_currentItemIndex = 0;
 };
 
 } // namespace insidious::ui
