@@ -102,6 +102,7 @@ protected:
     void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -110,8 +111,11 @@ protected:
 
 private:
     [[nodiscard]] int activeIndex() const;
+    [[nodiscard]] QRectF imageAreaRect() const;
+    [[nodiscard]] QRectF hoverSwitchRect() const;
     [[nodiscard]] QSizeF imageLogicalSize(int index) const;
     [[nodiscard]] QRectF imageRect(int index) const;
+    void updateHoverState(QPointF position);
 
     QString m_titles[2];
     QString m_messages[2];
@@ -119,6 +123,8 @@ private:
     double m_zoomFactor = 1.0;
     QPointF m_panOffset;
     QPoint m_lastMousePosition;
+    QPointF m_lastHoverPosition;
+    bool m_cursorInside = false;
     bool m_hovered = false;
     bool m_panning = false;
 };

@@ -320,6 +320,9 @@ void ComparisonHoverSwitchWidget::setDecodedImage(int index, const core::Decoded
         resetView();
         return;
     }
+    if (m_cursorInside && !m_panning) {
+        updateHoverState(m_lastHoverPosition);
+    }
     update();
 }
 
@@ -337,6 +340,11 @@ void ComparisonHoverSwitchWidget::resetView()
     m_zoomFactor = 1.0;
     m_panOffset = QPointF();
     m_panning = false;
+    if (m_cursorInside) {
+        updateHoverState(m_lastHoverPosition);
+    } else {
+        m_hovered = false;
+    }
     update();
 }
 
@@ -350,13 +358,15 @@ QSize ComparisonHoverSwitchWidget::targetImageSize() const
 
 void ComparisonHoverSwitchWidget::enterEvent(QEnterEvent *event)
 {
-    m_hovered = true;
-    update();
+    m_cursorInside = true;
+    m_lastHoverPosition = event->position();
+    updateHoverState(m_lastHoverPosition);
     QWidget::enterEvent(event);
 }
 
 void ComparisonHoverSwitchWidget::leaveEvent(QEvent *event)
 {
+    m_cursorInside = false;
     m_hovered = false;
     m_panning = false;
     update();
@@ -398,6 +408,14 @@ void ComparisonHoverSwitchWidget::paintEvent(QPaintEvent *)
     painter.restore();
 }
 
+void ComparisonHoverSwitchWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    if (m_cursorInside && !m_panning) {
+        updateHoverState(m_lastHoverPosition);
+    }
+}
+
 void ComparisonHoverSwitchWidget::wheelEvent(QWheelEvent *event)
 {
     if (!m_decoded[activeIndex()].ok()) {
@@ -409,6 +427,9 @@ void ComparisonHoverSwitchWidget::wheelEvent(QWheelEvent *event)
     m_zoomFactor = std::clamp(m_zoomFactor * multiplier, 1.0, 16.0);
     if (qFuzzyCompare(m_zoomFactor, 1.0)) {
         m_panOffset = QPointF();
+    }
+    if (m_cursorInside && !m_panning) {
+        updateHoverState(m_lastHoverPosition);
     }
     update();
     event->accept();
@@ -423,6 +444,11 @@ void ComparisonHoverSwitchWidget::mousePressEvent(QMouseEvent *event)
     }
 
     m_lastMousePosition = event->pos();
+    m_lastHoverPosition = event->position();
+    m_cursorInside = true;
+    if (!m_panning) {
+        updateHoverState(m_lastHoverPosition);
+    }
     if (m_decoded[activeIndex()].ok() && m_zoomFactor > 1.0) {
         m_panning = true;
         event->accept();
@@ -433,7 +459,10 @@ void ComparisonHoverSwitchWidget::mousePressEvent(QMouseEvent *event)
 
 void ComparisonHoverSwitchWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    m_lastHoverPosition = event->position();
+    m_cursorInside = true;
     if (!m_panning) {
+        updateHoverState(m_lastHoverPosition);
         QWidget::mouseMoveEvent(event);
         return;
     }
@@ -449,6 +478,9 @@ void ComparisonHoverSwitchWidget::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton && m_panning) {
         m_panning = false;
+        m_lastHoverPosition = event->position();
+        m_cursorInside = true;
+        updateHoverState(m_lastHoverPosition);
         event->accept();
         return;
     }
@@ -471,6 +503,30 @@ int ComparisonHoverSwitchWidget::activeIndex() const
     return m_hovered ? 1 : 0;
 }
 
+QRectF ComparisonHoverSwitchWidget::imageAreaRect() const
+{
+    return QRectF(rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin));
+}
+
+QRectF ComparisonHoverSwitchWidget::hoverSwitchRect() const
+{
+    const QRectF baseRect = imageRect(0);
+    if (baseRect.isEmpty()) {
+        return QRectF();
+    }
+    return baseRect.intersected(imageAreaRect());
+}
+
+void ComparisonHoverSwitchWidget::updateHoverState(QPointF position)
+{
+    const bool hovered = m_cursorInside && hoverSwitchRect().contains(position);
+    if (m_hovered == hovered) {
+        return;
+    }
+    m_hovered = hovered;
+    update();
+}
+
 QSizeF ComparisonHoverSwitchWidget::imageLogicalSize(int index) const
 {
     if (index < 0 || index > 1 || !m_decoded[index].ok()) {
@@ -482,7 +538,7 @@ QSizeF ComparisonHoverSwitchWidget::imageLogicalSize(int index) const
 
 QRectF ComparisonHoverSwitchWidget::imageRect(int index) const
 {
-    const QRectF imageArea = rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin);
+    const QRectF imageArea = imageAreaRect();
     const QSizeF baseSize = imageLogicalSize(index);
     if (baseSize.isEmpty()) {
         return QRectF();
