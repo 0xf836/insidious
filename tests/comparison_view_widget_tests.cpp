@@ -1,3 +1,4 @@
+#include "ui/comparison_drag_mime_data.h"
 #include "ui/comparison_view_widget.h"
 
 #include <QFileInfo>
@@ -14,6 +15,7 @@ private slots:
     void supportsCarouselCounts();
     void supportsHoverSwitchCounts();
     void keepsCarouselSessionState();
+    void comparisonDragMimeDataKeepsItems();
     void exposesAlignmentPresetState();
 };
 
@@ -74,6 +76,21 @@ void ComparisonViewWidgetTests::keepsCarouselSessionState()
     QCOMPARE(added, 1);
     QCOMPARE(widget.mode(), ui::ComparisonMode::Carousel);
     QCOMPARE(widget.itemCount(), 3);
+}
+
+void ComparisonViewWidgetTests::comparisonDragMimeDataKeepsItems()
+{
+    ui::ComparisonSessionItem item;
+    item.entry.absolutePath = QStringLiteral("/tmp/compare-drag.jpg");
+    item.entry.displayName = QStringLiteral("compare-drag.jpg");
+    item.archivePassword = QStringLiteral("in-memory-only");
+
+    ui::ComparisonDragMimeData mimeData(QVector<ui::ComparisonSessionItem> { item });
+
+    QVERIFY(mimeData.hasFormat(ui::ComparisonDragMimeData::mimeType()));
+    QCOMPARE(mimeData.items().size(), 1);
+    QCOMPARE(mimeData.items().first().entry.absolutePath, item.entry.absolutePath);
+    QCOMPARE(mimeData.items().first().archivePassword, item.archivePassword);
 }
 
 void ComparisonViewWidgetTests::exposesAlignmentPresetState()

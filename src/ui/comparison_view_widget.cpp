@@ -1,9 +1,14 @@
 #include "ui/comparison_view_widget.h"
 
 #include "core/vips_image_decoder.h"
+#include "ui/comparison_drag_mime_data.h"
 
 #include <QApplication>
 #include <QComboBox>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QEvent>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -1108,6 +1113,22 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     m_reloadTimer.setSingleShot(true);
     m_reloadTimer.setInterval(120);
     connect(&m_reloadTimer, &QTimer::timeout, this, &ComparisonViewWidget::reloadVisibleSession);
+
+    installDropTarget(this);
+    installDropTarget(m_headerWidget);
+    installDropTarget(m_headerLabel);
+    installDropTarget(m_carouselPreviousButton);
+    installDropTarget(m_carouselNextButton);
+    installDropTarget(m_modeComboBox);
+    installDropTarget(m_alignmentComboBox);
+    installDropTarget(closeButton);
+    installDropTarget(m_scrollArea);
+    installDropTarget(m_scrollArea->viewport());
+    installDropTarget(m_contentWidget);
+    installDropTarget(m_rowWidget);
+    installDropTarget(m_gridWidget);
+    installDropTarget(m_hoverWidget);
+    installDropTarget(m_carouselWidget);
 }
 
 void ComparisonViewWidget::setSession(
@@ -1347,6 +1368,38 @@ void ComparisonViewWidget::resizeEvent(QResizeEvent *event)
     }
 }
 
+void ComparisonViewWidget::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (handleDropTargetEvent(event)) {
+        return;
+    }
+    QWidget::dragEnterEvent(event);
+}
+
+void ComparisonViewWidget::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (handleDropTargetEvent(event)) {
+        return;
+    }
+    QWidget::dragMoveEvent(event);
+}
+
+void ComparisonViewWidget::dropEvent(QDropEvent *event)
+{
+    if (handleDropTargetEvent(event)) {
+        return;
+    }
+    QWidget::dropEvent(event);
+}
+
+bool ComparisonViewWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    if (handleDropTargetEvent(event)) {
+        return true;
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
 void ComparisonViewWidget::rebuildTiles()
 {
     deleteTiles();
@@ -1487,7 +1540,67 @@ ComparisonTileWidget *ComparisonViewWidget::createTile(int index)
     tile->setAlignmentPreset(m_alignmentPreset);
     connect(tile, &ComparisonTileWidget::reorderDropRequested, this, &ComparisonViewWidget::reorderTile);
     connect(tile, &ComparisonTileWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
+    installDropTarget(tile);
     return tile;
+}
+
+void ComparisonViewWidget::installDropTarget(QWidget *widget)
+{
+    if (widget == nullptr) {
+        return;
+    }
+    widget->setAcceptDrops(true);
+    widget->installEventFilter(this);
+}
+
+bool ComparisonViewWidget::handleDropTargetEvent(QEvent *event)
+{
+    if (event == nullptr) {
+        return false;
+    }
+
+    auto compareMimeData = [](const QMimeData *mimeData) -> const ComparisonDragMimeData * {
+        if (mimeData == nullptr || !mimeData->hasFormat(ComparisonDragMimeData::mimeType())) {
+            return nullptr;
+        }
+        return dynamic_cast<const ComparisonDragMimeData *>(mimeData);
+    };
+
+    switch (event->type()) {
+    case QEvent::DragEnter: {
+        auto *dragEvent = static_cast<QDragEnterEvent *>(event);
+        if (const ComparisonDragMimeData *mimeData = compareMimeData(dragEvent->mimeData());
+            mimeData != nullptr && !mimeData->items().isEmpty()) {
+            dragEvent->setDropAction(Qt::CopyAction);
+            dragEvent->accept();
+            return true;
+        }
+        return false;
+    }
+    case QEvent::DragMove: {
+        auto *dragEvent = static_cast<QDragMoveEvent *>(event);
+        if (const ComparisonDragMimeData *mimeData = compareMimeData(dragEvent->mimeData());
+            mimeData != nullptr && !mimeData->items().isEmpty()) {
+            dragEvent->setDropAction(Qt::CopyAction);
+            dragEvent->accept();
+            return true;
+        }
+        return false;
+    }
+    case QEvent::Drop: {
+        auto *dropEvent = static_cast<QDropEvent *>(event);
+        const ComparisonDragMimeData *mimeData = compareMimeData(dropEvent->mimeData());
+        if (mimeData == nullptr || mimeData->items().isEmpty()) {
+            return false;
+        }
+        emit itemsDropped(mimeData->items());
+        dropEvent->setDropAction(Qt::CopyAction);
+        dropEvent->accept();
+        return true;
+    }
+    default:
+        return false;
+    }
 }
 
 void ComparisonViewWidget::scheduleReload()

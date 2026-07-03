@@ -5,6 +5,7 @@
 #include "core/image_formats.h"
 #include "core/multi_collection_source.h"
 #include "core/vips_image_decoder.h"
+#include "ui/comparison_drag_mime_data.h"
 #include "ui/quick_jump_dialog.h"
 #include "ui/settings_dialog.h"
 #include "ui/status_line_formatter.h"
@@ -19,6 +20,7 @@
 #include <QColor>
 #include <QCursor>
 #include <QDockWidget>
+#include <QDrag>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEvent>
@@ -42,6 +44,7 @@
 #include <QMenuBar>
 #include <QMenu>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QScopedValueRollback>
 #include <QScrollBar>
@@ -64,6 +67,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <utility>
 
 namespace insidious::ui {
 namespace {
@@ -79,6 +84,69 @@ constexpr int ThumbnailGridWidth = 220;
 constexpr int ThumbnailGridHeight = 218;
 constexpr int ThumbnailNearbyRows = 12;
 constexpr int MaxComparisonItems = 8;
+
+class ComparisonDragListView final : public QListView {
+public:
+    using ItemsProvider = std::function<QVector<ComparisonSessionItem>(QListView *)>;
+
+    explicit ComparisonDragListView(QWidget *parent = nullptr)
+        : QListView(parent)
+    {
+    }
+
+    void setItemsProvider(ItemsProvider provider)
+    {
+        m_itemsProvider = std::move(provider);
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        QListView::mousePressEvent(event);
+        if (event->button() == Qt::LeftButton) {
+            m_dragStartPosition = event->pos();
+        } else {
+            m_dragStartPosition.reset();
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_dragStartPosition.has_value()
+            || !event->buttons().testFlag(Qt::LeftButton)
+            || (event->pos() - *m_dragStartPosition).manhattanLength() < QApplication::startDragDistance()) {
+            QListView::mouseMoveEvent(event);
+            return;
+        }
+
+        m_dragStartPosition.reset();
+        if (!m_itemsProvider) {
+            QListView::mouseMoveEvent(event);
+            return;
+        }
+
+        QVector<ComparisonSessionItem> items = m_itemsProvider(this);
+        if (items.isEmpty()) {
+            QListView::mouseMoveEvent(event);
+            return;
+        }
+
+        auto *drag = new QDrag(this);
+        drag->setMimeData(new ComparisonDragMimeData(std::move(items)));
+        drag->exec(Qt::CopyAction);
+        event->accept();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        m_dragStartPosition.reset();
+        QListView::mouseReleaseEvent(event);
+    }
+
+private:
+    ItemsProvider m_itemsProvider;
+    std::optional<QPoint> m_dragStartPosition;
+};
 
 QPalette darkApplicationPalette()
 {
@@ -1642,6 +1710,9 @@ void MainWindow::setupConnections()
         }
     });
     connect(m_comparisonView, &ComparisonViewWidget::toggleFullscreenRequested, this, &MainWindow::toggleFullscreen);
+    connect(m_comparisonView, &ComparisonViewWidget::itemsDropped, this, [this](const QVector<ComparisonSessionItem> &items) {
+        appendToComparison(items);
+    });
     connect(m_fileTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &) {
         if (m_syncingFolderTreeSelection) {
             return;
@@ -1864,7 +1935,11 @@ void MainWindow::setupFileListPanel()
     m_fileTreeView->setTextElideMode(Qt::ElideRight);
     m_fileTreeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-    m_fileListView = new QListView(this);
+    auto *fileListView = new ComparisonDragListView(this);
+    fileListView->setItemsProvider([this](QListView *view) {
+        return comparisonItemsForView(view);
+    });
+    m_fileListView = fileListView;
     m_fileListView->setModel(m_fileListModel);
     m_fileListView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_fileListView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -1875,7 +1950,11 @@ void MainWindow::setupFileListPanel()
     m_fileListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_fileListView->setContextMenuPolicy(Qt::CustomContextMenu);
 
-    m_thumbnailListView = new QListView(this);
+    auto *thumbnailListView = new ComparisonDragListView(this);
+    thumbnailListView->setItemsProvider([this](QListView *view) {
+        return comparisonItemsForView(view);
+    });
+    m_thumbnailListView = thumbnailListView;
     m_thumbnailListView->setModel(m_thumbnailListModel);
     configureThumbnailView(m_thumbnailListView, false);
 

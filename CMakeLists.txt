@@ -62,6 +62,8 @@ add_executable(insidious
     src/app/main.cpp
     src/ui/collection_tree_model.cpp
     src/ui/collection_tree_model.h
+    src/ui/comparison_drag_mime_data.cpp
+    src/ui/comparison_drag_mime_data.h
     src/ui/comparison_view_widget.cpp
     src/ui/comparison_view_widget.h
     src/ui/image_info_panel.cpp
@@ -130,6 +132,8 @@ set_tests_properties(insidious_ui_tests PROPERTIES
 
 add_executable(insidious_comparison_view_widget_tests
     tests/comparison_view_widget_tests.cpp
+    src/ui/comparison_drag_mime_data.cpp
+    src/ui/comparison_drag_mime_data.h
     src/ui/comparison_view_widget.cpp
     src/ui/comparison_view_widget.h
 )

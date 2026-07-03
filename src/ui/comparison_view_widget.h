@@ -17,6 +17,10 @@
 
 class QHBoxLayout;
 class QComboBox;
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
+class QEvent;
 class QGridLayout;
 class QKeyEvent;
 class QLabel;
@@ -234,8 +238,13 @@ signals:
     void closeRequested();
     void statusMessageChanged(const QString &message);
     void toggleFullscreenRequested();
+    void itemsDropped(QVector<ComparisonSessionItem> items);
 
 protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
 private:
@@ -258,6 +267,8 @@ private:
     void clearTileLayouts();
     void deleteTiles();
     ComparisonTileWidget *createTile(int index);
+    void installDropTarget(QWidget *widget);
+    [[nodiscard]] bool handleDropTargetEvent(QEvent *event);
     void scheduleReload();
     void reloadVisibleSession();
     void startDecode(int index, const QSize &targetSize);
