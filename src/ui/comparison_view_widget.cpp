@@ -6,6 +6,7 @@
 #include <QComboBox>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
@@ -51,6 +52,8 @@ QString comparisonModeName(ComparisonMode mode)
         return QObject::tr("Row");
     case ComparisonMode::Grid:
         return QObject::tr("Grid");
+    case ComparisonMode::Carousel:
+        return QObject::tr("Carousel");
     case ComparisonMode::HoverSwitch:
         return QObject::tr("Hover Switch");
     }
@@ -741,6 +744,253 @@ QRectF ComparisonHoverSwitchWidget::imageRect(int index) const
         m_panOffset);
 }
 
+ComparisonCarouselWidget::ComparisonCarouselWidget(QWidget *parent)
+    : QWidget(parent)
+{
+    setMinimumSize(TileMinimumWidth, 160);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
+}
+
+void ComparisonCarouselWidget::setIndexInfo(int index, int count)
+{
+    m_index = std::max(0, index);
+    m_count = std::max(0, count);
+    update();
+}
+
+void ComparisonCarouselWidget::setTitle(const QString &title)
+{
+    m_title = title;
+    update();
+}
+
+void ComparisonCarouselWidget::setMessage(const QString &message)
+{
+    m_message = message;
+    m_decoded = {};
+    update();
+}
+
+void ComparisonCarouselWidget::setPendingMessage(const QString &message)
+{
+    m_message = message;
+    update();
+}
+
+void ComparisonCarouselWidget::setDecodedImage(const core::DecodedImage &decoded)
+{
+    m_decoded = decoded;
+    m_message.clear();
+    update();
+}
+
+void ComparisonCarouselWidget::setAlignmentPreset(ComparisonAlignmentPreset preset)
+{
+    if (m_alignmentPreset == preset) {
+        return;
+    }
+    m_alignmentPreset = preset;
+    update();
+}
+
+void ComparisonCarouselWidget::setSharedSourceScale(double scale)
+{
+    if (qFuzzyCompare(m_sharedSourceScale, scale)) {
+        return;
+    }
+    m_sharedSourceScale = scale;
+    update();
+}
+
+void ComparisonCarouselWidget::clearImage()
+{
+    m_decoded = {};
+    m_message.clear();
+    resetView();
+}
+
+void ComparisonCarouselWidget::resetView()
+{
+    m_zoomFactor = 1.0;
+    m_panOffset = QPointF();
+    m_panning = false;
+    update();
+}
+
+QSize ComparisonCarouselWidget::targetImageSize() const
+{
+    const QSize area = rect()
+            .adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin)
+            .size();
+    return QSize(std::max(1, area.width()), std::max(1, area.height()));
+}
+
+double ComparisonCarouselWidget::sourceLogicalScale() const
+{
+    return decodedSourceLogicalScale(m_decoded);
+}
+
+void ComparisonCarouselWidget::keyPressEvent(QKeyEvent *event)
+{
+    switch (event->key()) {
+    case Qt::Key_Left:
+    case Qt::Key_PageUp:
+        emit previousRequested();
+        event->accept();
+        return;
+    case Qt::Key_Right:
+    case Qt::Key_PageDown:
+        emit nextRequested();
+        event->accept();
+        return;
+    case Qt::Key_Home:
+        emit firstRequested();
+        event->accept();
+        return;
+    case Qt::Key_End:
+        emit lastRequested();
+        event->accept();
+        return;
+    default:
+        break;
+    }
+    QWidget::keyPressEvent(event);
+}
+
+void ComparisonCarouselWidget::paintEvent(QPaintEvent *)
+{
+    QPainter painter(this);
+    painter.fillRect(rect(), palette().color(QPalette::Window));
+
+    const QRect border = rect().adjusted(0, 0, -1, -1);
+    painter.setPen(QPen(palette().color(hasFocus() ? QPalette::Highlight : QPalette::Mid), 1));
+    painter.drawRect(border);
+
+    const QRect titleRect(TileMargin, 0, width() - TileMargin * 2, TileTitleHeight);
+    const QString indexText = m_count > 0
+            ? tr("%1/%2: %3").arg(m_index + 1).arg(m_count).arg(m_title)
+            : m_title;
+    painter.setPen(palette().color(QPalette::Text));
+    painter.drawText(
+        titleRect,
+        Qt::AlignVCenter | Qt::AlignLeft,
+        painter.fontMetrics().elidedText(indexText, Qt::ElideRight, titleRect.width()));
+
+    const QRectF area = imageAreaRect();
+    if (!m_decoded.ok()) {
+        painter.setPen(palette().color(QPalette::Disabled, QPalette::Text));
+        painter.drawText(area.toRect(), Qt::AlignCenter | Qt::TextWordWrap, m_message);
+        return;
+    }
+
+    painter.save();
+    painter.setClipRect(area);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.drawImage(imageRect(), m_decoded.image);
+    painter.restore();
+}
+
+void ComparisonCarouselWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    update();
+}
+
+void ComparisonCarouselWidget::wheelEvent(QWheelEvent *event)
+{
+    if (event->modifiers().testFlag(Qt::ControlModifier)) {
+        if (!m_decoded.ok()) {
+            event->ignore();
+            return;
+        }
+        const double multiplier = event->angleDelta().y() > 0 ? 1.25 : 0.8;
+        m_zoomFactor = std::clamp(m_zoomFactor * multiplier, 1.0, 16.0);
+        if (qFuzzyCompare(m_zoomFactor, 1.0)) {
+            m_panOffset = QPointF();
+        }
+        update();
+        event->accept();
+        return;
+    }
+
+    if (event->angleDelta().y() > 0) {
+        emit previousRequested();
+    } else if (event->angleDelta().y() < 0) {
+        emit nextRequested();
+    }
+    event->accept();
+}
+
+void ComparisonCarouselWidget::mousePressEvent(QMouseEvent *event)
+{
+    setFocus(Qt::MouseFocusReason);
+    if (event->button() != Qt::LeftButton) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+
+    m_lastMousePosition = event->pos();
+    if (m_decoded.ok() && m_zoomFactor > 1.0) {
+        m_panning = true;
+        event->accept();
+        return;
+    }
+    QWidget::mousePressEvent(event);
+}
+
+void ComparisonCarouselWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if (!m_panning) {
+        QWidget::mouseMoveEvent(event);
+        return;
+    }
+
+    const QPoint delta = event->pos() - m_lastMousePosition;
+    m_lastMousePosition = event->pos();
+    m_panOffset += QPointF(delta);
+    update();
+    event->accept();
+}
+
+void ComparisonCarouselWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && m_panning) {
+        m_panning = false;
+        event->accept();
+        return;
+    }
+    QWidget::mouseReleaseEvent(event);
+}
+
+void ComparisonCarouselWidget::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        m_panning = false;
+        emit toggleFullscreenRequested();
+        event->accept();
+        return;
+    }
+    QWidget::mouseDoubleClickEvent(event);
+}
+
+QRectF ComparisonCarouselWidget::imageAreaRect() const
+{
+    return QRectF(rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin));
+}
+
+QRectF ComparisonCarouselWidget::imageRect() const
+{
+    return alignedImageRect(
+        imageAreaRect(),
+        m_decoded,
+        m_alignmentPreset,
+        m_sharedSourceScale,
+        m_zoomFactor,
+        m_panOffset);
+}
+
 ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     : QWidget(parent)
 {
@@ -757,6 +1007,7 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     m_modeComboBox = new QComboBox(m_headerWidget);
     m_modeComboBox->addItem(comparisonModeName(ComparisonMode::Row), static_cast<int>(ComparisonMode::Row));
     m_modeComboBox->addItem(comparisonModeName(ComparisonMode::Grid), static_cast<int>(ComparisonMode::Grid));
+    m_modeComboBox->addItem(comparisonModeName(ComparisonMode::Carousel), static_cast<int>(ComparisonMode::Carousel));
     m_modeComboBox->addItem(comparisonModeName(ComparisonMode::HoverSwitch), static_cast<int>(ComparisonMode::HoverSwitch));
     m_modeComboBox->setEnabled(false);
     connect(m_modeComboBox, &QComboBox::currentIndexChanged, this, [this](int index) {
@@ -767,6 +1018,20 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
         }
     });
     headerLayout->addWidget(m_modeComboBox);
+
+    m_carouselPreviousButton = new QPushButton(tr("Previous"), m_headerWidget);
+    m_carouselPreviousButton->setVisible(false);
+    connect(m_carouselPreviousButton, &QPushButton::clicked, this, [this]() {
+        moveCarouselIndex(-1);
+    });
+    headerLayout->addWidget(m_carouselPreviousButton);
+
+    m_carouselNextButton = new QPushButton(tr("Next"), m_headerWidget);
+    m_carouselNextButton->setVisible(false);
+    connect(m_carouselNextButton, &QPushButton::clicked, this, [this]() {
+        moveCarouselIndex(1);
+    });
+    headerLayout->addWidget(m_carouselNextButton);
 
     m_alignmentComboBox = new QComboBox(m_headerWidget);
     m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::FitCenter), static_cast<int>(ComparisonAlignmentPreset::FitCenter));
@@ -818,6 +1083,22 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     m_hoverWidget = new ComparisonHoverSwitchWidget(m_contentWidget);
     connect(m_hoverWidget, &ComparisonHoverSwitchWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
     m_contentLayout->addWidget(m_hoverWidget);
+
+    m_carouselWidget = new ComparisonCarouselWidget(m_contentWidget);
+    connect(m_carouselWidget, &ComparisonCarouselWidget::previousRequested, this, [this]() {
+        moveCarouselIndex(-1);
+    });
+    connect(m_carouselWidget, &ComparisonCarouselWidget::nextRequested, this, [this]() {
+        moveCarouselIndex(1);
+    });
+    connect(m_carouselWidget, &ComparisonCarouselWidget::firstRequested, this, [this]() {
+        setCarouselIndex(0);
+    });
+    connect(m_carouselWidget, &ComparisonCarouselWidget::lastRequested, this, [this]() {
+        setCarouselIndex(m_items.size() - 1);
+    });
+    connect(m_carouselWidget, &ComparisonCarouselWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
+    m_contentLayout->addWidget(m_carouselWidget);
     m_contentLayout->setCurrentWidget(m_rowWidget);
 
     m_scrollArea->setWidget(m_contentWidget);
@@ -842,6 +1123,7 @@ void ComparisonViewWidget::setSession(
     m_settings = settings;
     m_mode = mode;
     m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
+    m_carouselIndex = 0;
     ++m_generation;
     rebuildPresentation();
     scheduleReload();
@@ -898,11 +1180,16 @@ void ComparisonViewWidget::clearSession()
     m_tiles.clear();
     m_mode = ComparisonMode::Row;
     m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
+    m_carouselIndex = 0;
     m_headerLabel->setText(tr("No comparison session"));
     if (m_modeComboBox != nullptr) {
         const QSignalBlocker blocker(m_modeComboBox);
         m_modeComboBox->setCurrentIndex(m_modeComboBox->findData(static_cast<int>(m_mode)));
         m_modeComboBox->setEnabled(false);
+        m_modeComboBox->setItemData(
+            m_modeComboBox->findData(static_cast<int>(ComparisonMode::Carousel)),
+            0,
+            Qt::UserRole - 1);
         m_modeComboBox->setItemData(
             m_modeComboBox->findData(static_cast<int>(ComparisonMode::HoverSwitch)),
             0,
@@ -919,6 +1206,10 @@ void ComparisonViewWidget::clearSession()
     if (m_hoverWidget != nullptr) {
         m_hoverWidget->clearImages();
     }
+    if (m_carouselWidget != nullptr) {
+        m_carouselWidget->clearImage();
+    }
+    updateCarouselControls();
     emit statusMessageChanged(QString());
 }
 
@@ -935,6 +1226,9 @@ bool ComparisonViewWidget::setMode(ComparisonMode mode)
     }
 
     m_mode = mode;
+    if (m_mode == ComparisonMode::Carousel) {
+        m_carouselIndex = wrappedCarouselIndex(m_carouselIndex);
+    }
     ++m_generation;
     rebuildPresentation();
     scheduleReload();
@@ -963,6 +1257,10 @@ void ComparisonViewWidget::setAlignmentPreset(ComparisonAlignmentPreset preset)
     if (m_hoverWidget != nullptr) {
         m_hoverWidget->setAlignmentPreset(m_alignmentPreset);
         m_hoverWidget->resetView();
+    }
+    if (m_carouselWidget != nullptr) {
+        m_carouselWidget->setAlignmentPreset(m_alignmentPreset);
+        m_carouselWidget->resetView();
     }
     refreshAlignmentState();
     if (m_alignmentPreset == ComparisonAlignmentPreset::CoverCenter) {
@@ -1018,6 +1316,8 @@ bool ComparisonViewWidget::supportsItemCount(ComparisonMode mode, int count)
         return count >= 1;
     case ComparisonMode::Grid:
         return count >= 1;
+    case ComparisonMode::Carousel:
+        return count >= 1;
     case ComparisonMode::HoverSwitch:
         return count == 2;
     }
@@ -1066,6 +1366,7 @@ void ComparisonViewWidget::rebuildPresentation()
         m_modeComboBox->setCurrentIndex(m_modeComboBox->findData(static_cast<int>(m_mode)));
         const bool rowEnabled = supportsItemCount(ComparisonMode::Row, m_items.size());
         const bool gridEnabled = supportsItemCount(ComparisonMode::Grid, m_items.size());
+        const bool carouselEnabled = supportsItemCount(ComparisonMode::Carousel, m_items.size());
         const bool hoverSwitchEnabled = supportsItemCount(ComparisonMode::HoverSwitch, m_items.size());
         m_modeComboBox->setItemData(
             m_modeComboBox->findData(static_cast<int>(ComparisonMode::Row)),
@@ -1074,6 +1375,10 @@ void ComparisonViewWidget::rebuildPresentation()
         m_modeComboBox->setItemData(
             m_modeComboBox->findData(static_cast<int>(ComparisonMode::Grid)),
             gridEnabled ? QVariant() : QVariant(0),
+            Qt::UserRole - 1);
+        m_modeComboBox->setItemData(
+            m_modeComboBox->findData(static_cast<int>(ComparisonMode::Carousel)),
+            carouselEnabled ? QVariant() : QVariant(0),
             Qt::UserRole - 1);
         m_modeComboBox->setItemData(
             m_modeComboBox->findData(static_cast<int>(ComparisonMode::HoverSwitch)),
@@ -1089,6 +1394,7 @@ void ComparisonViewWidget::rebuildPresentation()
     m_headerLabel->setText(hasSession()
             ? tr("Compare: %1 (%2 images)").arg(comparisonModeName(m_mode)).arg(m_items.size())
             : tr("No comparison session"));
+    updateCarouselControls();
 
     if (m_mode == ComparisonMode::Row || m_mode == ComparisonMode::Grid) {
         if (m_tiles.size() != m_items.size()) {
@@ -1100,6 +1406,21 @@ void ComparisonViewWidget::rebuildPresentation()
     }
 
     deleteTiles();
+
+    if (m_mode == ComparisonMode::Carousel) {
+        m_carouselIndex = wrappedCarouselIndex(m_carouselIndex);
+        if (m_carouselWidget != nullptr) {
+            m_carouselWidget->setAlignmentPreset(m_alignmentPreset);
+            m_carouselWidget->setIndexInfo(m_carouselIndex, m_items.size());
+            m_carouselWidget->setTitle(itemTitle(m_items.at(m_carouselIndex)));
+            m_carouselWidget->setPendingMessage(tr("Loading..."));
+            m_carouselWidget->setFocus(Qt::OtherFocusReason);
+        }
+        if (m_contentLayout != nullptr && m_carouselWidget != nullptr) {
+            m_contentLayout->setCurrentWidget(m_carouselWidget);
+        }
+        return;
+    }
 
     if (m_hoverWidget != nullptr && m_items.size() == 2) {
         m_hoverWidget->clearImages();
@@ -1190,6 +1511,18 @@ void ComparisonViewWidget::reloadVisibleSession()
         startDecode(1, adjustedDecodeTargetSize(1, targetSize));
         return;
     }
+    if (m_mode == ComparisonMode::Carousel) {
+        m_carouselIndex = wrappedCarouselIndex(m_carouselIndex);
+        const QSize targetSize = targetCarouselImageSize();
+        startDecode(m_carouselIndex, adjustedDecodeTargetSize(m_carouselIndex, targetSize));
+        if (m_items.size() > 1) {
+            startDecode(wrappedCarouselIndex(m_carouselIndex + 1), adjustedDecodeTargetSize(wrappedCarouselIndex(m_carouselIndex + 1), targetSize));
+        }
+        if (m_items.size() > 2) {
+            startDecode(wrappedCarouselIndex(m_carouselIndex - 1), adjustedDecodeTargetSize(wrappedCarouselIndex(m_carouselIndex - 1), targetSize));
+        }
+        return;
+    }
 
     const QSize targetSize = m_mode == ComparisonMode::Grid
             ? targetGridImageSize()
@@ -1210,6 +1543,9 @@ void ComparisonViewWidget::startDecode(int index, const QSize &targetSize)
     if (m_mode == ComparisonMode::HoverSwitch && (m_hoverWidget == nullptr || index > 1)) {
         return;
     }
+    if (m_mode == ComparisonMode::Carousel && m_carouselWidget == nullptr) {
+        return;
+    }
 
     const core::DecodeRequest request = decodeRequestForSize(targetSize);
     const ComparisonSessionItem item = m_items.at(index);
@@ -1222,6 +1558,10 @@ void ComparisonViewWidget::startDecode(int index, const QSize &targetSize)
         }
         if (m_mode == ComparisonMode::HoverSwitch) {
             m_hoverWidget->setDecodedImage(index, cached);
+        } else if (m_mode == ComparisonMode::Carousel) {
+            if (index == m_carouselIndex) {
+                m_carouselWidget->setDecodedImage(cached);
+            }
         } else {
             m_tiles.at(index)->setDecodedImage(cached);
         }
@@ -1235,6 +1575,10 @@ void ComparisonViewWidget::startDecode(int index, const QSize &targetSize)
 
     if (m_mode == ComparisonMode::HoverSwitch) {
         m_hoverWidget->setMessage(index, tr("Loading..."));
+    } else if (m_mode == ComparisonMode::Carousel) {
+        if (index == m_carouselIndex) {
+            m_carouselWidget->setPendingMessage(tr("Loading..."));
+        }
     } else {
         m_tiles.at(index)->setMessage(tr("Loading..."));
     }
@@ -1278,6 +1622,9 @@ void ComparisonViewWidget::handleDecodeFinished(QFutureWatcher<DecodeResult> *wa
     if (m_mode == ComparisonMode::HoverSwitch && (m_hoverWidget == nullptr || result.index > 1)) {
         return;
     }
+    if (m_mode == ComparisonMode::Carousel && m_carouselWidget == nullptr) {
+        return;
+    }
 
     if (result.decoded.ok()) {
         bool sourceSizeDiscovered = false;
@@ -1291,6 +1638,10 @@ void ComparisonViewWidget::handleDecodeFinished(QFutureWatcher<DecodeResult> *wa
         insertCached(result.cacheKey, result.decoded);
         if (m_mode == ComparisonMode::HoverSwitch) {
             m_hoverWidget->setDecodedImage(result.index, result.decoded);
+        } else if (m_mode == ComparisonMode::Carousel) {
+            if (result.index == m_carouselIndex) {
+                m_carouselWidget->setDecodedImage(result.decoded);
+            }
         } else {
             m_tiles.at(result.index)->setDecodedImage(result.decoded);
         }
@@ -1304,10 +1655,62 @@ void ComparisonViewWidget::handleDecodeFinished(QFutureWatcher<DecodeResult> *wa
                 : result.decoded.errorMessage;
         if (m_mode == ComparisonMode::HoverSwitch) {
             m_hoverWidget->setMessage(result.index, message);
+        } else if (m_mode == ComparisonMode::Carousel) {
+            if (result.index == m_carouselIndex) {
+                m_carouselWidget->setMessage(message);
+            }
         } else {
             m_tiles.at(result.index)->setMessage(message);
         }
     }
+}
+
+void ComparisonViewWidget::updateCarouselControls()
+{
+    const bool visible = hasSession() && m_mode == ComparisonMode::Carousel;
+    if (m_carouselPreviousButton != nullptr) {
+        m_carouselPreviousButton->setVisible(visible);
+        m_carouselPreviousButton->setEnabled(m_items.size() > 1);
+    }
+    if (m_carouselNextButton != nullptr) {
+        m_carouselNextButton->setVisible(visible);
+        m_carouselNextButton->setEnabled(m_items.size() > 1);
+    }
+}
+
+void ComparisonViewWidget::setCarouselIndex(int index)
+{
+    if (m_items.isEmpty()) {
+        return;
+    }
+
+    m_carouselIndex = wrappedCarouselIndex(index);
+    if (m_carouselWidget != nullptr) {
+        m_carouselWidget->setIndexInfo(m_carouselIndex, m_items.size());
+        m_carouselWidget->setTitle(itemTitle(m_items.at(m_carouselIndex)));
+        m_carouselWidget->setPendingMessage(tr("Loading..."));
+        m_carouselWidget->setFocus(Qt::OtherFocusReason);
+    }
+    ++m_generation;
+    scheduleReload();
+    emit statusMessageChanged(tr("Compare: Carousel %1/%2").arg(m_carouselIndex + 1).arg(m_items.size()));
+}
+
+void ComparisonViewWidget::moveCarouselIndex(int offset)
+{
+    if (m_items.isEmpty()) {
+        return;
+    }
+    setCarouselIndex(m_carouselIndex + offset);
+}
+
+int ComparisonViewWidget::wrappedCarouselIndex(int index) const
+{
+    if (m_items.isEmpty()) {
+        return 0;
+    }
+    const int count = m_items.size();
+    return ((index % count) + count) % count;
 }
 
 core::DecodeRequest ComparisonViewWidget::decodeRequestForSize(const QSize &targetSize) const
@@ -1368,6 +1771,14 @@ QSize ComparisonViewWidget::targetHoverImageSize() const
         return QSize(240, 360);
     }
     return m_hoverWidget->targetImageSize();
+}
+
+QSize ComparisonViewWidget::targetCarouselImageSize() const
+{
+    if (m_carouselWidget == nullptr) {
+        return QSize(240, 360);
+    }
+    return m_carouselWidget->targetImageSize();
 }
 
 int ComparisonViewWidget::gridColumnCount(const QSize &viewportSize, int count) const
@@ -1502,6 +1913,8 @@ void ComparisonViewWidget::refreshAlignmentState()
         if (m_mode == ComparisonMode::HoverSwitch && m_hoverWidget != nullptr) {
             includeScale(m_hoverWidget->sourceLogicalScale(0));
             includeScale(m_hoverWidget->sourceLogicalScale(1));
+        } else if (m_mode == ComparisonMode::Carousel && m_carouselWidget != nullptr) {
+            includeScale(m_carouselWidget->sourceLogicalScale());
         } else {
             for (const ComparisonTileWidget *tile : std::as_const(m_tiles)) {
                 if (tile != nullptr) {
@@ -1521,6 +1934,10 @@ void ComparisonViewWidget::refreshAlignmentState()
     if (m_hoverWidget != nullptr) {
         m_hoverWidget->setAlignmentPreset(m_alignmentPreset);
         m_hoverWidget->setSharedSourceScale(sharedSourceScale);
+    }
+    if (m_carouselWidget != nullptr) {
+        m_carouselWidget->setAlignmentPreset(m_alignmentPreset);
+        m_carouselWidget->setSharedSourceScale(sharedSourceScale);
     }
 }
 

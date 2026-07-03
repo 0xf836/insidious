@@ -18,7 +18,9 @@
 class QHBoxLayout;
 class QComboBox;
 class QGridLayout;
+class QKeyEvent;
 class QLabel;
+class QPushButton;
 class QStackedLayout;
 class QVBoxLayout;
 
@@ -39,6 +41,7 @@ struct ComparisonRenderSettings {
 enum class ComparisonMode {
     Row,
     Grid,
+    Carousel,
     HoverSwitch,
 };
 
@@ -152,6 +155,58 @@ private:
     bool m_panning = false;
 };
 
+class ComparisonCarouselWidget : public QWidget {
+    Q_OBJECT
+
+public:
+    explicit ComparisonCarouselWidget(QWidget *parent = nullptr);
+
+    void setIndexInfo(int index, int count);
+    void setTitle(const QString &title);
+    void setMessage(const QString &message);
+    void setPendingMessage(const QString &message);
+    void setDecodedImage(const core::DecodedImage &decoded);
+    void setAlignmentPreset(ComparisonAlignmentPreset preset);
+    void setSharedSourceScale(double scale);
+    void clearImage();
+    void resetView();
+    [[nodiscard]] QSize targetImageSize() const;
+    [[nodiscard]] double sourceLogicalScale() const;
+
+signals:
+    void previousRequested();
+    void nextRequested();
+    void firstRequested();
+    void lastRequested();
+    void toggleFullscreenRequested();
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+
+private:
+    [[nodiscard]] QRectF imageAreaRect() const;
+    [[nodiscard]] QRectF imageRect() const;
+
+    int m_index = 0;
+    int m_count = 0;
+    QString m_title;
+    QString m_message;
+    core::DecodedImage m_decoded;
+    ComparisonAlignmentPreset m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
+    double m_sharedSourceScale = 0.0;
+    double m_zoomFactor = 1.0;
+    QPointF m_panOffset;
+    QPoint m_lastMousePosition;
+    bool m_panning = false;
+};
+
 class ComparisonViewWidget : public QWidget {
     Q_OBJECT
 
@@ -207,10 +262,15 @@ private:
     void reloadVisibleSession();
     void startDecode(int index, const QSize &targetSize);
     void handleDecodeFinished(QFutureWatcher<DecodeResult> *watcher);
+    void updateCarouselControls();
+    void setCarouselIndex(int index);
+    void moveCarouselIndex(int offset);
+    [[nodiscard]] int wrappedCarouselIndex(int index) const;
     [[nodiscard]] core::DecodeRequest decodeRequestForSize(const QSize &targetSize) const;
     [[nodiscard]] QSize targetTileImageSize() const;
     [[nodiscard]] QSize targetGridImageSize() const;
     [[nodiscard]] QSize targetHoverImageSize() const;
+    [[nodiscard]] QSize targetCarouselImageSize() const;
     [[nodiscard]] int gridColumnCount(const QSize &viewportSize, int count) const;
     [[nodiscard]] bool tryGetCached(const QString &cacheKey, core::DecodedImage *decoded);
     void insertCached(const QString &cacheKey, const core::DecodedImage &decoded);
@@ -226,6 +286,8 @@ private:
     ComparisonAlignmentPreset m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
     QWidget *m_headerWidget = nullptr;
     QLabel *m_headerLabel = nullptr;
+    QPushButton *m_carouselPreviousButton = nullptr;
+    QPushButton *m_carouselNextButton = nullptr;
     QComboBox *m_modeComboBox = nullptr;
     QComboBox *m_alignmentComboBox = nullptr;
     QVBoxLayout *m_mainLayout = nullptr;
@@ -237,6 +299,7 @@ private:
     QWidget *m_gridWidget = nullptr;
     QGridLayout *m_gridLayout = nullptr;
     ComparisonHoverSwitchWidget *m_hoverWidget = nullptr;
+    ComparisonCarouselWidget *m_carouselWidget = nullptr;
     QVector<ComparisonTileWidget *> m_tiles;
     QTimer m_reloadTimer;
     QThreadPool m_threadPool;
@@ -246,6 +309,7 @@ private:
     qint64 m_cacheBytes = 0;
     quint64 m_cacheClock = 0;
     quint64 m_generation = 0;
+    int m_carouselIndex = 0;
 };
 
 } // namespace insidious::ui

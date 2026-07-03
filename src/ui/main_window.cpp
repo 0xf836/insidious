@@ -4094,6 +4094,19 @@ void MainWindow::showComparisonContextMenu(QListView *view, const QPoint &positi
         });
     }
 
+    QAction *carouselAction = compareMenu->addAction(tr("Carousel"));
+    if (items.size() < 2) {
+        carouselAction->setText(tr("Carousel (select 2-8 images)"));
+        carouselAction->setEnabled(false);
+    } else if (items.size() > MaxComparisonItems) {
+        carouselAction->setText(tr("Carousel (max 8 images)"));
+        carouselAction->setEnabled(false);
+    } else {
+        connect(carouselAction, &QAction::triggered, this, [this, items]() {
+            openComparison(items, ComparisonMode::Carousel);
+        });
+    }
+
     QAction *hoverSwitchAction = compareMenu->addAction(tr("Hover Switch"));
     if (items.size() != 2) {
         hoverSwitchAction->setText(tr("Hover Switch (select exactly 2 images)"));
@@ -4135,6 +4148,9 @@ void MainWindow::openComparison(const QVector<ComparisonSessionItem> &items, Com
         break;
     case ComparisonMode::Grid:
         m_comparisonStatusMessage = tr("Compare: %1 images in Grid").arg(items.size());
+        break;
+    case ComparisonMode::Carousel:
+        m_comparisonStatusMessage = tr("Compare: %1 images in Carousel").arg(items.size());
         break;
     case ComparisonMode::Row:
         m_comparisonStatusMessage = tr("Compare: %1 images in Row").arg(items.size());
