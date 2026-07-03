@@ -17,6 +17,7 @@
 
 class QHBoxLayout;
 class QComboBox;
+class QGridLayout;
 class QLabel;
 class QStackedLayout;
 class QVBoxLayout;
@@ -37,6 +38,7 @@ struct ComparisonRenderSettings {
 
 enum class ComparisonMode {
     Row,
+    Grid,
     HoverSwitch,
 };
 
@@ -197,6 +199,9 @@ private:
 
     void rebuildTiles();
     void rebuildPresentation();
+    void layoutTiles();
+    void clearTileLayouts();
+    void deleteTiles();
     ComparisonTileWidget *createTile(int index);
     void scheduleReload();
     void reloadVisibleSession();
@@ -204,7 +209,9 @@ private:
     void handleDecodeFinished(QFutureWatcher<DecodeResult> *watcher);
     [[nodiscard]] core::DecodeRequest decodeRequestForSize(const QSize &targetSize) const;
     [[nodiscard]] QSize targetTileImageSize() const;
+    [[nodiscard]] QSize targetGridImageSize() const;
     [[nodiscard]] QSize targetHoverImageSize() const;
+    [[nodiscard]] int gridColumnCount(const QSize &viewportSize, int count) const;
     [[nodiscard]] bool tryGetCached(const QString &cacheKey, core::DecodedImage *decoded);
     void insertCached(const QString &cacheKey, const core::DecodedImage &decoded);
     void evictCacheIfNeeded();
@@ -227,6 +234,8 @@ private:
     QStackedLayout *m_contentLayout = nullptr;
     QWidget *m_rowWidget = nullptr;
     QHBoxLayout *m_rowLayout = nullptr;
+    QWidget *m_gridWidget = nullptr;
+    QGridLayout *m_gridLayout = nullptr;
     ComparisonHoverSwitchWidget *m_hoverWidget = nullptr;
     QVector<ComparisonTileWidget *> m_tiles;
     QTimer m_reloadTimer;

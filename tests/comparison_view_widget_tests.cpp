@@ -9,6 +9,7 @@ class ComparisonViewWidgetTests : public QObject {
 
 private slots:
     void supportsRowCounts();
+    void supportsGridCounts();
     void supportsHoverSwitchCounts();
     void exposesAlignmentPresetState();
 };
@@ -18,6 +19,13 @@ void ComparisonViewWidgetTests::supportsRowCounts()
     QVERIFY(!ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::Row, 0));
     QVERIFY(ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::Row, 1));
     QVERIFY(ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::Row, 8));
+}
+
+void ComparisonViewWidgetTests::supportsGridCounts()
+{
+    QVERIFY(!ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::Grid, 0));
+    QVERIFY(ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::Grid, 1));
+    QVERIFY(ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::Grid, 8));
 }
 
 void ComparisonViewWidgetTests::supportsHoverSwitchCounts()

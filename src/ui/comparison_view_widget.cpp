@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -48,6 +49,8 @@ QString comparisonModeName(ComparisonMode mode)
     switch (mode) {
     case ComparisonMode::Row:
         return QObject::tr("Row");
+    case ComparisonMode::Grid:
+        return QObject::tr("Grid");
     case ComparisonMode::HoverSwitch:
         return QObject::tr("Hover Switch");
     }
@@ -753,6 +756,7 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
 
     m_modeComboBox = new QComboBox(m_headerWidget);
     m_modeComboBox->addItem(comparisonModeName(ComparisonMode::Row), static_cast<int>(ComparisonMode::Row));
+    m_modeComboBox->addItem(comparisonModeName(ComparisonMode::Grid), static_cast<int>(ComparisonMode::Grid));
     m_modeComboBox->addItem(comparisonModeName(ComparisonMode::HoverSwitch), static_cast<int>(ComparisonMode::HoverSwitch));
     m_modeComboBox->setEnabled(false);
     connect(m_modeComboBox, &QComboBox::currentIndexChanged, this, [this](int index) {
@@ -803,6 +807,13 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
     m_rowLayout->setContentsMargins(0, 0, 0, 0);
     m_rowLayout->setSpacing(TileSpacing);
     m_contentLayout->addWidget(m_rowWidget);
+
+    m_gridWidget = new QWidget(m_contentWidget);
+    m_gridWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_gridLayout = new QGridLayout(m_gridWidget);
+    m_gridLayout->setContentsMargins(0, 0, 0, 0);
+    m_gridLayout->setSpacing(TileSpacing);
+    m_contentLayout->addWidget(m_gridWidget);
 
     m_hoverWidget = new ComparisonHoverSwitchWidget(m_contentWidget);
     connect(m_hoverWidget, &ComparisonHoverSwitchWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
@@ -857,7 +868,6 @@ int ComparisonViewWidget::appendItems(QVector<ComparisonSessionItem> items)
         m_items.append(item);
         ComparisonTileWidget *tile = createTile(index);
         m_tiles.append(tile);
-        m_rowLayout->addWidget(tile, 1);
         ++added;
     }
 
@@ -883,12 +893,7 @@ void ComparisonViewWidget::clearSession()
     m_cache.clear();
     m_knownSourceSizes.clear();
     m_cacheBytes = 0;
-    while (QLayoutItem *item = m_rowLayout->takeAt(0)) {
-        if (QWidget *widget = item->widget()) {
-            delete widget;
-        }
-        delete item;
-    }
+    deleteTiles();
     m_items.clear();
     m_tiles.clear();
     m_mode = ComparisonMode::Row;
@@ -1011,6 +1016,8 @@ bool ComparisonViewWidget::supportsItemCount(ComparisonMode mode, int count)
     switch (mode) {
     case ComparisonMode::Row:
         return count >= 1;
+    case ComparisonMode::Grid:
+        return count >= 1;
     case ComparisonMode::HoverSwitch:
         return count == 2;
     }
@@ -1033,25 +1040,22 @@ void ComparisonViewWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
     if (hasSession()) {
+        if (m_mode == ComparisonMode::Grid) {
+            layoutTiles();
+        }
         scheduleReload();
     }
 }
 
 void ComparisonViewWidget::rebuildTiles()
 {
-    while (QLayoutItem *item = m_rowLayout->takeAt(0)) {
-        if (QWidget *widget = item->widget()) {
-            delete widget;
-        }
-        delete item;
-    }
-    m_tiles.clear();
+    deleteTiles();
 
     for (int index = 0; index < m_items.size(); ++index) {
         ComparisonTileWidget *tile = createTile(index);
         m_tiles.append(tile);
-        m_rowLayout->addWidget(tile, 1);
     }
+    layoutTiles();
 }
 
 void ComparisonViewWidget::rebuildPresentation()
@@ -1060,7 +1064,17 @@ void ComparisonViewWidget::rebuildPresentation()
         const QSignalBlocker blocker(m_modeComboBox);
         m_modeComboBox->setEnabled(hasSession());
         m_modeComboBox->setCurrentIndex(m_modeComboBox->findData(static_cast<int>(m_mode)));
+        const bool rowEnabled = supportsItemCount(ComparisonMode::Row, m_items.size());
+        const bool gridEnabled = supportsItemCount(ComparisonMode::Grid, m_items.size());
         const bool hoverSwitchEnabled = supportsItemCount(ComparisonMode::HoverSwitch, m_items.size());
+        m_modeComboBox->setItemData(
+            m_modeComboBox->findData(static_cast<int>(ComparisonMode::Row)),
+            rowEnabled ? QVariant() : QVariant(0),
+            Qt::UserRole - 1);
+        m_modeComboBox->setItemData(
+            m_modeComboBox->findData(static_cast<int>(ComparisonMode::Grid)),
+            gridEnabled ? QVariant() : QVariant(0),
+            Qt::UserRole - 1);
         m_modeComboBox->setItemData(
             m_modeComboBox->findData(static_cast<int>(ComparisonMode::HoverSwitch)),
             hoverSwitchEnabled ? QVariant() : QVariant(0),
@@ -1076,21 +1090,16 @@ void ComparisonViewWidget::rebuildPresentation()
             ? tr("Compare: %1 (%2 images)").arg(comparisonModeName(m_mode)).arg(m_items.size())
             : tr("No comparison session"));
 
-    if (m_mode == ComparisonMode::Row) {
-        if (m_contentLayout != nullptr && m_rowWidget != nullptr) {
-            m_contentLayout->setCurrentWidget(m_rowWidget);
+    if (m_mode == ComparisonMode::Row || m_mode == ComparisonMode::Grid) {
+        if (m_tiles.size() != m_items.size()) {
+            rebuildTiles();
+        } else {
+            layoutTiles();
         }
-        rebuildTiles();
         return;
     }
 
-    while (QLayoutItem *item = m_rowLayout->takeAt(0)) {
-        if (QWidget *widget = item->widget()) {
-            delete widget;
-        }
-        delete item;
-    }
-    m_tiles.clear();
+    deleteTiles();
 
     if (m_hoverWidget != nullptr && m_items.size() == 2) {
         m_hoverWidget->clearImages();
@@ -1104,9 +1113,53 @@ void ComparisonViewWidget::rebuildPresentation()
     }
 }
 
+void ComparisonViewWidget::layoutTiles()
+{
+    clearTileLayouts();
+
+    if (m_mode == ComparisonMode::Grid) {
+        if (m_contentLayout != nullptr && m_gridWidget != nullptr) {
+            m_contentLayout->setCurrentWidget(m_gridWidget);
+        }
+        const int columns = gridColumnCount(
+            m_scrollArea != nullptr && m_scrollArea->viewport() != nullptr
+                ? m_scrollArea->viewport()->size()
+                : QSize(1, 1),
+            m_tiles.size());
+        for (int index = 0; index < m_tiles.size(); ++index) {
+            m_gridLayout->addWidget(m_tiles.at(index), index / columns, index % columns);
+        }
+        return;
+    }
+
+    if (m_contentLayout != nullptr && m_rowWidget != nullptr) {
+        m_contentLayout->setCurrentWidget(m_rowWidget);
+    }
+    for (ComparisonTileWidget *tile : std::as_const(m_tiles)) {
+        m_rowLayout->addWidget(tile, 1);
+    }
+}
+
+void ComparisonViewWidget::clearTileLayouts()
+{
+    while (m_rowLayout != nullptr && m_rowLayout->count() > 0) {
+        delete m_rowLayout->takeAt(0);
+    }
+    while (m_gridLayout != nullptr && m_gridLayout->count() > 0) {
+        delete m_gridLayout->takeAt(0);
+    }
+}
+
+void ComparisonViewWidget::deleteTiles()
+{
+    clearTileLayouts();
+    qDeleteAll(m_tiles);
+    m_tiles.clear();
+}
+
 ComparisonTileWidget *ComparisonViewWidget::createTile(int index)
 {
-    auto *tile = new ComparisonTileWidget(m_rowWidget);
+    auto *tile = new ComparisonTileWidget(m_contentWidget);
     tile->setIndex(index);
     tile->setTitle(itemTitle(m_items.at(index)));
     tile->setMessage(tr("Loading..."));
@@ -1138,7 +1191,9 @@ void ComparisonViewWidget::reloadVisibleSession()
         return;
     }
 
-    const QSize targetSize = targetTileImageSize();
+    const QSize targetSize = m_mode == ComparisonMode::Grid
+            ? targetGridImageSize()
+            : targetTileImageSize();
     for (int index = 0; index < m_items.size(); ++index) {
         startDecode(index, adjustedDecodeTargetSize(index, targetSize));
     }
@@ -1149,7 +1204,7 @@ void ComparisonViewWidget::startDecode(int index, const QSize &targetSize)
     if (index < 0 || index >= m_items.size()) {
         return;
     }
-    if (m_mode == ComparisonMode::Row && index >= m_tiles.size()) {
+    if ((m_mode == ComparisonMode::Row || m_mode == ComparisonMode::Grid) && index >= m_tiles.size()) {
         return;
     }
     if (m_mode == ComparisonMode::HoverSwitch && (m_hoverWidget == nullptr || index > 1)) {
@@ -1217,7 +1272,7 @@ void ComparisonViewWidget::handleDecodeFinished(QFutureWatcher<DecodeResult> *wa
     if (result.generation != m_generation || result.index < 0 || result.index >= m_items.size()) {
         return;
     }
-    if (m_mode == ComparisonMode::Row && result.index >= m_tiles.size()) {
+    if ((m_mode == ComparisonMode::Row || m_mode == ComparisonMode::Grid) && result.index >= m_tiles.size()) {
         return;
     }
     if (m_mode == ComparisonMode::HoverSwitch && (m_hoverWidget == nullptr || result.index > 1)) {
@@ -1286,12 +1341,67 @@ QSize ComparisonViewWidget::targetTileImageSize() const
         std::max(1, viewportSize.height() - TileTitleHeight - TileMargin * 2));
 }
 
+QSize ComparisonViewWidget::targetGridImageSize() const
+{
+    if (m_scrollArea == nullptr || m_scrollArea->viewport() == nullptr) {
+        return QSize(240, 360);
+    }
+
+    const QSize viewportSize = m_scrollArea->viewport()->size();
+    const int count = std::max(1, static_cast<int>(m_items.size()));
+    const int columns = gridColumnCount(viewportSize, count);
+    const int rows = std::max(1, (count + columns - 1) / columns);
+    const int tileWidth = std::max(
+        1,
+        (viewportSize.width() - TileSpacing * std::max(0, columns - 1)) / columns);
+    const int tileHeight = std::max(
+        1,
+        (viewportSize.height() - TileSpacing * std::max(0, rows - 1)) / rows);
+    return QSize(
+        std::max(1, tileWidth - TileMargin * 2),
+        std::max(1, tileHeight - TileTitleHeight - TileMargin * 2));
+}
+
 QSize ComparisonViewWidget::targetHoverImageSize() const
 {
     if (m_hoverWidget == nullptr) {
         return QSize(240, 360);
     }
     return m_hoverWidget->targetImageSize();
+}
+
+int ComparisonViewWidget::gridColumnCount(const QSize &viewportSize, int count) const
+{
+    count = std::max(1, count);
+    int bestColumns = 1;
+    double bestScore = -1.0;
+
+    for (int columns = 1; columns <= count; ++columns) {
+        const int rows = (count + columns - 1) / columns;
+        if (count > 2 && (columns == 1 || rows == 1)) {
+            continue;
+        }
+
+        const int tileWidth = (viewportSize.width() - TileSpacing * std::max(0, columns - 1)) / columns;
+        const int tileHeight = (viewportSize.height() - TileSpacing * std::max(0, rows - 1)) / rows;
+        if (tileWidth <= 0 || tileHeight <= 0) {
+            continue;
+        }
+
+        const double occupancy = static_cast<double>(count) / static_cast<double>(rows * columns);
+        const double aspect = static_cast<double>(tileWidth) / static_cast<double>(tileHeight);
+        const double aspectScore = std::min(aspect, 1.0 / aspect);
+        const double score = static_cast<double>(tileWidth) * static_cast<double>(tileHeight) * occupancy * aspectScore;
+        if (score > bestScore) {
+            bestScore = score;
+            bestColumns = columns;
+        }
+    }
+
+    if (bestScore < 0.0) {
+        bestColumns = std::clamp(static_cast<int>(std::ceil(std::sqrt(static_cast<double>(count)))), 1, count);
+    }
+    return bestColumns;
 }
 
 bool ComparisonViewWidget::tryGetCached(const QString &cacheKey, core::DecodedImage *decoded)
@@ -1364,12 +1474,7 @@ void ComparisonViewWidget::reorderTile(int sourceIndex, QPoint globalPosition)
 
     m_items.move(sourceIndex, targetIndex);
     m_tiles.move(sourceIndex, targetIndex);
-    while (QLayoutItem *item = m_rowLayout->takeAt(0)) {
-        delete item;
-    }
-    for (ComparisonTileWidget *tile : std::as_const(m_tiles)) {
-        m_rowLayout->addWidget(tile, 1);
-    }
+    layoutTiles();
     refreshTileIndexes();
     scheduleReload();
 }

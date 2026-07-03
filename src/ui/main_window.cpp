@@ -4081,6 +4081,19 @@ void MainWindow::showComparisonContextMenu(QListView *view, const QPoint &positi
         });
     }
 
+    QAction *gridAction = compareMenu->addAction(tr("Grid"));
+    if (items.size() < 2) {
+        gridAction->setText(tr("Grid (select 2-8 images)"));
+        gridAction->setEnabled(false);
+    } else if (items.size() > MaxComparisonItems) {
+        gridAction->setText(tr("Grid (max 8 images)"));
+        gridAction->setEnabled(false);
+    } else {
+        connect(gridAction, &QAction::triggered, this, [this, items]() {
+            openComparison(items, ComparisonMode::Grid);
+        });
+    }
+
     QAction *hoverSwitchAction = compareMenu->addAction(tr("Hover Switch"));
     if (items.size() != 2) {
         hoverSwitchAction->setText(tr("Hover Switch (select exactly 2 images)"));
@@ -4116,9 +4129,17 @@ void MainWindow::openComparison(const QVector<ComparisonSessionItem> &items, Com
         hideFullscreenOverlayPanels();
         updateFullscreenInfoLine();
     }
-    m_comparisonStatusMessage = mode == ComparisonMode::HoverSwitch
-            ? tr("Compare: 2 images in Hover Switch")
-            : tr("Compare: %1 images in Row").arg(items.size());
+    switch (mode) {
+    case ComparisonMode::HoverSwitch:
+        m_comparisonStatusMessage = tr("Compare: 2 images in Hover Switch");
+        break;
+    case ComparisonMode::Grid:
+        m_comparisonStatusMessage = tr("Compare: %1 images in Grid").arg(items.size());
+        break;
+    case ComparisonMode::Row:
+        m_comparisonStatusMessage = tr("Compare: %1 images in Row").arg(items.size());
+        break;
+    }
     updateStatus(m_comparisonStatusMessage);
     updateActionState();
 }
