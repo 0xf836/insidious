@@ -124,26 +124,39 @@ QSizeF baseDrawSize(
     ComparisonAlignmentPreset preset,
     double sharedSourceScale)
 {
-    QSizeF size = decodedLogicalSize(decoded);
-    if (size.isEmpty()) {
+    QSizeF decodedSize = decodedLogicalSize(decoded);
+    if (decodedSize.isEmpty()) {
         return QSizeF();
     }
 
     if (preset == ComparisonAlignmentPreset::SameSourceScale
         && sharedSourceScale > 0.0
         && !decoded.sourceSize.isEmpty()) {
-        size = QSizeF(
+        return QSizeF(
             static_cast<double>(decoded.sourceSize.width()) * sharedSourceScale,
             static_cast<double>(decoded.sourceSize.height()) * sharedSourceScale);
     } else if (preset == ComparisonAlignmentPreset::CoverCenter) {
+        QSizeF size = decoded.sourceSize.isEmpty()
+            ? decodedSize
+            : QSizeF(decoded.sourceSize);
         const double coverScale = std::max(
             imageArea.width() / size.width(),
             imageArea.height() / size.height());
-        if (std::isfinite(coverScale) && coverScale > 1.0) {
-            size *= coverScale;
+        if (std::isfinite(coverScale) && coverScale > 0.0) {
+            return size * coverScale;
         }
+        return decodedSize;
+    } else if (!decoded.sourceSize.isEmpty()) {
+        QSizeF size(decoded.sourceSize);
+        const double fitScale = std::min(
+            imageArea.width() / size.width(),
+            imageArea.height() / size.height());
+        if (std::isfinite(fitScale) && fitScale > 0.0) {
+            return size * fitScale;
+        }
+        return decodedSize;
     }
-    return size;
+    return decodedSize;
 }
 
 QRectF alignedImageRect(
@@ -220,13 +233,10 @@ void ComparisonTileWidget::setDecodedImage(const core::DecodedImage &decoded)
         const QRectF area = rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin);
         const QRectF oldRect = imageRect();
         if (!area.isEmpty() && !oldRect.isEmpty() && m_zoomFactor > 0.0) {
-            const QPointF imagePoint = (area.center() - oldRect.topLeft()) / m_zoomFactor;
-            const QSizeF oldSize = imageLogicalSize();
-            if (!oldSize.isEmpty()) {
-                normalizedCenter = QPointF(
-                    imagePoint.x() / oldSize.width(),
-                    imagePoint.y() / oldSize.height());
-            }
+            const QPointF imagePoint = area.center() - oldRect.topLeft();
+            normalizedCenter = QPointF(
+                imagePoint.x() / oldRect.width(),
+                imagePoint.y() / oldRect.height());
         }
     }
 
@@ -238,16 +248,17 @@ void ComparisonTileWidget::setDecodedImage(const core::DecodedImage &decoded)
     }
 
     const QRectF area = rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin);
-    const QSizeF newSize = imageLogicalSize();
-    if (!area.isEmpty() && !newSize.isEmpty()) {
-        const QSizeF drawSize(newSize.width() * m_zoomFactor, newSize.height() * m_zoomFactor);
-        const QPointF defaultTopLeft(
-            area.x() + (area.width() - drawSize.width()) / 2.0,
-            area.y() + (area.height() - drawSize.height()) / 2.0);
+    if (!area.isEmpty()) {
+        m_panOffset = QPointF();
+        const QRectF defaultRect = imageRect();
+        if (defaultRect.isEmpty()) {
+            update();
+            return;
+        }
         const QPointF desiredTopLeft = area.center() - QPointF(
-            normalizedCenter.x() * newSize.width() * m_zoomFactor,
-            normalizedCenter.y() * newSize.height() * m_zoomFactor);
-        m_panOffset = desiredTopLeft - defaultTopLeft;
+            normalizedCenter.x() * defaultRect.width(),
+            normalizedCenter.y() * defaultRect.height());
+        m_panOffset = desiredTopLeft - defaultRect.topLeft();
     }
     update();
 }
