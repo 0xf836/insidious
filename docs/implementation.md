@@ -136,6 +136,7 @@ Comparison flow:
 - Row comparison decodes each tile asynchronously on a small private thread pool. The row divides the available panel width between tiles, and decode requests fit to the tile viewport size instead of forcing the row wider than the central window. Requests carry current EXIF autorotate, scaling quality, color management, and DPR, and stay independent from the foreground viewer decode watcher.
 - Each tile owns local zoom/pan state. Wheel zoom and drag pan affect only that tile; dragging an unzoomed tile reorders the row. Resize/fullscreen re-decode preserves the current tile zoom and visible center instead of resetting the tile view.
 - Hover Switch decodes both images asynchronously to the same viewport target and uses a shared zoom/pan state. The second image is shown only while the cursor is inside the visible base-image rect; moving into empty compare viewport space returns to the first image.
+- Alignment presets are runtime-only compare UI state, not settings. Presets apply to Row and Hover Switch, reset compare zoom/pan on change, and include fit anchors, same decoded source scale, and cover-center. Cover-center may issue a second async decode after the source dimensions are known so the raster can fill the compare viewport without widening the tab.
 - Compare cache is bounded and memory-only. Session contents, selected identity order, decoded comparison rasters, and cache entries persist across active-folder changes inside the same source, are cleared by process exit/source changes, and are never persisted.
 - While `Compare` is the active central tab, single-image viewer actions such as next/previous, zoom, rotate, quick jump, and copy original are disabled to avoid mutating hidden viewer state. Fullscreen remains enabled only when the compare tab has an active session.
 
@@ -249,7 +250,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - TIFF, AVIF, JPEG XL, RAW.
 - Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.
 - Advanced thumbnail controls.
-- Advanced comparison modes beyond the current row and two-image hover switch modes: grid, carousel, and alignment presets.
+- Advanced comparison modes beyond the current row and two-image hover switch modes: grid and carousel.
 - Configurable or fuzzy quick filename jump.
 - Advanced shortcut features such as editing every QAction, profiles/import-export, and configurable shortcut scopes.
 - Advanced settings for display-profile matching, statusbar content, quick jump behavior, and thumbnail generation.

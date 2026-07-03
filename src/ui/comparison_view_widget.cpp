@@ -54,6 +54,136 @@ QString comparisonModeName(ComparisonMode mode)
     return QObject::tr("Row");
 }
 
+QString comparisonAlignmentPresetName(ComparisonAlignmentPreset preset)
+{
+    switch (preset) {
+    case ComparisonAlignmentPreset::FitCenter:
+        return QObject::tr("Fit Center");
+    case ComparisonAlignmentPreset::TopLeft:
+        return QObject::tr("Top Left");
+    case ComparisonAlignmentPreset::TopCenter:
+        return QObject::tr("Top Center");
+    case ComparisonAlignmentPreset::CenterLeft:
+        return QObject::tr("Center Left");
+    case ComparisonAlignmentPreset::BottomLeft:
+        return QObject::tr("Bottom Left");
+    case ComparisonAlignmentPreset::BottomCenter:
+        return QObject::tr("Bottom Center");
+    case ComparisonAlignmentPreset::SameSourceScale:
+        return QObject::tr("Same Source Scale");
+    case ComparisonAlignmentPreset::CoverCenter:
+        return QObject::tr("Cover Center");
+    }
+    return QObject::tr("Fit Center");
+}
+
+QPointF alignmentAnchorFactors(ComparisonAlignmentPreset preset)
+{
+    switch (preset) {
+    case ComparisonAlignmentPreset::TopLeft:
+        return QPointF(0.0, 0.0);
+    case ComparisonAlignmentPreset::TopCenter:
+        return QPointF(0.5, 0.0);
+    case ComparisonAlignmentPreset::CenterLeft:
+        return QPointF(0.0, 0.5);
+    case ComparisonAlignmentPreset::BottomLeft:
+        return QPointF(0.0, 1.0);
+    case ComparisonAlignmentPreset::BottomCenter:
+        return QPointF(0.5, 1.0);
+    case ComparisonAlignmentPreset::FitCenter:
+    case ComparisonAlignmentPreset::SameSourceScale:
+    case ComparisonAlignmentPreset::CoverCenter:
+        return QPointF(0.5, 0.5);
+    }
+    return QPointF(0.5, 0.5);
+}
+
+QSizeF decodedLogicalSize(const core::DecodedImage &decoded)
+{
+    if (!decoded.ok()) {
+        return QSizeF();
+    }
+    const QSizeF size = decoded.image.deviceIndependentSize();
+    return QSizeF(std::ceil(size.width()), std::ceil(size.height()));
+}
+
+double decodedSourceLogicalScale(const core::DecodedImage &decoded)
+{
+    const QSizeF logicalSize = decodedLogicalSize(decoded);
+    if (!decoded.ok() || logicalSize.isEmpty() || decoded.sourceSize.isEmpty()) {
+        return 0.0;
+    }
+    return std::min(
+        logicalSize.width() / static_cast<double>(decoded.sourceSize.width()),
+        logicalSize.height() / static_cast<double>(decoded.sourceSize.height()));
+}
+
+QSizeF baseDrawSize(
+    const core::DecodedImage &decoded,
+    const QRectF &imageArea,
+    ComparisonAlignmentPreset preset,
+    double sharedSourceScale)
+{
+    QSizeF size = decodedLogicalSize(decoded);
+    if (size.isEmpty()) {
+        return QSizeF();
+    }
+
+    if (preset == ComparisonAlignmentPreset::SameSourceScale
+        && sharedSourceScale > 0.0
+        && !decoded.sourceSize.isEmpty()) {
+        size = QSizeF(
+            static_cast<double>(decoded.sourceSize.width()) * sharedSourceScale,
+            static_cast<double>(decoded.sourceSize.height()) * sharedSourceScale);
+    } else if (preset == ComparisonAlignmentPreset::CoverCenter) {
+        const double coverScale = std::max(
+            imageArea.width() / size.width(),
+            imageArea.height() / size.height());
+        if (std::isfinite(coverScale) && coverScale > 1.0) {
+            size *= coverScale;
+        }
+    }
+    return size;
+}
+
+QRectF alignedImageRect(
+    const QRectF &imageArea,
+    const core::DecodedImage &decoded,
+    ComparisonAlignmentPreset preset,
+    double sharedSourceScale,
+    double zoomFactor,
+    QPointF panOffset)
+{
+    const QSizeF baseSize = baseDrawSize(decoded, imageArea, preset, sharedSourceScale);
+    if (imageArea.isEmpty() || baseSize.isEmpty()) {
+        return QRectF();
+    }
+
+    const QSizeF drawSize(baseSize.width() * zoomFactor, baseSize.height() * zoomFactor);
+    const QPointF anchor = alignmentAnchorFactors(preset);
+    return QRectF(
+        imageArea.x() + (imageArea.width() - drawSize.width()) * anchor.x() + panOffset.x(),
+        imageArea.y() + (imageArea.height() - drawSize.height()) * anchor.y() + panOffset.y(),
+        drawSize.width(),
+        drawSize.height());
+}
+
+QSize coverDecodeTargetSize(QSize sourceSize, QSize baseTargetSize)
+{
+    if (sourceSize.isEmpty() || baseTargetSize.isEmpty()) {
+        return baseTargetSize;
+    }
+    const double coverScale = std::max(
+        static_cast<double>(baseTargetSize.width()) / static_cast<double>(sourceSize.width()),
+        static_cast<double>(baseTargetSize.height()) / static_cast<double>(sourceSize.height()));
+    if (!std::isfinite(coverScale) || coverScale <= 0.0) {
+        return baseTargetSize;
+    }
+    return QSize(
+        std::max(1, static_cast<int>(std::ceil(static_cast<double>(sourceSize.width()) * coverScale))),
+        std::max(1, static_cast<int>(std::ceil(static_cast<double>(sourceSize.height()) * coverScale))));
+}
+
 } // namespace
 
 ComparisonTileWidget::ComparisonTileWidget(QWidget *parent)
@@ -122,6 +252,24 @@ void ComparisonTileWidget::setDecodedImage(const core::DecodedImage &decoded)
     update();
 }
 
+void ComparisonTileWidget::setAlignmentPreset(ComparisonAlignmentPreset preset)
+{
+    if (m_alignmentPreset == preset) {
+        return;
+    }
+    m_alignmentPreset = preset;
+    update();
+}
+
+void ComparisonTileWidget::setSharedSourceScale(double scale)
+{
+    if (qFuzzyCompare(m_sharedSourceScale, scale)) {
+        return;
+    }
+    m_sharedSourceScale = scale;
+    update();
+}
+
 void ComparisonTileWidget::clearImage()
 {
     m_decoded = {};
@@ -136,6 +284,11 @@ void ComparisonTileWidget::resetView()
     m_panning = false;
     m_reorderDragging = false;
     update();
+}
+
+double ComparisonTileWidget::sourceLogicalScale() const
+{
+    return decodedSourceLogicalScale(m_decoded);
 }
 
 void ComparisonTileWidget::paintEvent(QPaintEvent *)
@@ -259,27 +412,19 @@ void ComparisonTileWidget::mouseDoubleClickEvent(QMouseEvent *event)
 
 QSizeF ComparisonTileWidget::imageLogicalSize() const
 {
-    if (!m_decoded.ok()) {
-        return QSizeF();
-    }
-    const QSizeF size = m_decoded.image.deviceIndependentSize();
-    return QSizeF(std::ceil(size.width()), std::ceil(size.height()));
+    return decodedLogicalSize(m_decoded);
 }
 
 QRectF ComparisonTileWidget::imageRect() const
 {
     const QRectF imageArea = rect().adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin);
-    const QSizeF baseSize = imageLogicalSize();
-    if (baseSize.isEmpty()) {
-        return QRectF();
-    }
-
-    const QSizeF drawSize(baseSize.width() * m_zoomFactor, baseSize.height() * m_zoomFactor);
-    return QRectF(
-        imageArea.x() + (imageArea.width() - drawSize.width()) / 2.0 + m_panOffset.x(),
-        imageArea.y() + (imageArea.height() - drawSize.height()) / 2.0 + m_panOffset.y(),
-        drawSize.width(),
-        drawSize.height());
+    return alignedImageRect(
+        imageArea,
+        m_decoded,
+        m_alignmentPreset,
+        m_sharedSourceScale,
+        m_zoomFactor,
+        m_panOffset);
 }
 
 ComparisonHoverSwitchWidget::ComparisonHoverSwitchWidget(QWidget *parent)
@@ -326,6 +471,30 @@ void ComparisonHoverSwitchWidget::setDecodedImage(int index, const core::Decoded
     update();
 }
 
+void ComparisonHoverSwitchWidget::setAlignmentPreset(ComparisonAlignmentPreset preset)
+{
+    if (m_alignmentPreset == preset) {
+        return;
+    }
+    m_alignmentPreset = preset;
+    if (m_cursorInside && !m_panning) {
+        updateHoverState(m_lastHoverPosition);
+    }
+    update();
+}
+
+void ComparisonHoverSwitchWidget::setSharedSourceScale(double scale)
+{
+    if (qFuzzyCompare(m_sharedSourceScale, scale)) {
+        return;
+    }
+    m_sharedSourceScale = scale;
+    if (m_cursorInside && !m_panning) {
+        updateHoverState(m_lastHoverPosition);
+    }
+    update();
+}
+
 void ComparisonHoverSwitchWidget::clearImages()
 {
     m_decoded[0] = {};
@@ -354,6 +523,14 @@ QSize ComparisonHoverSwitchWidget::targetImageSize() const
             .adjusted(TileMargin, TileTitleHeight, -TileMargin, -TileMargin)
             .size();
     return QSize(std::max(1, area.width()), std::max(1, area.height()));
+}
+
+double ComparisonHoverSwitchWidget::sourceLogicalScale(int index) const
+{
+    if (index < 0 || index > 1) {
+        return 0.0;
+    }
+    return decodedSourceLogicalScale(m_decoded[index]);
 }
 
 void ComparisonHoverSwitchWidget::enterEvent(QEnterEvent *event)
@@ -532,24 +709,22 @@ QSizeF ComparisonHoverSwitchWidget::imageLogicalSize(int index) const
     if (index < 0 || index > 1 || !m_decoded[index].ok()) {
         return QSizeF();
     }
-    const QSizeF size = m_decoded[index].image.deviceIndependentSize();
-    return QSizeF(std::ceil(size.width()), std::ceil(size.height()));
+    return decodedLogicalSize(m_decoded[index]);
 }
 
 QRectF ComparisonHoverSwitchWidget::imageRect(int index) const
 {
     const QRectF imageArea = imageAreaRect();
-    const QSizeF baseSize = imageLogicalSize(index);
-    if (baseSize.isEmpty()) {
+    if (index < 0 || index > 1) {
         return QRectF();
     }
-
-    const QSizeF drawSize(baseSize.width() * m_zoomFactor, baseSize.height() * m_zoomFactor);
-    return QRectF(
-        imageArea.x() + (imageArea.width() - drawSize.width()) / 2.0 + m_panOffset.x(),
-        imageArea.y() + (imageArea.height() - drawSize.height()) / 2.0 + m_panOffset.y(),
-        drawSize.width(),
-        drawSize.height());
+    return alignedImageRect(
+        imageArea,
+        m_decoded[index],
+        m_alignmentPreset,
+        m_sharedSourceScale,
+        m_zoomFactor,
+        m_panOffset);
 }
 
 ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
@@ -577,6 +752,21 @@ ComparisonViewWidget::ComparisonViewWidget(QWidget *parent)
         }
     });
     headerLayout->addWidget(m_modeComboBox);
+
+    m_alignmentComboBox = new QComboBox(m_headerWidget);
+    m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::FitCenter), static_cast<int>(ComparisonAlignmentPreset::FitCenter));
+    m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::TopLeft), static_cast<int>(ComparisonAlignmentPreset::TopLeft));
+    m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::TopCenter), static_cast<int>(ComparisonAlignmentPreset::TopCenter));
+    m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::CenterLeft), static_cast<int>(ComparisonAlignmentPreset::CenterLeft));
+    m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::BottomLeft), static_cast<int>(ComparisonAlignmentPreset::BottomLeft));
+    m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::BottomCenter), static_cast<int>(ComparisonAlignmentPreset::BottomCenter));
+    m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::SameSourceScale), static_cast<int>(ComparisonAlignmentPreset::SameSourceScale));
+    m_alignmentComboBox->addItem(comparisonAlignmentPresetName(ComparisonAlignmentPreset::CoverCenter), static_cast<int>(ComparisonAlignmentPreset::CoverCenter));
+    m_alignmentComboBox->setEnabled(false);
+    connect(m_alignmentComboBox, &QComboBox::currentIndexChanged, this, [this](int index) {
+        setAlignmentPreset(static_cast<ComparisonAlignmentPreset>(m_alignmentComboBox->itemData(index).toInt()));
+    });
+    headerLayout->addWidget(m_alignmentComboBox);
 
     auto *closeButton = new QPushButton(tr("Close Compare"), m_headerWidget);
     connect(closeButton, &QPushButton::clicked, this, [this]() {
@@ -629,6 +819,7 @@ void ComparisonViewWidget::setSession(
     m_items = std::move(items);
     m_settings = settings;
     m_mode = mode;
+    m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
     ++m_generation;
     rebuildPresentation();
     scheduleReload();
@@ -679,6 +870,7 @@ void ComparisonViewWidget::clearSession()
     }
     m_decodeWatchers.clear();
     m_cache.clear();
+    m_knownSourceSizes.clear();
     m_cacheBytes = 0;
     while (QLayoutItem *item = m_rowLayout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
@@ -689,6 +881,7 @@ void ComparisonViewWidget::clearSession()
     m_items.clear();
     m_tiles.clear();
     m_mode = ComparisonMode::Row;
+    m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
     m_headerLabel->setText(tr("No comparison session"));
     if (m_modeComboBox != nullptr) {
         const QSignalBlocker blocker(m_modeComboBox);
@@ -698,6 +891,11 @@ void ComparisonViewWidget::clearSession()
             m_modeComboBox->findData(static_cast<int>(ComparisonMode::HoverSwitch)),
             0,
             Qt::UserRole - 1);
+    }
+    if (m_alignmentComboBox != nullptr) {
+        const QSignalBlocker blocker(m_alignmentComboBox);
+        m_alignmentComboBox->setCurrentIndex(m_alignmentComboBox->findData(static_cast<int>(m_alignmentPreset)));
+        m_alignmentComboBox->setEnabled(false);
     }
     if (m_contentLayout != nullptr && m_rowWidget != nullptr) {
         m_contentLayout->setCurrentWidget(m_rowWidget);
@@ -728,6 +926,34 @@ bool ComparisonViewWidget::setMode(ComparisonMode mode)
     return true;
 }
 
+void ComparisonViewWidget::setAlignmentPreset(ComparisonAlignmentPreset preset)
+{
+    if (m_alignmentPreset == preset) {
+        return;
+    }
+
+    m_alignmentPreset = preset;
+    if (m_alignmentComboBox != nullptr) {
+        const QSignalBlocker blocker(m_alignmentComboBox);
+        m_alignmentComboBox->setCurrentIndex(m_alignmentComboBox->findData(static_cast<int>(m_alignmentPreset)));
+    }
+    for (ComparisonTileWidget *tile : std::as_const(m_tiles)) {
+        if (tile == nullptr) {
+            continue;
+        }
+        tile->setAlignmentPreset(m_alignmentPreset);
+        tile->resetView();
+    }
+    if (m_hoverWidget != nullptr) {
+        m_hoverWidget->setAlignmentPreset(m_alignmentPreset);
+        m_hoverWidget->resetView();
+    }
+    refreshAlignmentState();
+    if (m_alignmentPreset == ComparisonAlignmentPreset::CoverCenter) {
+        scheduleReload();
+    }
+}
+
 bool ComparisonViewWidget::hasSession() const
 {
     return !m_items.isEmpty();
@@ -754,6 +980,11 @@ bool ComparisonViewWidget::hasItem(const QString &identityKey) const
 ComparisonMode ComparisonViewWidget::mode() const
 {
     return m_mode;
+}
+
+ComparisonAlignmentPreset ComparisonViewWidget::alignmentPreset() const
+{
+    return m_alignmentPreset;
 }
 
 bool ComparisonViewWidget::canAppendItems(int uniqueItemCount) const
@@ -824,6 +1055,11 @@ void ComparisonViewWidget::rebuildPresentation()
             hoverSwitchEnabled ? QVariant() : QVariant(0),
             Qt::UserRole - 1);
     }
+    if (m_alignmentComboBox != nullptr) {
+        const QSignalBlocker blocker(m_alignmentComboBox);
+        m_alignmentComboBox->setEnabled(hasSession());
+        m_alignmentComboBox->setCurrentIndex(m_alignmentComboBox->findData(static_cast<int>(m_alignmentPreset)));
+    }
 
     m_headerLabel->setText(hasSession()
             ? tr("Compare: %1 (%2 images)").arg(comparisonModeName(m_mode)).arg(m_items.size())
@@ -847,6 +1083,7 @@ void ComparisonViewWidget::rebuildPresentation()
 
     if (m_hoverWidget != nullptr && m_items.size() == 2) {
         m_hoverWidget->clearImages();
+        m_hoverWidget->setAlignmentPreset(m_alignmentPreset);
         m_hoverWidget->setTitles(itemTitle(m_items.at(0)), itemTitle(m_items.at(1)));
         m_hoverWidget->setMessage(0, tr("Loading..."));
         m_hoverWidget->setMessage(1, tr("Loading..."));
@@ -862,6 +1099,7 @@ ComparisonTileWidget *ComparisonViewWidget::createTile(int index)
     tile->setIndex(index);
     tile->setTitle(itemTitle(m_items.at(index)));
     tile->setMessage(tr("Loading..."));
+    tile->setAlignmentPreset(m_alignmentPreset);
     connect(tile, &ComparisonTileWidget::reorderDropRequested, this, &ComparisonViewWidget::reorderTile);
     connect(tile, &ComparisonTileWidget::toggleFullscreenRequested, this, &ComparisonViewWidget::toggleFullscreenRequested);
     return tile;
@@ -884,14 +1122,14 @@ void ComparisonViewWidget::reloadVisibleSession()
             return;
         }
         const QSize targetSize = targetHoverImageSize();
-        startDecode(0, targetSize);
-        startDecode(1, targetSize);
+        startDecode(0, adjustedDecodeTargetSize(0, targetSize));
+        startDecode(1, adjustedDecodeTargetSize(1, targetSize));
         return;
     }
 
     const QSize targetSize = targetTileImageSize();
     for (int index = 0; index < m_items.size(); ++index) {
-        startDecode(index, targetSize);
+        startDecode(index, adjustedDecodeTargetSize(index, targetSize));
     }
 }
 
@@ -912,10 +1150,19 @@ void ComparisonViewWidget::startDecode(int index, const QSize &targetSize)
     const QString cacheKey = core::cacheKeyFor(item.entry, request);
     core::DecodedImage cached;
     if (tryGetCached(cacheKey, &cached)) {
+        const QString identityKey = item.entry.identityKey();
+        if (!identityKey.isEmpty() && !cached.sourceSize.isEmpty() && !m_knownSourceSizes.contains(identityKey)) {
+            m_knownSourceSizes.insert(identityKey, cached.sourceSize);
+        }
         if (m_mode == ComparisonMode::HoverSwitch) {
             m_hoverWidget->setDecodedImage(index, cached);
         } else {
             m_tiles.at(index)->setDecodedImage(cached);
+        }
+        refreshAlignmentState();
+        if (m_alignmentPreset == ComparisonAlignmentPreset::CoverCenter
+            && adjustedDecodeTargetSize(index, targetSize) != targetSize) {
+            scheduleReload();
         }
         return;
     }
@@ -967,11 +1214,23 @@ void ComparisonViewWidget::handleDecodeFinished(QFutureWatcher<DecodeResult> *wa
     }
 
     if (result.decoded.ok()) {
+        bool sourceSizeDiscovered = false;
+        if (result.index >= 0 && result.index < m_items.size() && !result.decoded.sourceSize.isEmpty()) {
+            const QString identityKey = m_items.at(result.index).entry.identityKey();
+            if (!identityKey.isEmpty() && !m_knownSourceSizes.contains(identityKey)) {
+                m_knownSourceSizes.insert(identityKey, result.decoded.sourceSize);
+                sourceSizeDiscovered = true;
+            }
+        }
         insertCached(result.cacheKey, result.decoded);
         if (m_mode == ComparisonMode::HoverSwitch) {
             m_hoverWidget->setDecodedImage(result.index, result.decoded);
         } else {
             m_tiles.at(result.index)->setDecodedImage(result.decoded);
+        }
+        refreshAlignmentState();
+        if (sourceSizeDiscovered && m_alignmentPreset == ComparisonAlignmentPreset::CoverCenter) {
+            scheduleReload();
         }
     } else {
         const QString message = result.decoded.errorMessage.isEmpty()
@@ -1109,6 +1368,60 @@ void ComparisonViewWidget::refreshTileIndexes()
     for (int index = 0; index < m_tiles.size(); ++index) {
         m_tiles.at(index)->setIndex(index);
     }
+}
+
+void ComparisonViewWidget::refreshAlignmentState()
+{
+    double sharedSourceScale = 0.0;
+    if (m_alignmentPreset == ComparisonAlignmentPreset::SameSourceScale) {
+        auto includeScale = [&sharedSourceScale](double scale) {
+            if (!std::isfinite(scale) || scale <= 0.0) {
+                return;
+            }
+            if (sharedSourceScale <= 0.0 || scale < sharedSourceScale) {
+                sharedSourceScale = scale;
+            }
+        };
+
+        if (m_mode == ComparisonMode::HoverSwitch && m_hoverWidget != nullptr) {
+            includeScale(m_hoverWidget->sourceLogicalScale(0));
+            includeScale(m_hoverWidget->sourceLogicalScale(1));
+        } else {
+            for (const ComparisonTileWidget *tile : std::as_const(m_tiles)) {
+                if (tile != nullptr) {
+                    includeScale(tile->sourceLogicalScale());
+                }
+            }
+        }
+    }
+
+    for (ComparisonTileWidget *tile : std::as_const(m_tiles)) {
+        if (tile == nullptr) {
+            continue;
+        }
+        tile->setAlignmentPreset(m_alignmentPreset);
+        tile->setSharedSourceScale(sharedSourceScale);
+    }
+    if (m_hoverWidget != nullptr) {
+        m_hoverWidget->setAlignmentPreset(m_alignmentPreset);
+        m_hoverWidget->setSharedSourceScale(sharedSourceScale);
+    }
+}
+
+QSize ComparisonViewWidget::adjustedDecodeTargetSize(int index, const QSize &baseTargetSize) const
+{
+    if (m_alignmentPreset != ComparisonAlignmentPreset::CoverCenter
+        || index < 0
+        || index >= m_items.size()) {
+        return baseTargetSize;
+    }
+
+    const QString identityKey = m_items.at(index).entry.identityKey();
+    const auto it = m_knownSourceSizes.constFind(identityKey);
+    if (identityKey.isEmpty() || it == m_knownSourceSizes.constEnd()) {
+        return baseTargetSize;
+    }
+    return coverDecodeTargetSize(*it, baseTargetSize);
 }
 
 } // namespace insidious::ui

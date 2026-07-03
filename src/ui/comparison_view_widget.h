@@ -40,6 +40,17 @@ enum class ComparisonMode {
     HoverSwitch,
 };
 
+enum class ComparisonAlignmentPreset {
+    FitCenter,
+    TopLeft,
+    TopCenter,
+    CenterLeft,
+    BottomLeft,
+    BottomCenter,
+    SameSourceScale,
+    CoverCenter,
+};
+
 class ComparisonTileWidget : public QWidget {
     Q_OBJECT
 
@@ -50,8 +61,11 @@ public:
     void setTitle(const QString &title);
     void setMessage(const QString &message);
     void setDecodedImage(const core::DecodedImage &decoded);
+    void setAlignmentPreset(ComparisonAlignmentPreset preset);
+    void setSharedSourceScale(double scale);
     void clearImage();
     void resetView();
+    [[nodiscard]] double sourceLogicalScale() const;
 
 signals:
     void reorderDropRequested(int sourceIndex, QPoint globalPosition);
@@ -74,6 +88,8 @@ private:
     QString m_title;
     QString m_message;
     core::DecodedImage m_decoded;
+    ComparisonAlignmentPreset m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
+    double m_sharedSourceScale = 0.0;
     double m_zoomFactor = 1.0;
     QPointF m_panOffset;
     QPoint m_lastMousePosition;
@@ -91,9 +107,12 @@ public:
     void setTitles(const QString &firstTitle, const QString &secondTitle);
     void setMessage(int index, const QString &message);
     void setDecodedImage(int index, const core::DecodedImage &decoded);
+    void setAlignmentPreset(ComparisonAlignmentPreset preset);
+    void setSharedSourceScale(double scale);
     void clearImages();
     void resetView();
     [[nodiscard]] QSize targetImageSize() const;
+    [[nodiscard]] double sourceLogicalScale(int index) const;
 
 signals:
     void toggleFullscreenRequested();
@@ -120,6 +139,8 @@ private:
     QString m_titles[2];
     QString m_messages[2];
     core::DecodedImage m_decoded[2];
+    ComparisonAlignmentPreset m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
+    double m_sharedSourceScale = 0.0;
     double m_zoomFactor = 1.0;
     QPointF m_panOffset;
     QPoint m_lastMousePosition;
@@ -142,11 +163,13 @@ public:
     void clearSession();
     int appendItems(QVector<ComparisonSessionItem> items);
     bool setMode(ComparisonMode mode);
+    void setAlignmentPreset(ComparisonAlignmentPreset preset);
     void setFullscreenPresentation(bool fullscreen);
     [[nodiscard]] bool hasSession() const;
     [[nodiscard]] int itemCount() const;
     [[nodiscard]] bool hasItem(const QString &identityKey) const;
     [[nodiscard]] ComparisonMode mode() const;
+    [[nodiscard]] ComparisonAlignmentPreset alignmentPreset() const;
     [[nodiscard]] bool canAppendItems(int uniqueItemCount) const;
     [[nodiscard]] static bool supportsItemCount(ComparisonMode mode, int count);
 
@@ -187,13 +210,17 @@ private:
     void evictCacheIfNeeded();
     void reorderTile(int sourceIndex, QPoint globalPosition);
     void refreshTileIndexes();
+    void refreshAlignmentState();
+    [[nodiscard]] QSize adjustedDecodeTargetSize(int index, const QSize &baseTargetSize) const;
 
     QVector<ComparisonSessionItem> m_items;
     ComparisonRenderSettings m_settings;
     ComparisonMode m_mode = ComparisonMode::Row;
+    ComparisonAlignmentPreset m_alignmentPreset = ComparisonAlignmentPreset::FitCenter;
     QWidget *m_headerWidget = nullptr;
     QLabel *m_headerLabel = nullptr;
     QComboBox *m_modeComboBox = nullptr;
+    QComboBox *m_alignmentComboBox = nullptr;
     QVBoxLayout *m_mainLayout = nullptr;
     QScrollArea *m_scrollArea = nullptr;
     QWidget *m_contentWidget = nullptr;
@@ -206,6 +233,7 @@ private:
     QThreadPool m_threadPool;
     QHash<QFutureWatcher<DecodeResult> *, int> m_decodeWatchers;
     QHash<QString, CacheItem> m_cache;
+    QHash<QString, QSize> m_knownSourceSizes;
     qint64 m_cacheBytes = 0;
     quint64 m_cacheClock = 0;
     quint64 m_generation = 0;

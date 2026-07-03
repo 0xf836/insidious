@@ -10,6 +10,7 @@ class ComparisonViewWidgetTests : public QObject {
 private slots:
     void supportsRowCounts();
     void supportsHoverSwitchCounts();
+    void exposesAlignmentPresetState();
 };
 
 void ComparisonViewWidgetTests::supportsRowCounts()
@@ -25,6 +26,15 @@ void ComparisonViewWidgetTests::supportsHoverSwitchCounts()
     QVERIFY(!ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::HoverSwitch, 1));
     QVERIFY(ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::HoverSwitch, 2));
     QVERIFY(!ui::ComparisonViewWidget::supportsItemCount(ui::ComparisonMode::HoverSwitch, 3));
+}
+
+void ComparisonViewWidgetTests::exposesAlignmentPresetState()
+{
+    ui::ComparisonViewWidget widget;
+
+    QCOMPARE(widget.alignmentPreset(), ui::ComparisonAlignmentPreset::FitCenter);
+    widget.setAlignmentPreset(ui::ComparisonAlignmentPreset::BottomCenter);
+    QCOMPARE(widget.alignmentPreset(), ui::ComparisonAlignmentPreset::BottomCenter);
 }
 
 QTEST_MAIN(ComparisonViewWidgetTests)

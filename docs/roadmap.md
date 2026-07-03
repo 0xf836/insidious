@@ -18,7 +18,7 @@ Roadmap — живой backlog реализации, а не обещание р
 - Large tree UI scaling: indexed `CollectionTreeModel`, targeted lazy-load row insertions, and cached source-tree preorder traversal for adjacent-folder navigation.
 - Архивы: ZIP/7z/RAR через libarchive, password prompt, без распаковки на диск, пароль только в памяти.
 - Source completeness: несколько выбранных изображений как временная коллекция, homogeneous multi-file/multi-folder/multi-archive drag'n'drop и Open File через synthetic source roots.
-- Basic image comparison: multi-select в `List`/`Thumbnails`, контекстное меню `Compare` с append/open/replace flow, cross-folder compare внутри текущего source, вкладка `Compare`, clean compare fullscreen, Row mode для 1-8 изображений с per-tile zoom/pan и reorder drag, two-image Hover Switch mode с shared zoom/pan, async memory-only decode/cache.
+- Basic image comparison: multi-select в `List`/`Thumbnails`, контекстное меню `Compare` с append/open/replace flow, cross-folder compare внутри текущего source, вкладка `Compare`, clean compare fullscreen, Row mode для 1-8 изображений с per-tile zoom/pan и reorder drag, two-image Hover Switch mode с shared zoom/pan, runtime-only alignment presets, async memory-only decode/cache.
 - `Info` panel с компактной информацией об entry, color profile status и полезными EXIF-полями из libvips metadata.
 - Quick Jump по имени файла в активной папке, включая fullscreen in-window overlay.
 - True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.
@@ -51,8 +51,7 @@ Roadmap — живой backlog реализации, а не обещание р
   - display-profile / monitor-profile matching.
 - Advanced image comparison:
   - grid layout;
-  - carousel/temporary collection mode;
-  - alignment presets by top-left, center, same viewport, and same image size where applicable.
+  - carousel/temporary collection mode.
 - Advanced formats:
   - AVIF;
   - JPEG XL;

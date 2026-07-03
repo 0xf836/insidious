@@ -33,7 +33,7 @@
 - если zoom-запрос слишком большой для render budget, оставлять предыдущий raster, zoom и pan на месте и показывать компактный overlay `Too large to render`.
 - пока новый raster еще рендерится, не наслаивать дополнительные zoom/view-transform команды; навигация между изображениями при этом остается доступной.
 
-Вкладка `Compare` используется для временных compare-сессий. В текущем срезе она поддерживает режимы `In Row` и `Hover Switch`. В Row выбранные изображения располагаются горизонтально, равномерно делят доступную ширину панели, подгоняются в размер своих tiles, получают небольшие отступы и отдельные tile-заголовки. В Hover Switch используется ровно два изображения: без наведения на видимую область base image показывается первое, при наведении на неё — второе; оба изображения подгоняются под один viewport и используют общий zoom/pan. Compare layout не должен расширять центральную вкладку шире окна из-за исходных размеров изображений. В normal mode вкладка видна рядом с `Viewer`; `F11` или ЛКМ double click по compare layout переводит активную compare-сессию в чистый fullscreen без application chrome и edge overlays.
+Вкладка `Compare` используется для временных compare-сессий. В текущем срезе она поддерживает режимы `In Row` и `Hover Switch`. В Row выбранные изображения располагаются горизонтально, равномерно делят доступную ширину панели, подгоняются в размер своих tiles, получают небольшие отступы и отдельные tile-заголовки. В Hover Switch используется ровно два изображения: без наведения на видимую область base image показывается первое, при наведении на неё — второе; оба изображения подгоняются под один viewport и используют общий zoom/pan. Alignment selector во вкладке `Compare` является runtime-only и поддерживает Fit Center, Top Left, Top Center, Center Left, Bottom Left, Bottom Center, Same Source Scale и Cover Center; смена preset сбрасывает текущий compare zoom/pan. Compare layout не должен расширять центральную вкладку шире окна из-за исходных размеров изображений. В normal mode вкладка видна рядом с `Viewer`; `F11` или ЛКМ double click по compare layout переводит активную compare-сессию в чистый fullscreen без application chrome и edge overlays.
 
 Изображения для сравнения выбираются в `Files -> List` или `Files -> Thumbnails` через `Ctrl`/`Shift` multi-select. ПКМ открывает меню `Compare` с командами `Add to Compare`, `Open Compare`, `In Row` и `Hover Switch`. `Add to Compare` добавляет 1+ выбранное изображение в текущую memory-only compare-сессию и не переключает вкладку, чтобы можно было перейти в другую папку и добавить еще изображения. Append работает для всех режимов, но блокируется, если текущий режим не поддерживает итоговое количество элементов; для Hover Switch допустимо ровно 2 изображения. `Open Compare` показывает накопленную сессию. `In Row` заменяет текущую сессию выделением из 2-8 изображений и сразу открывает Compare. `Hover Switch` заменяет текущую сессию выделением из ровно 2 изображений и сразу открывает Compare. Порядок сравнения следует порядку добавления; внутри текущей папки порядок добавления следует multi-select, а для range selection дополняется порядком строк. Обычный click без modifiers продолжает переключать текущее изображение во вкладке `Viewer`.
 
@@ -46,11 +46,12 @@ Compare rendering:
 - compare session отделена от режима отображения: Row допускает 1-8 элементов, Hover Switch допускает ровно 2 элемента;
 - в Row каждый tile имеет независимый zoom через wheel и pan через ЛКМ-drag при увеличении;
 - в Hover Switch оба изображения декодируются под один viewport, переключаются по попаданию курсора в видимую область base image и используют общий zoom/pan;
-- при переходе в fullscreen и обратно сохраняются режим, порядок, zoom и pan;
+- alignment presets применяются к Row tiles и Hover Switch viewport, не сохраняются в settings и сбрасываются при новой compare-сессии;
+- при переходе в fullscreen и обратно сохраняются режим, alignment, порядок, zoom и pan;
 - в Row изображения можно менять местами drag'n'drop между tiles;
 - single-image toolbar actions во вкладке `Compare` отключены, чтобы случайно не менять скрытый viewer state; fullscreen action остаётся доступным при активной compare-сессии.
 
-Следующие режимы сравнения остаются будущими итерациями: grid, carousel/temporary collection, alignment presets by top-left/center/same viewport/same image size.
+Следующие режимы сравнения остаются будущими итерациями: grid и carousel/temporary collection.
 
 ## Верхняя панель
 
