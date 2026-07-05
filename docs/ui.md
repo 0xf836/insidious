@@ -67,7 +67,7 @@ Compare rendering:
 
 Normal toolbar использует короткие labels и прижимает app menu button к правому краю. Fullscreen top overlay использует еще более компактные labels/glyphs; его app menu button остаётся внутри основного блока кнопок, чтобы не перекрываться правой edge panel, и сама панель всегда остаётся тёмной полупрозрачной с читаемым светлым текстом.
 
-Главное меню (`File`, `Edit`, `View`, `Navigate`) в normal mode скрыто по умолчанию. Нажатие `Alt` временно показывает меню и переводит туда фокус; после выбора menu action, закрытия popup-меню или ухода фокуса меню снова скрывается. В normal и fullscreen toolbar также есть компактная menu button с частыми app-level командами: open file/folder, fullscreen, EXIF orientation, sorting, Preferences и Quit. В fullscreen normal menu bar не показывается, вместо него используются edge overlay panels.
+Главное меню (`File`, `Edit`, `View`, `Navigate`) в normal mode скрыто по умолчанию. Нажатие `Alt` временно показывает меню и переводит туда фокус; после выбора menu action, закрытия popup-меню или ухода фокуса меню снова скрывается. `View -> Toolbar` возвращает обычную верхнюю панель, если она была скрыта через сохранённое состояние окна или window-manager edge case. В normal и fullscreen toolbar также есть компактная menu button с частыми app-level командами: open file/folder, fullscreen, EXIF orientation, sorting, Preferences и Quit. В fullscreen normal menu bar не показывается, вместо него используются edge overlay panels.
 
 ## Нижняя статусная строка
 

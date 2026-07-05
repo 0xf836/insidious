@@ -811,7 +811,16 @@ bool MainWindow::event(QEvent *event)
     if (event->type() == QEvent::DevicePixelRatioChange) {
         handleDevicePixelRatioChanged();
     }
-    return QMainWindow::event(event);
+
+    const bool handled = QMainWindow::event(event);
+    if (event->type() == QEvent::WindowStateChange && m_fullscreenUiActive && !isFullScreen()) {
+        QTimer::singleShot(0, this, [this]() {
+            if (m_fullscreenUiActive && !isFullScreen()) {
+                exitFullscreenMode();
+            }
+        });
+    }
+    return handled;
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)
@@ -1659,6 +1668,10 @@ void MainWindow::setupActions()
     m_appMenuButton = addAppMenuButton(m_mainToolBar, false);
 
     viewMenu->addSeparator();
+    QAction *toolbarAction = m_mainToolBar->toggleViewAction();
+    toolbarAction->setText(tr("Toolbar"));
+    viewMenu->addAction(toolbarAction);
+
     QAction *fileListAction = m_fileListDock->toggleViewAction();
     fileListAction->setText(tr("Files"));
     viewMenu->addAction(fileListAction);
@@ -2464,11 +2477,12 @@ void MainWindow::captureLayoutSettings()
         return;
     }
 
-    if (!isFullScreen()) {
+    const bool normalUiCaptureAllowed = !m_fullscreenUiActive && !isFullScreen();
+    if (normalUiCaptureAllowed) {
         m_settings.interface.mainWindowGeometry = saveGeometry();
         m_settings.interface.mainWindowState = saveState();
     }
-    if (!isFullScreen() && m_filePanelSplitter != nullptr) {
+    if (normalUiCaptureAllowed && m_filePanelSplitter != nullptr) {
         m_settings.interface.fileSplitterState = m_filePanelSplitter->saveState();
     }
     if (m_fullscreenFilePanelSplitter != nullptr) {
