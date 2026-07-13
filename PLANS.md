@@ -8,7 +8,7 @@ Use `/plan` before tasks that affect architecture, data flow, performance, threa
 
 Examples:
 
-- initial project skeleton
+- project skeleton or build-system redesign
 - image loading pipeline
 - collection/source abstraction
 - archive support

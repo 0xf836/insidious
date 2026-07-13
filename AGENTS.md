@@ -7,13 +7,14 @@ This is a native Linux GUI image viewer. The application should quickly open and
 ## Language policy
 
 - Source code, identifiers, internal comments, commit messages, and developer-facing implementation notes should be in English.
-- Product requirements in `docs/` may be in Russian.
+- README files, product requirements, architecture documents, and all other project documentation should be in English.
 - User-visible UI strings should be prepared for localization; do not hardcode Russian UI strings deep inside core logic.
 
 ## Working rules
 
 - Do not implement large features in one step.
 - Before coding, read the relevant files in `docs/` and the current implementation.
+- Use `docs/README.md` to identify the canonical document for product behavior, architecture, implementation, decisions, risks, and future work.
 - Prefer small, reviewable diffs.
 - Do not rewrite unrelated code.
 - Do not introduce new dependencies without explaining why they are needed.
@@ -28,10 +29,10 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 ## Current implementation quick map
 
-The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.3+, and libarchive.
+The current implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.3+, and libarchive.
 
-- `CMakeLists.txt` defines the build, `insidious_core`, the `insidious` GUI executable, and `insidious_core_tests`.
-- `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
+- `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, and the Qt Test targets.
+- `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
 - `src/ui/main_window.*` coordinates UI commands, single/multi-path open and drag'n'drop classification, async source scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
 - `src/ui/settings_dialog.*` is a UI-only Preferences dialog. Keep validation, persistence schema, and defaults in `src/core/app_settings.*`.
@@ -44,7 +45,7 @@ The current MVP implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
 - `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive/multi-source scanning, viewer state, settings schema, decode request/result types, render-memory budget estimation, memory cache, libarchive full-entry/stream reading, and libvips decoding.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` are developer-only total peak memory audit tooling. They generate temporary synthetic fixtures and must not introduce persistent app data or user-facing settings.
-- `tests/core_tests.cpp` covers core behavior with Qt Test. Add tests here for non-trivial core changes.
+- `tests/` contains core and UI-focused Qt Test targets. Update the most relevant target for non-trivial behavior.
 - `docs/implementation.md` is the longer orientation document for current code structure and data flow.
 
 ## Build and test
@@ -57,7 +58,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for the core test executable.
+For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets the required environment for the test executables.
 
 ## Architectural principles
 
@@ -86,35 +87,35 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets this for 
 - Settings are allowed, but they must not include recently opened paths or viewed items unless explicitly requested later.
 - Settings must not include archive paths, default image paths, passwords, thumbnails, decoded image data, comparison sessions, selected comparison paths, or log destinations unless explicitly requested later and documented as a privacy change.
 
-## MVP boundaries
+## Product boundaries
 
-Current implementation should stay focused on a stable viewer pipeline for regular filesystem images, folders, archives, navigation, fullscreen, metadata, configurable scaling quality, configurable embedded color profile conversion, configurable core viewer shortcuts, lazy memory-only thumbnail panel, basic memory-only image comparison with Row/Grid/Carousel, two-image Hover Switch, and runtime-only alignment presets, and privacy-safe settings. RAW support, advanced metadata, advanced shortcut features, password persistence, display-profile matching, advanced thumbnail controls, and advanced comparison modes are later milestones unless explicitly requested.
+The product is a focused image viewer for regular filesystem images, folders, archives, navigation, fullscreen, metadata, configurable rendering, configurable core viewer shortcuts, lazy memory-only thumbnails, memory-only comparison, and privacy-safe settings. It is not an editor, persistent catalogue, general archive manager, or RAW development pipeline.
 
-Current MVP supports regular filesystem images, temporary selected-file collections, filesystem folder trees with lazy per-folder loading, ZIP/7z/RAR archive trees through libarchive without disk extraction, homogeneous multi-image/multi-folder/multi-archive open and drag'n'drop, lazy memory-only thumbnails for the active folder, basic memory-only comparison across folders in the current source with Row/Grid/Carousel modes for 1-8 images, compare-session item removal in Row/Grid/Carousel, two-image Hover Switch mode, runtime-only alignment presets, drag'n'drop of selected normal file/thumbnail items onto the visible Compare tab, and clean compare fullscreen, and a basic Preferences dialog. Password-protected archives prompt on open and keep passwords only in memory for the current source; multi-archive open asks once and applies that password to the selected archives, failing the open if any later archive rejects it. The enabled image extension filter is JPEG, PNG, WebP, BMP, and DIB. GIF, TIFF, AVIF, JPEG XL, RAW, password persistence, persistent thumbnail caches, persistent comparison sessions, advanced comparison modes beyond Row/Grid/Carousel/Hover Switch/alignment presets, advanced thumbnail controls, advanced metadata backends, advanced shortcut features, configurable/fuzzy quick jump, and recent-file history are intentionally out of scope.
+The supported image allowlist is JPEG, PNG, WebP, BMP, and DIB. The supported archive allowlist is ZIP, 7z, and RAR. GIF, TIFF, AVIF, JPEG XL, RAW, archive password persistence, persistent image or comparison state, display-profile matching, advanced metadata backends, and broad shortcut profiles remain outside the current product unless explicitly requested and documented.
 
-Use `docs/roadmap.md` as the living backlog. Keep completed work, next stabilization tasks, mid-term features, later milestones, and explicit non-goals sorted there when product direction changes.
+Use `docs/requirements.md` for current behavior and `docs/roadmap.md` for future direction. Completed work belongs in the current documentation or `docs/project-evolution.md`, not in a growing completed backlog.
 
-Current MVP mouse behavior:
+Current mouse behavior:
 
 - Wheel navigates previous/next image by default; wheel, `Ctrl+wheel`, and `Shift+wheel` actions are configurable as navigate, zoom, or no action.
 - `Ctrl+wheel` zooms in/out relative to the current displayed scale by default, including the current fit scale, anchored at the cursor position.
 - `Shift+wheel` has no action by default and is reserved for explicit user configuration.
-- Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. At an active-folder boundary, they continue to the next/previous suitable source-tree folder before treating the source as exhausted. The basic settings UI can switch image navigation to preserve the current view instead.
+- Next/previous actions reset zoom and pan to the current base mode (`fit to window` or `actual size`) by default, then reload the current entry. At an active-folder boundary, they continue to the next/previous suitable source-tree folder before treating the source as exhausted. Preferences can switch image navigation to preserve the current view instead.
 - Explicit previous/next folder actions jump to the previous/next suitable source-tree folder when one exists and select the first image in that folder after the current runtime sort is applied. They use the same adjacent-folder discovery as image navigation at folder boundaries and default to `MouseBack` / `MouseForward`.
 - Left button zoom behavior is configurable. The default `ToggleOnClick` mode uses simple left click to enter temporary zoom relative to the current displayed scale, centered on the clicked image point; the next click after click/rectangle zoom restores fit or actual size. `HoldToZoomPan` starts temporary zoom immediately on left press, left-drag pans the zoomed raster, and release restores the exact previous view.
 - In left-button zoom modes, show the idle magnifier cursor only while zoom/restore or hold-to-zoom is available: a decoded image is visible, no render is pending, and hold zoom is not active.
 - Toolbar, shortcut, and wheel zoom use the same configurable zoom step. The default is 25%. Toolbar and shortcut zoom anchor at the viewport center.
 - `Actual size / 100%` uses physical-pixel 1:1 semantics on HiDPI screens: one source image pixel maps to one physical screen pixel, while mouse input, pan offsets, overlays, and widget geometry remain in Qt logical pixels.
 - Scaling/filter quality is configurable in Preferences as a preset over libvips resize kernels. The default is `High quality (Lanczos3)`, so the project requires libvips/vips-cpp 8.18.3 or newer.
-- Embedded ICC color management is configurable in Preferences and enabled by default. The decoder targets sRGB through libvips/lcms2 when available, assumes sRGB for unprofiled images, and falls back without failing the current entry when ICC support or a specific profile fails. Display-profile/monitor-profile matching is out of scope for the current MVP.
+- Embedded ICC color management is configurable in Preferences and enabled by default. The decoder targets sRGB through libvips/lcms2 when available, assumes sRGB for unprofiled images, and falls back without failing the current entry when ICC support or a specific profile fails. Display-profile/monitor-profile matching is outside the current product.
 - Rotate left/right is a view-only transform exposed through `View`, the normal toolbar, the fullscreen top overlay, and configurable shortcuts. It applies after EXIF autorotate, participates in the decode cache key, does not change copied original image bytes, and resets when the current image changes.
-- Core viewer shortcuts are configurable in Preferences through stable command ids stored in `AppSettings`. The first supported set covers open file/folder, navigation, quick jump, copy original image bytes, Preferences, zoom/fit/actual size, rotate, EXIF orientation, and fullscreen. Commands may have keyboard shortcuts and mouse button shortcuts at the same time. Empty shortcuts are allowed, duplicate non-empty shortcuts must be rejected before save, and `Quit` plus dock toggles remain static for now.
+- Core viewer shortcuts are configurable in Preferences through stable command ids stored in `AppSettings`. The current set covers open file/folder, navigation, quick jump, copy original image bytes, Preferences, zoom/fit/actual size, rotate, EXIF orientation, and fullscreen. Commands may have keyboard shortcuts and mouse button shortcuts at the same time. Empty shortcuts are allowed, duplicate non-empty shortcuts must be rejected before save, and `Quit` plus dock toggles remain static for now.
 - Normal mode supports a persistent light/dark theme setting. Fullscreen chrome remains dark-only.
 - In default left-button mode, hold left mouse button and drag pans the image only outside base `fit to window`. Hold middle mouse button or `Ctrl+left mouse button` pans any non-fit view whose displayed image is larger than the viewport, including `actual size`.
 - Hold right mouse button and drag a rectangle to zoom to that selected area.
 - Double click toggles fullscreen and must not also trigger temporary click zoom.
 
-Current MVP fullscreen behavior:
+Current fullscreen behavior:
 
 - In normal mode, the main menu bar is hidden by default and appears transiently for Alt-driven menu navigation; the normal toolbar also has a right-aligned compact app menu button, and the fullscreen toolbar keeps the same button inside its main command cluster so the right edge overlay does not cover it. Toolbars, shortcuts, and menu actions must continue to share the same `QAction` objects where practical.
 - Fullscreen hides the normal menu bar, toolbar, statusbar, `Files` dock, and `Info` dock by default, leaving only the image area visible.
@@ -151,7 +152,7 @@ Current MVP fullscreen behavior:
 - Filesystem folder nodes should be loaded lazily on selection/expansion. Do not reintroduce full recursive filesystem scans for normal folder opening.
 - Archive folder trees are built from async header enumeration; do not extract archives to disk or read image data before decode.
 - The left file list should mirror the active folder collection only. Do not put source scanning, archive access, decoding, thumbnails, comparison decoding, or persistence there. The separate thumbnail tab may request thumbnail decode work only while visibly active; comparison work belongs to the comparison widget and only after explicit context-menu launch.
-- The right info panel should display existing entry/decode data only, including decoder-provided color profile status. EXIF currently comes from libvips metadata collected during decode; do not add separate metadata backends or persistent panel state until those milestones are explicitly planned.
+- The right info panel should display existing entry/decode data only, including decoder-provided color profile status. EXIF currently comes from libvips metadata collected during decode; do not add separate metadata backends or persistent panel state unless explicitly planned.
 - If adding dependencies, update `README.md`, `docs/decisions.md`, and this file with why they are needed.
 
 ## Definition of done

@@ -1,6 +1,6 @@
 # Current implementation map
 
-This document describes the current codebase shape for future coding agents. Product requirements remain in the other `docs/` files; this file is about the implementation that exists now.
+This document maps the current codebase for maintainers and coding agents. Stable design rules live in [architecture](architecture.md), observable behavior lives in [requirements](requirements.md), and this file records the implementation that exists now.
 
 ## Stack
 
@@ -17,11 +17,18 @@ The build creates:
 
 - `insidious_core`: static library for core image/viewer logic.
 - `insidious`: GUI executable.
-- `insidious_core_tests`: Qt Test executable for core behavior.
+- `insidious_memory_audit`: developer-only peak-memory scenario runner.
+- `insidious_core_tests`: core behavior tests.
+- `insidious_ui_tests`: status-line formatter tests.
+- `insidious_comparison_view_widget_tests`: comparison behavior tests.
+- `insidious_thumbnail_list_model_tests`: thumbnail model tests.
+- `insidious_settings_dialog_tests`: Preferences dialog tests.
+- `insidious_image_view_widget_tests`: image interaction tests, also run as a separate HiDPI CTest case.
+- `insidious_collection_tree_model_tests`: source-tree model tests.
 
 ## Directory structure
 
-- `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional libvips modules outside the MVP format set, sets libvips cache limits, creates `QApplication`, parses an optional image/folder path, and opens `MainWindow`.
+- `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, sets libvips cache limits, creates `QApplication`, parses an optional image/folder/archive path, and opens `MainWindow`.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, single/multi-path open and drag'n'drop classification, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
 - The normal main menu is built from the same `QAction` objects as toolbars but is hidden by default; a plain `Alt` key press shows it transiently for keyboard menu navigation, and it hides again after action trigger, popup close, or focus loss. The normal toolbar exposes a right-aligned compact app menu button, while the fullscreen toolbar keeps the same button inside the main button cluster so the right edge overlay does not cover it.
 - `src/ui/settings_dialog.*` implements the Preferences dialog. It edits an `AppSettings` value and leaves persistence/schema/defaults to core.
@@ -34,9 +41,9 @@ The build creates:
 - `src/ui/status_line_formatter.*` formats the compact statusbar/fullscreen bottom text and the separate pinned fullscreen info line from current entry, decode metadata, zoom state, and collection index. The status line renders each field as a muted label plus value with vertical separators, keeps file and EXIF dates distinguishable as `modified:` and `taken:`, normalizes dates to `YYYY.M.D HH:MM:SS`, and shows zoom as a percentage. The pinned fullscreen line uses the separate `name (resolution | filesize) [index/count] zoom` field set.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys, including filesystem and archive-backed entries.
 - `src/core/image_entry_validation.*` validates that a filesystem image or owning archive is still loadable before decode.
-- `src/core/image_formats.*` contains the MVP image extension allowlist: JPEG, PNG, WebP, BMP, DIB, plus archive extension detection for ZIP, 7z, and RAR.
+- `src/core/image_formats.*` contains the explicit image extension allowlist: JPEG, PNG, WebP, BMP, DIB, plus archive extension detection for ZIP, 7z, and RAR.
 - `src/core/natural_sort.*` contains case-folded natural ordering for folder entries.
-- `src/core/folder_collection_source.*` supports the older flat non-recursive folder scan and the current source-tree flow: root folder scan plus lazy per-folder loading. `CollectionFolderNode` also carries optional filesystem lazy-load metadata and a flag for temporary file-list sources that initially preserve input order.
+- `src/core/folder_collection_source.*` provides a flat non-recursive scan helper and the source-tree flow: root folder scan plus lazy per-folder loading. `CollectionFolderNode` also carries optional filesystem lazy-load metadata and a flag for temporary file-list sources that initially preserve input order.
 - `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and still provides bounded full-entry reads for features that require original bytes.
 - `src/core/multi_collection_source.*` builds synthetic source trees for homogeneous multi-image, multi-folder, and multi-archive open/drop operations. It preserves top-level input order, namespaces folder paths to avoid collisions, keeps multi-folder lazy loading, and reuses archive scans without disk extraction.
 - `src/core/archive_entry_stream.*` opens one archive member as a sequential in-memory stream for display decode without extracting it to disk or buffering the full member first.
@@ -231,7 +238,7 @@ Mouse input:
 
 ## Privacy boundaries
 
-The MVP intentionally avoids:
+The application intentionally avoids:
 
 - Recent file lists.
 - Persistent thumbnail caches.
@@ -245,7 +252,7 @@ The app uses `QSettings` only for non-history preferences. Layout persistence st
 
 File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit desktop recent-file integration until there is an explicit decision to change this.
 
-## Out of scope for current MVP
+## Current product boundaries
 
 - Archive password persistence.
 - Recursive "include all descendants" folder collections.
@@ -258,11 +265,14 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - Advanced shortcut features such as editing every QAction, profiles/import-export, and configurable shortcut scopes.
 - Advanced settings for display-profile matching, statusbar content, quick jump behavior, and thumbnail generation.
 
+These boundaries are product decisions rather than a list of incomplete implementation tasks. See [product principles](product.md) for non-goals and the [roadmap](roadmap.md) for work that is actually being considered.
+
 ## Change guidance
 
 - Put widget-specific code in `src/ui`, not `src/core`.
 - Keep source scanning, sorting, cache, and decode behavior testable without constructing UI widgets.
-- Add or update `tests/core_tests.cpp` for non-trivial core behavior.
-- Update `docs/decisions.md` when changing stack, privacy behavior, cache policy, source abstraction, or MVP boundaries.
-- Update `docs/roadmap.md` when completing a backlog item, reprioritizing work, or adding/removing a milestone.
+- Add or update the relevant core or UI-focused Qt Test target for non-trivial behavior.
+- Update `decisions.md` when changing stack, privacy behavior, cache policy, source abstraction, or product boundaries.
+- Update `requirements.md` and `user-guide.md` when observable behavior changes.
+- Update `roadmap.md` when reprioritizing work or adding or removing a direction. Completed behavior belongs in current documentation or `project-evolution.md`, not in a growing completed backlog.
 - Run `cmake --build build` and `ctest --test-dir build --output-on-failure` after code changes when dependencies are available.

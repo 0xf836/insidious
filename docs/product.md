@@ -1,44 +1,51 @@
-# Product overview
+# Product Principles
 
-## Назначение
+## Purpose
 
-Программа предназначена для просмотра изображений через графический интерфейс на Linux.
+Insidious is a native Linux application for quickly viewing images from files, folders, selected file sets, and archives.
 
-Основная задача: быстро открыть одно изображение, несколько изображений, папку с изображениями или архив с изображениями и удобно перемещаться между ними.
+It should feel lightweight, immediate, and predictable. It is an image viewer rather than an editor, media catalogue, or file-history system.
 
-Программа должна ощущаться как лёгкий, быстрый и понятный viewer, а не как тяжёлый каталогизатор или редактор изображений.
+## Primary workflows
 
-## Ключевые сценарии
+### Open one image
 
-### Открытие одного файла
+Opening an image also uses its parent folder as browsing context, allowing immediate navigation to neighboring supported images.
 
-Пользователь открывает один файл изображения. Программа показывает это изображение и воспринимает родительскую папку как контекст просмотра, чтобы пользователь мог перейти к соседним изображениям.
+### Browse a folder tree
 
-### Открытие папки
+Opening a folder presents its direct images and a lazily loaded source tree. Selecting a folder makes its direct images the active viewer collection; image navigation can cross into adjacent suitable folders at collection boundaries.
 
-Пользователь открывает папку. Программа находит изображения, сортирует их в естественном порядке и показывает первое изображение или выбранное изображение.
+### Open a temporary selection
 
-### Открытие нескольких файлов
+Multiple selected images form a flat, process-local collection. Multiple folders or multiple archives form a synthetic source tree in input order. Mixed source types are rejected as one operation rather than partially opened.
 
-Пользователь выбирает несколько файлов изображений. Программа открывает их как временную коллекцию и позволяет перемещаться только внутри этой коллекции. Multi-open и drag'n'drop также принимают несколько папок или несколько архивов как однородные наборы; смешанные наборы источников отклоняются с ошибкой.
+### Browse an archive
 
-### Открытие архива
+ZIP, 7z, and RAR archives behave like virtual folder trees. Image data is read without persistent extraction. Archive passwords are requested when required and remain only in memory for the active source.
 
-Пользователь открывает архив с изображениями. Программа показывает изображения внутри архива как коллекцию. Неизображения игнорируются.
+### Compare images
 
-### Drag'n'drop
+Selected images can be collected into a temporary comparison session across folders in the current source. Comparison state and decoded comparison rasters remain memory-only.
 
-Пользователь перетаскивает файл, несколько файлов, папку, несколько папок, архив или несколько архивов в окно программы. Программа открывает соответствующий источник предсказуемым образом и не делает частичного открытия для смешанных multi-source наборов.
+## Product values
 
-## Главные качества продукта
+- **Speed:** opening sources, navigation, and ordinary interaction should feel immediate.
+- **Predictability:** navigation and failure behavior should not silently change the collection or skip content.
+- **Rendering quality:** scaling, HiDPI semantics, orientation, alpha handling, and color conversion should be explicit and testable.
+- **Responsiveness:** scanning, archive access, image decoding, metadata extraction, thumbnail generation, and comparison decoding must not block the UI thread.
+- **Memory discipline:** display-sized and region-sized rendering, bounded caches, and guarded prefetch are preferred over loading entire collections.
+- **Privacy:** normal viewing must not create history, persistent image caches, extracted archive contents, saved passwords, or file logs.
 
-- Быстрое открытие изображений.
-- Удобная навигация клавиатурой и мышью.
-- Высокое качество отображения.
-- Отзывчивый GUI без подвисаний.
-- Аккуратная работа с большими папками, большими файлами и архивами.
-- Отсутствие следов просмотра: без истории, логов, persistent thumbnail cache и распаковки архивов на диск.
+## Deliberate non-goals
 
-## Нефокус проекта
+Insidious is not currently intended to be:
 
-На первом этапе это не редактор изображений, не DAM-каталог, не менеджер коллекций и не программа для пакетной обработки.
+- an image editor or batch processor;
+- a digital asset management system or persistent collection catalogue;
+- a file organizer with ratings, tags, or recent-item history;
+- an animated-image player;
+- a RAW development pipeline;
+- a general-purpose archive manager.
+
+Potential formats and advanced features are evaluated as separate product decisions rather than being enabled simply because a dependency can decode them.

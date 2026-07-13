@@ -1,72 +1,62 @@
 # Roadmap
 
-Roadmap — живой backlog реализации, а не обещание релиза. Держим его отсортированным по текущей продуктовой ценности и зависимостям. Если фича переезжает между разделами, нужно обновить `README.md`, `AGENTS.md`, `docs/mvp.md` и `docs/implementation.md`, если они описывают затронутое текущее состояние.
+This roadmap is a living statement of direction, not a release schedule or compatibility promise. Current capabilities are documented in the [README](../README.md), [user guide](user-guide.md), and [project evolution](project-evolution.md).
 
-## Готово / MVP foundation
+## Next
 
-- Документация проекта, build skeleton, C++20 / Qt6 Widgets приложение.
-- Базовый viewer: открыть изображение, открыть папку, использовать родительскую папку как контекст при открытии одного файла.
-- Viewer controls: `fit to window`, `actual size`, zoom in/out, pan, view-only rotate left/right, fullscreen.
-- Input model: wheel navigation, настраиваемые wheel actions, Ctrl+wheel zoom around cursor, toolbar/shortcut zoom around viewport center, left-click temporary zoom/restore, left-button pan, right-button rectangle zoom, double-click fullscreen.
-- Настраиваемые режимы ЛКМ zoom: click-to-zoom/restore по умолчанию и hold-to-zoom-pan с возвратом на release.
-- Magnifier cursor для режимов ЛКМ zoom показывается только когда zoom/restore или hold-to-zoom доступен.
-- Async decode pipeline через libvips: DPR-aware display-sized fit rasters, physical-pixel 1:1 actual size on HiDPI screens, configurable scaling/filter quality presets, configurable embedded ICC conversion to sRGB, configurable region-based non-fit zoom/actual-size rendering, streaming archive display decode without full entry buffering, stale-result guards, same-entry render coalescing, immediate foreground decode on image switch, fit-sized tracked/coalesced neighbor prefetch with cache-generation guarded writes, QImage cleanup ownership for libvips output buffers, memory-only decoded image cache.
-- Zoom render budget guard: если zoom-запрос слишком большой для decode budget, viewer откатывает предыдущий raster/zoom/pan и показывает компактный overlay вместо full-screen ошибки.
-- Total peak memory audit tooling and baseline for large filesystem image, archive image, zoom render, and prefetch scenarios.
-- Обработка missing/unreadable/corrupted текущих entries без разрушения коллекции и навигации.
-- Source tree `Files`: дерево папок/архива над списком изображений активной папки, lazy filesystem folder loading, cross-folder next/previous.
-- Large tree UI scaling: indexed `CollectionTreeModel`, targeted lazy-load row insertions, and cached source-tree preorder traversal for adjacent-folder navigation.
-- Архивы: ZIP/7z/RAR через libarchive, password prompt, без распаковки на диск, пароль только в памяти.
-- Source completeness: несколько выбранных изображений как временная коллекция, homogeneous multi-file/multi-folder/multi-archive drag'n'drop и Open File через synthetic source roots.
-- Basic image comparison: multi-select в `List`/`Thumbnails`, контекстное меню `Compare` с append/open/replace flow, drag'n'drop выбранных элементов на видимую вкладку `Compare`, cross-folder compare внутри текущего source, вкладка `Compare`, clean compare fullscreen, Row/Grid modes для 1-8 изображений с per-tile zoom/pan, reorder drag и remove, Carousel mode как compare-local temporary collection для 1-8 изображений с remove текущего слайда, two-image Hover Switch mode с shared zoom/pan, runtime-only alignment presets, async memory-only decode/cache.
-- `Info` panel с компактной информацией об entry, color profile status и полезными EXIF-полями из libvips metadata.
-- Quick Jump по имени файла в активной папке, включая fullscreen in-window overlay.
-- True fullscreen chrome: по умолчанию только изображение, edge overlay panels поверх изображения.
-- Compact status/fullscreen line formatter: labelled dimensions/MP, file size, file date, EXIF date, filename, zoom, index/count.
-- Optional pinned fullscreen info line: `name (resolution | filesize) [index/count] zoom`, separate from edge overlays, with fullscreen settings for visibility, font, size, and color.
-- Clipboard: copy current original image bytes to clipboard with the source image MIME type.
-- Runtime file sorting from the toolbar: name natural order, type, size, and date; each supports ascending/descending without persistent settings.
-- Basic Preferences dialog and quick actions: viewer defaults, image-switch policy, left-button zoom behavior, EXIF autorotate, wheel actions, zoom step, scaling quality, embedded color profile conversion, click zoom multiplier, explicit previous/next folder actions, configurable core viewer keyboard/mouse shortcuts with conflict detection and restore defaults, fullscreen trigger zones, normal-mode light/dark theme, layout persistence.
-- Preferences dialog groups controls into compact sectioned pages for viewer behavior, shortcuts, fullscreen presentation, and interface settings.
-- Main menu is hidden by default in normal mode and is available through Alt-driven transient navigation plus toolbar app menu buttons in normal and fullscreen modes.
+### Quick Jump polish
 
-## Ближайшее / small stabilization
+- Make the fullscreen search surface more compact.
+- Route `Up` and `Down` to the result list while the search field has focus.
 
-- Settings polish:
-  - сохранять privacy boundary: никаких paths, history, archive passwords, thumbnails, decoded cache или logs.
-- Quick Jump fullscreen polish:
-  - сделать fullscreen search dialog компактнее;
-  - когда focus в поле поиска, Up/Down должны двигать выделение в result list.
+### Fullscreen restoration under tiling window managers
 
-## Среднесрочные features
+- Reproduce and isolate the lower-edge artifact observed after leaving fullscreen with the dark theme under i3wm.
+- Ensure fullscreen entry and exit restore the exact normal layout without stale overlay or backing-store artifacts.
 
-- Performance and memory improvements:
-  - archive random-access/performance strategy: benchmark current per-image archive decode on large ZIP/7z/RAR, reduce repeated header scans where possible, consider limiting archive prefetch until access strategy is improved;
+### Archive performance characterization
 
-## Позже / larger milestones
+- Benchmark navigation through large ZIP, 7z, and RAR sources.
+- Measure repeated header traversal and format-specific access costs.
+- Revisit speculative archive prefetch only after the access pattern is understood.
 
-- Zoom UX polish:
-  - добавить будущий отдельный режим temporary view: при удержании ЛКМ zoom следует за курсором (размеры области настраиваются), после отпускания возврат к исходному состоянию.
-- Advanced rendering:
-  - display-profile / monitor-profile matching.
-- Advanced image comparison:
-  - additional comparison modes beyond Row/Grid/Carousel/Hover Switch.
-- Advanced formats:
-  - AVIF;
-  - JPEG XL;
-  - TIFF, если libvips support надёжен в target environments;
-  - RAW как отдельный research-heavy milestone.
-- Advanced shortcut features:
-  - expand customization beyond core viewer commands to every useful `QAction`;
-  - profiles/import-export if real user demand appears;
-  - configurable shortcut scopes if global/window/widget ambiguity becomes a problem.
-- Packaging:
-  - документировать runtime dependencies по дистрибутивам;
-  - подготовить Linux packaging path после стабилизации viewer behavior.
-- Memory follow-ups after total peak audit:
-  - audit coverage: добавить memory-audit сценарии для thumbnail generation/cache до увеличения thumbnail cache или расширения preloading.
-- Fullscreen exit artifact on dark theme under tiling WMs:
-  - reproduction: открыть изображение в normal mode, убедиться что артефакта нет, войти в fullscreen, выйти из него;
-  - observed behavior: в normal mode появляется лишняя нижняя полоса/артефакт под statusbar или сразу над ним;
-  - currently known scope: reliably reproduced on dark theme with i3wm, especially when window is stretched to full screen width;
-  - expectation: fullscreen enter/exit must restore the exact pre-fullscreen normal layout without stale overlay/backing-store artifacts.
+## Later
+
+### Rendering and interaction
+
+- Research display-profile and monitor-profile matching as a separate color-management layer.
+- Consider a temporary magnifier mode that follows the cursor while the left button is held and restores the previous view on release.
+
+### Comparison
+
+- Evaluate additional comparison modes only when they solve a concrete workflow not covered by Row, Grid, Carousel, Hover Switch, and alignment presets.
+
+### Formats
+
+- Evaluate AVIF and JPEG XL against target-distribution codec availability and memory behavior.
+- Evaluate TIFF only if libvips behavior is reliable across supported environments.
+- Treat RAW as a separate research effort because it requires preview policy, color processing, and heavier dependencies.
+
+### Input customization
+
+- Extend shortcut editing beyond core viewer commands if users need it.
+- Add shortcut profiles, import/export, or scopes only after concrete demand establishes their semantics.
+
+### Distribution
+
+- Document runtime dependencies for target Linux distributions.
+- Design a packaging and desktop-integration path without weakening the recent-item privacy policy.
+
+### Memory auditing
+
+- Add thumbnail generation and cache scenarios before increasing thumbnail cache size or preload range.
+
+## Explicit non-goals
+
+- Persistent recent-file, recent-folder, or recent-archive history.
+- Persistent thumbnail or decoded-image caches by default.
+- Persistent comparison sessions or selected comparison paths.
+- Archive extraction to disk during normal viewing.
+- Archive password storage.
+- File logging during normal use.
+- Silent support for every format exposed by the system image stack.

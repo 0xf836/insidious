@@ -1,49 +1,57 @@
 # Glossary
 
-## Image viewer
+## Active folder
 
-Приложение для просмотра изображений без обязательного редактирования или каталогизации.
+The selected node in the current source tree. Its direct image entries form the active viewer collection used by image navigation, the list and thumbnail views, Quick Jump, and status indexes.
+
+## Actual size
+
+A view in which one source image pixel maps to one physical display pixel. Widget geometry and input remain in Qt logical pixels.
 
 ## Collection
 
-Текущий набор изображений, по которому пользователь перемещается. Collection может быть папкой, списком выбранных файлов или архивом.
+An ordered set of image entries with a current position and navigation operations.
 
 ## Collection source
 
-Источник коллекции. Например: папка, список файлов, архив.
+An origin that exposes images to the viewer through collection semantics. Filesystem folders, selected file lists, archives, and homogeneous multi-source selections are represented this way.
 
-## Image entry
+## Compare session
 
-Один элемент коллекции: изображение с именем, virtual path/source path и metadata.
+A temporary, process-local ordered set of images shown in one comparison mode. The session and its decoded rasters are never persisted.
+
+## Decode request
+
+The complete description of a raster needed for display, including the entry, output geometry, zoom or region, orientation, rotation, scaling quality, color-management mode, and device pixel ratio.
+
+## Display raster
+
+The decoded and transformed `QImage` used for painting. It may be display-sized or region-sized and is distinct from the original source bytes.
 
 ## Fit to window
 
-Режим, при котором изображение масштабируется так, чтобы полностью помещаться в область просмотра.
+A base view that scales the image to fit inside the viewport while preserving aspect ratio.
 
-## Actual size / 100%
+## Image entry
 
-Режим, при котором один пиксель изображения соответствует одному физическому пикселю экрана. На HiDPI экранах это меньше Qt logical size, но без дополнительного toolkit upscaling.
-
-## Pan
-
-Перетаскивание изображения внутри viewport, когда изображение больше области просмотра.
-
-## View-only rotation
-
-Поворот изображения только в отображении, без изменения исходного файла.
+One image in a collection. It carries display metadata and the source-specific identity needed to read filesystem or archive-backed content.
 
 ## Natural sort
 
-Сортировка, где `2.jpg` идёт раньше `10.jpg`.
-
-## Metadata
-
-Техническая информация об изображении: имя, формат, путь, размер файла, разрешение, дата изменения, EXIF.
-
-## EXIF
-
-Metadata, записанные камерой или приложением в файл изображения: ориентация, дата съёмки, модель камеры, параметры экспозиции и т.д.
+Filename ordering that treats digit runs numerically, so `2.jpg` sorts before `10.jpg`.
 
 ## No traces
 
-Режим проектирования, при котором программа не ведёт историю просмотра, не пишет persistent cache, не сохраняет passwords и не распаковывает архивы на диск в нормальном режиме.
+The privacy contract that forbids persistent viewing history, image caches, archive extraction, saved archive passwords, comparison sessions, and normal-use file logs. Privacy-safe application preferences are allowed.
+
+## Pan
+
+Movement of the displayed image within the viewport without changing its scale.
+
+## Source tree
+
+The folder hierarchy exposed by the current collection source. Filesystem children load lazily; archive folders are built from headers; multi-source selections use a synthetic root.
+
+## View-only transform
+
+A display operation such as rotation that changes the rendered raster without modifying the original file or copied original bytes.

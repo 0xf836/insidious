@@ -1,113 +1,151 @@
-# Architecture decisions
+# Architecture Decisions
 
-## ADR-001: Документы проекта ведутся преимущественно на русском
+Decision status is one of **Accepted**, **Historical**, or **Superseded**. Historical records explain how the current architecture emerged but no longer prescribe a staged implementation. Superseded records retain context and point to the replacement decision.
 
-Решение: продуктовые документы в `docs/` пишутся на русском, потому что владелец проекта формулирует требования на русском и будет сам их читать/править.
+## ADR-001: Product documentation was written primarily in Russian
 
-Исключение: `AGENTS.md`, `PLANS.md` и prompts для Codex пишутся на английском, чтобы инструкции для coding agent были максимально однозначными в инженерном контексте.
+**Status:** Superseded by ADR-018.
 
-## ADR-002: Архивы добавляются отдельным ограниченным этапом
+**Decision:** Early product documents used Russian because the project owner originally formulated and reviewed requirements in Russian. Agent instructions remained in English for engineering precision.
 
-Решение: базовая поддержка ZIP/7z/RAR реализуется через libarchive как отдельный этап после стабилизации viewer pipeline. Архивы показываются как collection source и не распаковывают entries на диск. Архивы с паролем запрашивают пароль при открытии и держат его только в памяти текущего source.
+**Rationale:** This reduced friction while the initial product direction was being established. A public repository and a broader contributor audience later made a single English documentation language more valuable.
 
-Причина: archive support требует отдельной архитектуры, особенно из-за no-disk-extraction, password support, ошибок, streaming и поддержки ZIP/RAR/7Z. Libarchive даёт единый backend для этих форматов; сохранение паролей и расширенная обработка encrypted archives остаются отдельным следующим шагом.
+## ADR-002: Archive support was introduced as a bounded stage
 
-## ADR-003: Источники изображений абстрагируются как collection source
+**Status:** Historical.
 
-Решение: папка, список файлов и архив должны выглядеть для viewer одинаково.
+**Decision:** ZIP, 7z, and RAR support was introduced after the core viewer pipeline, through libarchive and the collection-source abstraction, without disk extraction. Passwords were kept only in memory.
 
-Причина: это уменьшает связность UI и позволяет позже добавить архивы без переписывания viewer state.
+**Rationale:** Archive access introduced streaming, password, error, and format-specific behavior that needed isolation from ordinary file viewing. The result is now part of the regular product architecture rather than a separate development stage.
 
-## ADR-004: Cache только memory-only
+## ADR-003: Image origins use collection-source semantics
 
-Решение: кэш текущего/соседних изображений и thumbnails хранится только в памяти.
+**Status:** Accepted.
 
-Причина: persistent cache конфликтует с требованием «никаких следов».
+**Decision:** Filesystem folders, selected file lists, archives, and homogeneous multi-source selections present images to viewer state through common collection semantics. The Files panel additionally consumes a source tree whose selected folder supplies the active collection.
 
-## ADR-005: Открытие файла использует родительскую папку как контекст
+**Rationale:** This prevents source-specific branching throughout the viewer and makes navigation, errors, and future sources easier to reason about.
 
-Решение: если пользователь открывает один файл изображения, программа строит коллекцию из изображений в родительской папке и устанавливает текущим открытый файл.
+## ADR-004: Image caches are memory-only
 
-Причина: это ожидаемое поведение для удобного image viewer.
+**Status:** Accepted.
 
-## ADR-006: Поворот изображения в viewer не изменяет исходный файл
+**Decision:** Decoded viewer images, thumbnails, prefetched neighbors, and comparison rasters use bounded process-memory caches only.
 
-Решение: rotate left/right в базовом viewer является view-only операцией.
+**Rationale:** Persistent image caches conflict with the no-traces privacy contract. Memory-only state also makes source changes and process exit clear invalidation boundaries.
 
-Причина: программа является просмотрщиком, а не редактором. Изменение исходного файла потребовало бы отдельного save workflow.
+## ADR-005: Opening one image uses its parent folder as context
 
-## ADR-007: GUI и приложение реализуются на C++/Qt6
+**Status:** Accepted.
 
-Решение: первая реализация использует C++20 и Qt6 Widgets.
+**Decision:** Opening one supported filesystem image selects it immediately and asynchronously loads the parent folder as browsing context.
 
-Причина: Qt6 даёт нативное Linux GUI, готовую инфраструктуру событий, drag'n'drop, QAction/shortcuts, асинхронные задачи через QtConcurrent и тесты через Qt Test.
+**Rationale:** Neighbor navigation is expected in an image viewer, while immediate selection avoids waiting for the complete folder scan before showing the requested image.
 
-## ADR-008: Декодирование и display raster строятся через libvips
+## ADR-006: Viewer rotation does not modify source files
 
-Решение: image backend MVP использует libvips/vips-cpp.
+**Status:** Accepted.
 
-Причина: libvips хорошо подходит под требования производительности и памяти: он demand-driven, умеет streaming/parallel processing и поддерживает основные форматы MVP. Если libvips или конкретный codec недоступны в системе, приложение показывает ошибку декодирования вместо fallback на другой backend.
+**Decision:** Rotate left and right are view-only transforms. Rotation participates in decode and cache identity, resets when the current image changes, and does not affect copied original bytes.
 
-## ADR-009: MVP строит display-sized raster, когда это возможно
+**Rationale:** Source modification requires a separate save and conflict workflow and is outside the viewer’s product role.
 
-Решение: для `fit to window` и zoom приложение просит libvips подготовить raster под текущий размер отображения, а не всегда держит полный decoded image.
+## ADR-007: The native application uses C++20 and Qt 6 Widgets
 
-Причина: это снижает расход памяти на больших изображениях и лучше соответствует цели быстрого viewer. `actual size` ограничивается бюджетом decoded bytes.
+**Status:** Accepted.
 
-Обновление: non-fit zoom/actual-size rendering по умолчанию декодирует видимую область плюс запас вместо полного zoomed raster. Это можно отключить в Preferences для более плавного pan ценой памяти. Render budget применяется к фактическому output raster: region при включенной настройке или полный scaled raster при выключенной; total peak memory всё ещё зависит от libvips working memory и source/cache state.
+**Decision:** The application uses C++20, Qt 6 Widgets, QtConcurrent, and Qt Test.
 
-Обновление: scaling/filter quality настраивается как preset поверх libvips resize kernels: `Fast (linear)`, `Balanced (Mitchell)`, `High quality (Lanczos3)` и `Sharpest (MKS2021)`. Default — `High quality (Lanczos3)`. Значение хранится в privacy-safe settings, входит в `DecodeRequest` и cache key, потому что оно меняет rendered raster. Для preset `Sharpest (MKS2021)` требуется libvips/vips-cpp 8.18.3+.
+**Rationale:** Qt provides a native Linux GUI, mature actions and input handling, drag and drop, asynchronous task integration, and a suitable test framework without introducing a web runtime.
 
-Обновление: HiDPI rendering использует physical-pixel 1:1 semantics для `actual size / 100%`. `DecodeRequest` хранит logical viewport size и отдельный device pixel ratio; libvips строит physical raster, `QImage` получает DPR, а viewer geometry и input остаются в Qt logical pixels. DPR входит в cache key.
+## ADR-008: libvips builds display rasters
 
-Обновление: embedded ICC color management включён по умолчанию и настраивается в Preferences. Значение хранится в privacy-safe settings, входит в `DecodeRequest` и cache key, потому что оно меняет rendered raster. Целевой профиль v1 — sRGB: libvips/lcms2 конвертирует embedded profiles через `icc_transform("srgb")` с relative colorimetric intent и black point compensation, изображения без профиля считаются sRGB, а битые профили или отсутствие lcms2 дают мягкий sRGB fallback вместо ошибки текущего entry. Display-profile/monitor-profile matching остаётся отдельным будущим этапом.
+**Status:** Accepted.
 
-## ADR-010: MVP избегает recent-file integration
+**Decision:** Image decoding, scaling, orientation, region extraction, and optional ICC conversion use libvips/vips-cpp. Unsupported or unavailable codecs produce a decode error rather than switching to a second backend.
 
-Решение: приложение не использует recent files и persistent cache в MVP; file dialogs открываются в non-native режиме, чтобы не включать toolkit/desktop recent-file integration без явного решения. `QSettings` разрешён только для non-history preferences: viewer defaults, fullscreen trigger zones и layout state.
+**Rationale:** libvips is demand-driven, supports streaming and parallel processing, and fits the application’s performance and memory goals. One backend keeps color, orientation, and memory behavior consistent.
 
-Причина: это поддерживает требование privacy/no-traces, но не запрещает обычный settings file без истории просмотра.
+## ADR-009: Decode the raster needed for the current view
 
-## ADR-011: Схема мыши в MVP
+**Status:** Accepted.
 
-Решение: wheel переключает изображения по умолчанию, `Ctrl + wheel` меняет zoom относительно текущего отображаемого масштаба по умолчанию с опорой на позицию курсора, `Shift + wheel` по умолчанию ничего не делает. Действия wheel / `Ctrl+wheel` / `Shift+wheel` настраиваются как navigate, zoom или no action. ЛКМ имеет настраиваемое поведение: default `click to zoom / restore` включает временный zoom 2x от текущего отображаемого масштаба с центровкой по точке клика и повторным кликом возвращает исходный режим `fit` или `actual size`; альтернативный `hold to zoom, drag to pan` сразу включает временный zoom при зажатии, двигает увеличенный raster при движении мыши и возвращает исходный view при отпускании. Зажатая правая кнопка задаёт прямоугольник zoom-to-selection, double click переключает fullscreen и не запускает temporary click zoom.
+**Decision:** Fit mode requests a display-sized raster. Non-fit zoom and actual-size views request the visible region plus overscan by default; users may disable region rendering and request the full scaled raster for smoother panning. All paths use the shared render-memory budget.
 
-Причина: это разделяет навигацию, временное приближение, pan и точное приближение прямоугольником без конфликтов между одиночным кликом и drag-действиями.
+Scaling quality, embedded color conversion, EXIF orientation, view rotation, output geometry, and device pixel ratio are part of the request and cache identity whenever they change output. Actual size maps one source pixel to one physical display pixel.
 
-## ADR-012: Ошибка текущего изображения не сбрасывает коллекцию
+**Rationale:** View-sized work reduces memory pressure on large sources while retaining explicit quality and HiDPI semantics. The render budget limits output raster size; separate audit tooling measures total process peak memory.
 
-Решение: если текущий filesystem entry удалён, нечитаем, не является обычным файлом или не декодируется, viewer показывает ошибку для этого entry, сохраняет текущую коллекцию и оставляет навигацию доступной.
+## ADR-010: Avoid recent-item integration
 
-Причина: автоматический пропуск проблемных файлов может сделать навигацию непредсказуемой. Для MVP лучше явно показать проблему и дать пользователю перейти дальше вручную.
+**Status:** Accepted.
 
-## ADR-013: Переключение next/previous по умолчанию сбрасывает view state
+**Decision:** The application does not maintain recent files and uses non-native Qt file dialogs to avoid implicit desktop recent-item integration. `QSettings` stores non-history preferences and layout state only.
 
-Решение: next/previous через toolbar, shortcuts или wheel по умолчанию сбрасывает временный zoom, zoom factor и pan в выбранный базовый режим `fit to window` или `actual size`, затем загружает текущий entry. Если активная папка закончилась, но в source tree есть следующая/предыдущая подходящая папка, viewer переходит к ней. Если перейти дальше нельзя на уровне всего source, текущий entry всё равно перерендеривается с тем же сбросом.
+**Rationale:** Privacy requires controlling not only application-owned history but also toolkit behavior that may publish viewed paths to the desktop environment.
 
-Причина: при просмотре набора изображений предсказуемее начинать каждый следующий кадр из выбранного базового режима, а повторная загрузка на краю коллекции даёт простой способ убрать временную ошибку рендера или чрезмерного масштаба. Та же policy даёт вариант `preserve view` в Preferences без отдельного navigation flow.
+## ADR-011: Default mouse input separates browsing and inspection
 
-## ADR-014: Fullscreen chrome реализуется overlay-виджетами
+**Status:** Accepted.
 
-Решение: в fullscreen обычные menu bar, toolbar, statusbar и dock-панели скрываются, а `Files`, `Info`, actions и status text показываются отдельными child overlay widgets поверх изображения при наведении курсора на край окна. Overlay-панели не участвуют в layout главного окна.
+**Decision:** Wheel navigates images, `Ctrl+wheel` zooms around the cursor, and `Shift+wheel` does nothing by default. Wheel mappings are configurable. The default left-button mode uses click-to-zoom/restore and drag-to-pan outside base fit; an alternative hold-to-zoom mode restores the previous view on release. Right drag selects a zoom rectangle, and left double click toggles fullscreen without triggering click zoom.
 
-Причина: появление fullscreen chrome не должно менять размер области изображения, zoom/pan state или запускать повторный decode/render. Такой подход сохраняет fullscreen визуально стабильным, а edge trigger ratios применяются из настроек без участия layout.
+Configured mouse-button shortcuts take priority over built-in gestures using the same input.
 
-## ADR-015: Панель Files работает через source tree и активную папку
+**Rationale:** The mapping keeps rapid browsing, temporary inspection, pan, precise rectangle zoom, and fullscreen distinct while allowing users to adapt wheel behavior.
 
-Решение: папка filesystem, архив и будущие source types представляются как дерево папок. Выбранная папка становится активной коллекцией `ViewerController`, а список файлов показывает только direct images этой папки. Filesystem-подпапки загружаются лениво при выборе или раскрытии, архивы строят дерево из асинхронного header scan без распаковки на диск.
+## ADR-012: A failed entry does not destroy the collection
 
-Причина: плоский список плохо работает для больших и вложенных структур. Активная папка сохраняет текущий viewer pipeline простым, снижает лишний filesystem scan и готовит UI к большим архивам без чтения image data до decode.
+**Status:** Accepted.
 
-## ADR-016: Настройки разделены на core schema и UI dialog
+**Decision:** Missing, unreadable, corrupt, unsupported, or oversized current entries show an error while preserving the source, active collection, and previous/next navigation. The application does not silently skip the failed entry.
 
-Решение: persistent settings задаются в `src/core/app_settings.*`, а `src/ui/settings_dialog.*` только редактирует значение `AppSettings`. Хранение идёт через Qt `QSettings` в стандартном пользовательском config-хранилище. Текущая схема хранит default zoom mode, image-switch policy, left-button zoom behavior, EXIF autorotate, click zoom multiplier, wheel actions, zoom step, scaling quality, color management, core viewer keyboard/mouse shortcuts, fullscreen edge trigger ratios, normal-mode theme и layout state.
+**Rationale:** Automatic skipping makes position and failure behavior unpredictable. The user should decide whether to continue forward or backward.
 
-Причина: настройки должны быть расширяемыми и тестируемыми без GUI. Core-слой валидирует enum/string conversion и clamp числовых значений, а UI остаётся тонким слоем отображения. Privacy boundary остаётся явным: не сохранять recent files, viewed paths, archive paths, passwords, thumbnails, decoded cache или file logs.
+## ADR-013: Image navigation resets view state by default
 
-## ADR-017: Multi-source open использует однородные synthetic roots
+**Status:** Accepted.
 
-Решение: Open File и drag'n'drop принимают однородные multi-path наборы: только изображения, только папки или только архивы. Смешанные наборы отклоняются без частичного открытия. Несколько изображений становятся flat temporary collection под synthetic root; несколько папок или архивов становятся top-level children под synthetic root в порядке выбора. Multi-folder сохраняет lazy loading подпапок, multi-archive сохраняет virtual folder tree каждого архива.
+**Decision:** Previous and next reset zoom and pan to the configured fit or actual-size base mode before loading the destination. Preferences can preserve the view instead. Rotation always resets when the image changes.
 
-Причина: homogeneous policy остаётся предсказуемой для пользователя и не смешивает разные модели чтения, паролей и навигации в один плоский список. Synthetic root позволяет переиспользовать `Files` tree, active-folder list, navigation, quick jump, decode/cache pipeline и fullscreen panels без отдельного UI path.
+**Rationale:** Resetting is predictable across images with different dimensions, while the optional preserve policy supports close inspection of related images.
 
-Пароли архивов: при открытии нескольких архивов приложение спрашивает пароль один раз и применяет его ко всем выбранным архивам; если какой-либо архив отклоняет пароль, открытие multi-archive source отменяется. Пароли остаются только в памяти текущего source и не пишутся в настройки, логи или entries.
+## ADR-014: Fullscreen chrome uses overlay widgets
+
+**Status:** Accepted.
+
+**Decision:** Viewer fullscreen hides normal chrome and shows edge-triggered child overlays above the image. Compare fullscreen is a separate clean layout without viewer overlays. Overlay visibility must not participate in viewer layout or trigger image rendering.
+
+**Rationale:** Dock or layout-based fullscreen controls resize the viewport and can cause zoom changes, decode work, and flicker. Overlays preserve the displayed view.
+
+## ADR-015: The Files panel uses a source tree and active folder
+
+**Status:** Accepted.
+
+**Decision:** The Files panel separates a folder tree from the active folder’s direct-image List and Thumbnails views. Filesystem branches load lazily; archive trees come from asynchronous header enumeration. Image navigation crosses suitable folders at boundaries, while first and last remain local.
+
+**Rationale:** A single flat recursive list loses source structure and scales poorly. Active-folder semantics keep navigation and UI state understandable.
+
+## ADR-016: Settings schema and settings UI are separate
+
+**Status:** Accepted.
+
+**Decision:** `src/core/app_settings.*` owns defaults, stable identifiers, serialization, validation, and category reset behavior. `src/ui/settings_dialog.*` presents editable widgets but does not define persistence policy.
+
+**Rationale:** A UI-independent schema is easier to test and prevents widget code from becoming the source of truth for privacy or compatibility.
+
+## ADR-017: Multi-source open accepts homogeneous groups
+
+**Status:** Accepted.
+
+**Decision:** Several images form a flat temporary collection; several folders or several archives form ordered roots under a synthetic source tree. Mixed or partially unsupported sets fail atomically.
+
+**Rationale:** Homogeneous groups have clear navigation and password semantics. Rejecting ambiguous mixed sets avoids partial opens and source-specific special cases throughout the UI.
+
+## ADR-018: Project documentation is maintained in English
+
+**Status:** Accepted.
+
+**Decision:** README files, product and engineering documentation, agent instructions, internal comments, identifiers, commit messages, and developer-facing notes are written in English. User-visible UI strings remain prepared for localization.
+
+**Rationale:** One documentation language makes the public repository accessible to a broader audience and reduces ambiguity for contributors and coding agents. Historical context is translated rather than discarded.

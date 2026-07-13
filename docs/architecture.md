@@ -1,157 +1,162 @@
 # Architecture
 
-## Главный принцип
+This document describes stable system boundaries and design rules. Concrete classes, files, build targets, and current control flow are documented in the [implementation map](implementation.md).
 
-GUI не должен знать, откуда физически пришло изображение: из папки, списка файлов, архива или будущего источника. Для viewer всё должно выглядеть как коллекция изображений с текущим индексом и операциями навигации. Для панели `Files` source дополнительно выглядит как дерево папок, где выбранная папка становится активной viewer collection.
+## Core principle
 
-## Предлагаемые слои
+The viewer must not depend on the physical origin of an image. A filesystem folder, selected file list, archive, or synthetic multi-source root exposes image entries through collection semantics. The Files panel additionally consumes a source tree whose selected folder becomes the active viewer collection.
 
-### App / Bootstrap
+Source-specific reading stays behind core source and archive code. Widgets receive entries, models, decoded images, and explicit status or error results; they do not scan folders or parse archives themselves.
 
-Отвечает за запуск приложения, загрузку настроек, создание главного окна и связывание зависимостей.
+## Dependency direction
 
-### UI Layer
+The application is divided into these layers:
 
-Отвечает за окна, меню, toolbar, statusbar, panels, drag'n'drop и пользовательские события.
+1. process bootstrap;
+2. Qt UI and orchestration;
+3. viewer and settings state;
+4. collection sources and archive access;
+5. image decoding and metadata extraction;
+6. render-memory estimation and memory-only caches.
 
-UI Layer не должен напрямую читать архивы, декодировать изображения или сканировать папки.
+`src/ui` may depend on core types. `src/core` must remain free of `QWidget` and other widget-layer dependencies. QtCore and QtGui value types such as `QString`, `QImage`, `QSize`, and `QDateTime` are accepted in core where they express application data.
 
-### Viewer Controller / Viewer State
+## Application bootstrap
 
-Отвечает за:
+The bootstrap layer initializes libvips, configures process-wide image cache limits, creates `QApplication`, parses the optional source argument, constructs the main window, and owns clean process shutdown.
 
-- текущую коллекцию;
-- текущий индекс;
-- переход next/previous/first/last;
-- текущий zoom mode;
-- текущий pan offset;
-- rotation state;
-- команды просмотра.
+It must not absorb source scanning, viewer behavior, or window-specific command routing.
 
-### Collection Source
+## UI and orchestration
 
-Единый интерфейс для источников изображений.
+The UI layer owns widgets, actions, shortcuts, drag and drop, menus, toolbars, status presentation, fullscreen overlays, and pointer or keyboard event translation.
 
-Возможные реализации:
+`MainWindow` is the current orchestration boundary. It classifies open requests, starts asynchronous jobs, tracks source and decode generations, routes commands through viewer state, and applies successful results to widgets.
 
-- `FolderCollectionSource`;
-- `FileListCollectionSource`;
-- `ArchiveCollectionSource`;
-- synthetic multi-source root for однородные наборы выбранных изображений, папок или архивов;
-- `SingleFileWithFolderContextSource`.
+UI models remain presentation-only:
 
-Каждый source должен уметь вернуть дерево папок, список direct image entries для выбранной папки и открыть конкретный entry для чтения. Filesystem source должен поддерживать lazy loading подпапок; archive source строит дерево по headers без распаковки на диск.
+- the collection tree model exposes source folders and supports targeted lazy-branch insertion;
+- the image list model exposes direct entries in the active folder;
+- thumbnail support requests asynchronous memory-only previews only while visible;
+- comparison support owns temporary comparison state and decode work without changing the single-image viewer collection;
+- the info panel displays entry and decoder-provided metadata without reading sources.
 
-### Image Entry
+## Viewer state
 
-Описывает один элемент коллекции:
+Viewer state owns the active collection position and view state:
 
-- display name;
-- source path или virtual path;
-- file size, если доступен;
-- modified time, если доступен;
-- format hint;
-- source-specific identifier.
+- current entry index;
+- fit, actual-size, or custom zoom mode;
+- zoom factor and pan offset;
+- view-only rotation;
+- previous, next, first, and last operations.
 
-### Image Loader / Decoder
+Cross-folder navigation is orchestrated above the collection controller because it changes the active folder collection. View rotation resets when the entry changes. The configured image-switch policy decides whether zoom and pan reset or are preserved.
 
-Отвечает за декодирование изображения в формат, пригодный для отображения.
+## Collection sources
 
-Требования:
+### Source tree
 
-- не блокировать UI;
-- корректно сообщать об ошибках;
-- учитывать EXIF orientation, если включено;
-- не держать лишние decoded images в памяти.
+A source tree contains folder nodes with direct image entries and child folders. Selecting a node supplies its direct images to viewer state.
 
-### Metadata Reader
+- Filesystem nodes carry enough identity for lazy child loading.
+- Archive nodes are built from asynchronous header enumeration.
+- Several selected images use one flat synthetic root.
+- Several folders or archives use ordered top-level roots under a synthetic root.
 
-Отвечает за базовые metadata и EXIF. Не должен блокировать UI.
+Source paths in a multi-source tree are namespaced so equal relative folder names from different inputs do not collide.
 
-### Archive Adapter
+### Image entries
 
-Отвечает за чтение ZIP/RAR/7Z как коллекции изображений.
+An image entry carries the information needed to identify, display, validate, and read one image:
 
-Требования:
+- display name and source-relative path;
+- filesystem path or archive path plus member path;
+- source kind and format hint;
+- size and modification time when available.
 
-- без распаковки архива на диск в нормальном режиме;
-- поддержка пароля;
-- фильтрация неизображений;
-- обработка ошибок чтения.
+Archive passwords are held separately as source runtime state keyed by archive path. They must not enter image entries, labels, cache keys, settings, clipboard metadata, or persistent records.
 
-Текущая базовая реализация использует libarchive для ZIP/7z/RAR без распаковки на диск. Password prompt реализован; пароль хранится только в памяти активного archive source. Сохранение паролей и расширенная работа с encrypted archives остаются следующим этапом.
+### Filesystem sources
 
-### Cache
+Opening one image creates an immediate selected entry and scans its parent folder asynchronously. Opening a folder loads the root and enough child structure to populate the source tree without recursively scanning the entire hierarchy.
 
-Memory-only cache для:
+Expanding or selecting an unloaded folder starts a targeted asynchronous load. The result updates only that branch if the source generation and node identity still match.
 
-- текущего изображения;
-- предыдущего изображения;
-- следующего изображения;
-- возможно, нескольких thumbnails после открытия панели миниатюр.
+### Archive sources
 
-Persistent cache запрещён текущими privacy requirements.
+libarchive enumerates ZIP, 7z, and RAR headers and groups supported image members into virtual folders. Display decode reads the selected member through a sequential stream without extracting it or buffering the complete member first.
 
-Render-memory budget считается отдельной core-логикой для output raster decode request: полный display-sized raster в `fit`, а в non-fit zoom/actual-size по умолчанию видимый region плюс запас. Scaling quality, color management и device pixel ratio являются частью decode request и cache key, потому что выбранный libvips kernel, ICC conversion mode и DPR меняют output raster. Если пользователь отключает region-based rendering, non-fit request снова проверяет полный scaled raster тем же budget guard. Текущая оценка не является total peak memory budget: поверх неё остаются libvips working/cache memory, source-reader buffering, displayed raster и decoded cache.
+A separate bounded full-entry read exists for features that require original bytes, such as clipboard copy. This path also stays in memory and does not extract to disk.
 
-Total peak memory проверяется отдельным developer-only audit tooling (`insidious_memory_audit` + `tools/memory_audit.py`) и документируется в `docs/memory-audit.md`. Этот audit не является runtime guard и не пишет persistent data.
+### Multi-source operations
 
-### Settings
+Open and drop requests are classified before any source is committed. The operation proceeds only when all paths are supported and belong to one category: images, folders, or archives.
 
-Хранит настройки приложения, но не хранит историю открытых файлов/папок/архивов.
+This atomic classification avoids partial opens and gives multi-archive password handling one clear success or failure boundary.
 
-Текущая реализация:
+## Decode pipeline
 
-- `src/core/app_settings.*` — schema/defaults/read/write/validation для `QSettings`;
-- `src/ui/settings_dialog.*` — Qt dialog для редактирования настроек;
-- `MainWindow` применяет настройки viewer/fullscreen/layout и сохраняет их при Apply/OK и закрытии.
+A decode request describes the entry and every property that can change its output raster: view mode, requested scale or region, viewport, pan, device pixel ratio, EXIF orientation, view rotation, scaling quality, color-management mode, and region-rendering policy.
 
-Сейчас сохраняются:
+The libvips decoder:
 
-- default zoom mode;
-- reset/preserve view при переключении изображений;
-- left-button zoom behavior;
-- EXIF autorotate;
-- click zoom multiplier;
-- wheel / Ctrl+wheel / Shift+wheel actions;
-- shared zoom step percent;
-- scaling quality preset;
-- embedded color profile conversion;
-- core viewer keyboard/mouse shortcuts;
-- fullscreen edge trigger ratios;
-- pinned fullscreen info line visibility/font/size/color;
-- window/dock/splitter layout, если включено.
+1. validates and opens the filesystem file or archive stream;
+2. reads source dimensions and selected EXIF strings;
+3. applies optional EXIF orientation and view rotation;
+4. calculates a display-sized or region-sized request;
+5. checks the shared output-raster memory budget;
+6. resizes with the selected kernel;
+7. converts an embedded profile to sRGB when enabled and available;
+8. normalizes pixels to an 8-bit RGB or RGBA layout;
+9. returns a `QImage` that owns its backing buffer.
 
-Позже сюда можно добавить default sort mode, advanced shortcut preferences и color-management rendering preferences. Даже будущие настройки не должны хранить историю просмотра, recent paths, archive passwords, thumbnails или decoded cache.
+Profile conversion failure is non-fatal and falls back to an sRGB assumption. Display-profile matching is a separate future layer and is not implied by embedded-profile conversion.
 
-## Поток открытия файла
+## Caching and prefetch
 
-1. Пользователь открывает файл.
-2. App определяет тип источника.
-3. Если это обычное изображение, создаётся collection source с контекстом родительской папки.
-4. Folder scanner загружает корневую папку и прямые подпапки.
-5. Viewer state устанавливает текущий entry в активной папке.
-6. Image loader декодирует текущее изображение.
-7. Cache запускает fit-sized prefetch previous/next.
-8. UI обновляет изображение и statusbar.
+Decoded viewer images use a bounded memory-only cache keyed by entry identity and render properties. Thumbnail and comparison caches are separate, bounded, and also memory-only.
 
-## Поток открытия архива
+Neighbor prefetch is limited to fit-sized requests. Jobs are tracked and coalesced by cache key. Every write carries the cache generation captured at job start, preventing a stale job from repopulating a cache after a source change or clear.
 
-1. Пользователь открывает архив.
-2. Archive Adapter асинхронно перечисляет headers.
-3. Неизображения отбрасываются, а изображения группируются по virtual folders.
-4. Если архив зашифрован, пользователь вводит пароль.
-5. Создаётся archive source tree.
-6. Viewer работает с выбранной папкой архива так же, как с выбранной папкой filesystem source.
+Actual-size, custom zoom, and password-protected archive entries do not start speculative prefetch.
 
-Текущая реализация покрывает этот поток для ZIP/7z/RAR архивов, включая архивы с паролем без сохранения пароля. При открытии нескольких архивов используется синтетический root с каждым архивом как top-level node; пароль спрашивается один раз и хранится только в памяти текущего source для соответствующих archive paths.
+The render-memory budget estimates output raster memory only. libvips working memory, source buffering, displayed images, caches, thumbnails, and concurrent tasks contribute to total process peak memory and are measured separately by the [memory audit](memory-audit.md).
 
-## Поток открытия нескольких источников
+## Asynchronous work and stale results
 
-1. UI классифицирует выбранные/drop paths как изображения, папки или архивы.
-2. Если набор смешанный или содержит неподдерживаемый path, открытие отменяется с ошибкой.
-3. Core строит синтетический source tree:
-   - несколько изображений — один flat root с временной коллекцией;
-   - несколько папок — top-level folder roots в порядке выбора, с lazy loading подпапок;
-   - несколько архивов — top-level archive roots в порядке выбора, с virtual folder tree внутри каждого архива.
-4. Viewer работает с выбранной папкой synthetic tree так же, как с обычной папкой или архивом.
+Filesystem scans, archive enumeration, image decoding, thumbnail generation, comparison decoding, original-byte reads, and prefetch run away from the UI thread.
+
+Every job captures the identity needed to validate its result. `MainWindow` uses source and decode generations; models and secondary loaders use equivalent generation or node checks.
+
+Same-entry rerender requests coalesce to the newest pending request. A switch to another entry starts a new foreground decode immediately and invalidates older display results. Cache hits update the UI immediately while still invalidating obsolete active decodes.
+
+Navigation preserves the previous raster until the new foreground result is ready. Zoom renders also preserve the old raster and restore the complete previous view if the new request exceeds the render budget.
+
+## Fullscreen architecture
+
+Viewer fullscreen overlays are child widgets placed above the central image view, not dock widgets or layout participants. The left and right overlays mirror the normal Files and Info panels; the top overlay reuses normal `QAction` objects; the bottom overlay uses the shared status formatter.
+
+Overlay visibility must not change viewport geometry or initiate a decode. Compare fullscreen follows a separate content path that hides all application chrome and viewer overlays while preserving comparison state.
+
+Fullscreen entry stores the previous non-fullscreen state and chrome visibility. Cleanup also runs when a window manager forces fullscreen exit. Layout persistence must not capture normal window state until fullscreen UI state has been fully restored.
+
+## Settings
+
+The core settings schema owns defaults, stable command identifiers, serialization, validation, clamping, and category reset behavior. The Preferences dialog is a UI editor over that schema.
+
+Stored settings include viewer behavior, rendering preferences, core shortcuts, fullscreen presentation, normal-mode theme, and optional Qt geometry or layout state. Runtime sort mode, opened sources, passwords, thumbnails, decoded data, and comparison sessions are not settings.
+
+## Privacy boundary
+
+Privacy requirements are architectural constraints:
+
+- no application-owned recent-item history;
+- no persistent thumbnail, decoded-image, prefetch, or comparison cache;
+- no persistent comparison session or selected paths;
+- no archive extraction during normal viewing;
+- no archive password persistence;
+- no file logging during normal use;
+- no viewed paths in settings.
+
+Non-native Qt file dialogs avoid implicit desktop recent-item integration. Changing that behavior requires an explicit architecture and privacy decision.
