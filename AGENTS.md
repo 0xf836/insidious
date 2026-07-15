@@ -164,3 +164,4 @@ A task is done when:
 - Relevant tests are added or updated where practical.
 - Error handling is present for common failure modes.
 - The final response explains what changed, how it was tested, and what was intentionally left out.
+- The final response also includes a concise proposed commit message in English that accurately reflects the completed changes. Do not create the commit unless explicitly asked.
