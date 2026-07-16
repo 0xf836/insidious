@@ -149,3 +149,11 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 **Decision:** README files, product and engineering documentation, agent instructions, internal comments, identifiers, commit messages, and developer-facing notes are written in English. User-visible UI strings remain prepared for localization.
 
 **Rationale:** One documentation language makes the public repository accessible to a broader audience and reduces ambiguity for contributors and coding agents. Historical context is translated rather than discarded.
+
+## ADR-019: Arch Linux development builds use a VCS package
+
+**Status:** Accepted.
+
+**Decision:** The repository ships a root `PKGBUILD` for `insidious-git`. It clones the public Git repository, derives a development version from the CMake version and Git revision, builds with CMake and Ninja, runs CTest, and installs through the project’s native CMake install rules.
+
+**Rationale:** The project has no tagged release archive yet, so a VCS package is more truthful than a release recipe with a moving source or skipped checksum. A future release package must use a tag-bound immutable archive and a real checksum. Desktop integration is intentionally separate from the first package because it needs a privacy-aware design for MIME and recent-item behavior.

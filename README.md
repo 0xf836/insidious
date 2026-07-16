@@ -70,7 +70,14 @@ Run the viewer:
 ./build/insidious /path/to/image-folder-or-archive
 ```
 
-The repository currently provides a source build; it does not install desktop integration or a system package.
+For an Arch Linux package, use the included [`PKGBUILD`](PKGBUILD):
+
+```sh
+makepkg -s
+sudo pacman -U insidious-git-*.pkg.tar.zst
+```
+
+The package recipe and its scope are documented in [Arch Linux package](docs/arch-linux.md). It does not install desktop integration yet.
 
 ## Essential controls
 
@@ -96,6 +103,7 @@ Wheel navigation, zoom behavior, rendering quality, fullscreen presentation, the
 - [Product principles](docs/product.md) — goals, values, and deliberate non-goals.
 - [Architecture](docs/architecture.md) — system boundaries and major data flows.
 - [Current implementation](docs/implementation.md) — code map for maintainers and coding agents.
+- [Arch Linux package](docs/arch-linux.md) — build and install the VCS package with makepkg.
 - [Roadmap](docs/roadmap.md) — planned work and research directions.
 - [Project evolution](docs/project-evolution.md) — how the initial viewer foundation grew into the current application.
 

@@ -31,7 +31,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 The current implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.3+, and libarchive.
 
-- `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, and the Qt Test targets.
+- `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, the Qt Test targets, and native install rules for the binary, documentation tree, and license.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
 - `src/ui/main_window.*` coordinates UI commands, single/multi-path open and drag'n'drop classification, async source scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
@@ -154,6 +154,7 @@ Current fullscreen behavior:
 - The left file list should mirror the active folder collection only. Do not put source scanning, archive access, decoding, thumbnails, comparison decoding, or persistence there. The separate thumbnail tab may request thumbnail decode work only while visibly active; comparison work belongs to the comparison widget and only after explicit context-menu launch.
 - The right info panel should display existing entry/decode data only, including decoder-provided color profile status. EXIF currently comes from libvips metadata collected during decode; do not add separate metadata backends or persistent panel state unless explicitly planned.
 - If adding dependencies, update `README.md`, `docs/decisions.md`, and this file with why they are needed.
+- Keep `PKGBUILD`, `docs/arch-linux.md`, install rules, and package dependency lists aligned when changing build dependencies or installed files.
 
 ## Definition of done
 

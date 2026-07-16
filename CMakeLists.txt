@@ -5,6 +5,8 @@ project(insidious
     LANGUAGES CXX
 )
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -89,6 +91,26 @@ target_link_libraries(insidious
     PRIVATE
         insidious_core
         Qt6::Widgets
+)
+target_compile_definitions(insidious
+    PRIVATE
+        INSIDIOUS_VERSION="${PROJECT_VERSION}"
+)
+
+install(TARGETS insidious
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+install(FILES
+    README.md
+    LICENSE
+    PKGBUILD
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+)
+install(DIRECTORY docs/
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}/docs"
+)
+install(FILES LICENSE
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME}"
 )
 
 add_executable(insidious_memory_audit

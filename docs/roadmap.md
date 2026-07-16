@@ -44,8 +44,8 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Distribution
 
-- Document runtime dependencies for target Linux distributions.
-- Design a packaging and desktop-integration path without weakening the recent-item privacy policy.
+- Publish a tagged-release `insidious` recipe with an immutable source archive and real checksum when a release tag exists.
+- Design desktop integration, icons, and MIME associations without weakening the recent-item privacy policy.
 
 ### Memory auditing
 

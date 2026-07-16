@@ -13,6 +13,8 @@ This document maps the current codebase for maintainers and coding agents. Stabl
 - Tests: Qt Test.
 - Build: CMake + Ninja.
 
+The install target places `insidious` under the configured binary directory, installs the repository documentation tree under the configured documentation directory, and installs the MIT license under the shared licenses directory. `insidious --version` reports the CMake project version.
+
 The build creates:
 
 - `insidious_core`: static library for core image/viewer logic.
