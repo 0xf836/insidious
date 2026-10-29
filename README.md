@@ -51,7 +51,7 @@ sudo pacman -S qt6-base libvips libarchive cmake ninja pkgconf
 
 Debian, Ubuntu, and similar systems:
 
-Check the [dependency audit](docs/dependency-audit.md) before using the package names below. Standard Ubuntu 24.04 lacks the required Qt API, and Ubuntu 26.04 currently ships libvips 8.18.0, below the retained 8.18.3 minimum. These commands do not imply native support for those releases.
+Check the [dependency audit](docs/dependency-audit.md) and [platform matrix](packaging/platforms.json) before using the package names below. Arch and Fedora 44 are candidates; clean native qualification is deferred. Standard Ubuntu 24.04 lacks the required Qt API, and Ubuntu 26.04 currently ships libvips 8.18.0, below the retained 8.18.3 minimum. These commands do not imply native support for those releases.
 
 ```sh
 sudo apt install qt6-base-dev libvips-dev libarchive-dev cmake ninja-build pkg-config

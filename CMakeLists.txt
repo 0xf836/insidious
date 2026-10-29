@@ -60,8 +60,7 @@ target_link_libraries(insidious_core
         PkgConfig::LIBARCHIVE
 )
 
-add_executable(insidious
-    src/app/main.cpp
+set(UI_SOURCES
     src/ui/collection_tree_model.cpp
     src/ui/collection_tree_model.h
     src/ui/comparison_drag_mime_data.cpp
@@ -87,6 +86,7 @@ add_executable(insidious
     src/ui/thumbnail_loader.cpp
     src/ui/thumbnail_loader.h
 )
+add_executable(insidious src/app/main.cpp ${UI_SOURCES})
 target_link_libraries(insidious
     PRIVATE
         insidious_core
@@ -238,3 +238,11 @@ add_test(NAME insidious_collection_tree_model_tests COMMAND insidious_collection
 set_tests_properties(insidious_collection_tree_model_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+add_executable(insidious_main_window_async_tests
+    tests/main_window_async_tests.cpp
+    ${UI_SOURCES}
+)
+target_link_libraries(insidious_main_window_async_tests PRIVATE insidious_core Qt6::Widgets Qt6::Test)
+add_test(NAME insidious_main_window_async_tests COMMAND insidious_main_window_async_tests)
+set_tests_properties(insidious_main_window_async_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

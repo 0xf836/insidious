@@ -174,6 +174,8 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 
 **Decision:** Audit the actual Qt/libvips requirements before changing minimums. Qualify target distributions with their standard libraries and the existing feature set. Do not bundle private Qt/libvips, replace system libraries, or require third-party repositories for native packages. Exclude incompatible targets; plan Flatpak separately as a future runtime-based distribution channel.
 
+**Implementation status:** Dependency evidence, local regression tests and the initial [platform matrix](../packaging/platforms.json) are complete. The owner deferred clean Arch/Fedora 44 qualification to CI/package preparation. This does not declare native packages qualified or relax publication gates.
+
 **Rationale:** Current version constraints have historical explanations but need API, behavior, and relevant-fix evidence before they define distribution coverage. Preserving native dependency management avoids a second private runtime maintenance burden. See [dependency qualification](releasing.md#dependency-qualification-and-native-support).
 
 ## ADR-022: Native recipes share installation and desktop identity

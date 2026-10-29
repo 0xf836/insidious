@@ -90,6 +90,8 @@ private slots:
     void handleMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button, bool *handled);
 
 private:
+    friend class MainWindowAsyncTests;
+
     struct DecodeJobResult {
         quint64 generation = 0;
         QString cacheKey;

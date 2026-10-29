@@ -1,6 +1,6 @@
 # Versioning, Releases, and Linux Distribution
 
-**Status: Planned — not implemented.**
+**Status: Release infrastructure planned; dependency audit, local regression tests and initial platform matrix implemented.**
 
 This is the canonical technical specification for future versioning, CI, release publication, and Linux packaging. It records the agreed design and acceptance gates; it does not claim that workflows, release packages, desktop integration, or platform qualification already exist. Implement it in the stages below rather than as one large change.
 
@@ -114,7 +114,7 @@ Use one serialized publication concurrency group without cancelling an in-progre
 
 ### Audit before lowering requirements
 
-The first implementation stage is an evidence-based compatibility audit. The [2026-10-29 audit](dependency-audit.md) corrects the Qt minimum to 6.6 and retains libvips 8.18.3 after testing Ubuntu 26.04's 8.18.0. Complete native-platform qualification remains pending. Current minimum versions remain in force until further evidence justifies a change.
+The first implementation stage is complete under the owner-approved scope: the [2026-10-29 audit](dependency-audit.md), targeted local tests and the initial [platform matrix](../packaging/platforms.json). It corrects the Qt minimum to 6.6 and retains libvips 8.18.3. New clean-distribution build qualification was explicitly deferred to stages 3 and 4. This scope change does not waive qualification before native release publication. Current minimum versions remain in force until further evidence justifies a change.
 
 Repository history provides leads, not qualification results:
 
@@ -142,11 +142,11 @@ Initial architecture: x86_64 (Debian/Ubuntu package architecture name: amd64).
 | Debian 13 | `.deb` | Excluded with current standard libvips 8.16.1: no MKS2021 |
 | Ubuntu 24.04 LTS | Separate `.deb` | Excluded: standard Qt 6.4.2 lacks the required API |
 | Ubuntu 26.04 LTS | Separate `.deb` | Diagnostic build/tests pass with 8.18.0; native support blocked by missing SIMD resize fixes |
-| Latest stable Fedora at implementation time | `.rpm` | Select an explicit release number, then qualify |
+| Fedora 44 | `.rpm` | Explicit candidate; clean build and behavior qualification deferred to stages 3/4 |
 
 The audit records actual installed Ubuntu 26.04 package versions and distinguishes diagnostic tests from qualification. Recheck repository versions and distribution backports before reconsidering exclusions; do not present these candidates as supported installations based only on API availability or passing smoke tests.
 
-After qualification, maintain one machine-readable platform matrix consumed by CI and release inventory validation, with explicit OS releases, architectures, image digests, and expected artifacts. Publish the same matrix in release notes. Adding/removing a qualified platform requires a reviewed change; a failed release build cannot silently remove a mandatory platform.
+The initial machine-readable matrix is maintained in [packaging/platforms.json](../packaging/platforms.json); its [contract](../packaging/README.md) distinguishes selected candidates from qualified mandatory targets. Fedora 44 is the explicit Fedora candidate. Image digests remain null for untested environments. During stages 3 and 4, qualify candidates and consume this matrix in CI and release inventory validation, recording exact images and artifacts. Publish the same matrix in release notes. Adding/removing a qualified platform requires a reviewed change; a failed release build cannot silently remove a mandatory platform.
 
 Debian and Ubuntu builds are separate even if they use the same recipe. Fedora support does not imply support for RHEL, Rocky Linux, AlmaLinux, or openSUSE. ARM64 is deferred.
 
@@ -249,10 +249,10 @@ Before implementing Flatpak, resolve file access, adjacent-folder navigation, ar
 
 | Stage | Deliverable | Exit criteria |
 | --- | --- | --- |
-| 1. Compatibility | Dependency audit and qualified platform matrix | API/fix evidence, builds and behavior tests; explicit excluded targets and reasons |
+| 1. Compatibility (complete, revised scope) | Dependency audit, local regression tests and initial platform matrix | API/fix evidence, retained test results, explicit candidates/exclusions; clean qualification deferred to stages 3/4 |
 | 2. Version identity | `version.txt`, generated metadata, About, VCS recipe adaptation | Consistent versions; headless output; clean/dirty/unknown/archive cases tested |
-| 3. CI | Reusable build/test jobs and PR conventions | Required aggregate check handles failures and skips; untrusted PRs have no release credentials |
-| 4. Packages and desktop | Native recipes, install rules, icon/desktop/AppStream | Package checks, installation/upgrade/removal, X11/Wayland launch acceptance |
+| 3. CI | Reusable build/test jobs, candidate build qualification and PR conventions | Clean Arch/Fedora build evidence; required aggregate check handles failures/skips; untrusted PRs have no release credentials |
+| 4. Packages and desktop | Native recipes, completed platform qualification, install rules, icon/desktop/AppStream | Behavioral and package checks, installation/upgrade/removal, X11/Wayland launch acceptance; promote only qualified matrix entries |
 | 5. Release automation | Release-please and verified draft-to-public pipeline | Test-repository release, retry, conflict, and missing-artifact scenarios pass |
 | 6. First release | Maintainer-reviewed version and full published artifact set | Runbook completed; remote downloads and provenance independently verified |
 | 7. Flatpak | Separate specification and implementation | Runtime, permissions, navigation, and privacy qualified before publication |

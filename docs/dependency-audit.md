@@ -1,6 +1,6 @@
 # Dependency Compatibility Audit
 
-Audit date: 2026-10-29. This document is the canonical evidence record for the current Qt/libvips minimums. The [release specification](releasing.md#dependency-qualification-and-native-support) defines the remaining native-platform acceptance gates. This audit does not complete distribution stage 1 or claim release-package or desktop qualification.
+This document is the canonical evidence record for the current Qt/libvips minimums. The [release specification](releasing.md#dependency-qualification-and-native-support) defines the remaining native-platform acceptance gates. Distribution stage 1 is complete under the owner-approved scope: dependency evidence, targeted local regression tests, and an explicit platform inventory. Clean distribution qualification is deferred to CI/package preparation; native support, release packages and desktop acceptance are not claimed. The canonical machine-readable inventory is [packaging/platforms.json](../packaging/platforms.json), with its contract in [packaging/README.md](../packaging/README.md).
 
 ## Decisions
 
@@ -91,4 +91,18 @@ Sensitivity was checked in the disposable Ubuntu source copy: forcing every pres
 
 Existing tests continue to cover embedded ICC conversion, decoded-buffer ownership, bounded/streaming archive access, render-memory failures, cache generation guards, and prefetch policy. Current Arch (Qt 6.12.0, libvips 8.18.7, libarchive 3.8.10, GCC 16.2.1, CMake 4.4.5) also built successfully and passed all 8 CTest entries with 92 core passes.
 
-No RAR regression fixtures, malformed-input fuzz campaign, sanitizer qualification, exact Qt 6.6 build, interactive X11/Wayland acceptance, release-package installation/upgrade/removal, hosted CI, or full qualified platform matrix was completed. The diagnostic Ubuntu build does not make Ubuntu a supported native target. Ubuntu 24.04 is excluded by Qt; Debian 13's standard libvips 8.16.1 lacks MKS2021. Arch package qualification and selection/testing of an explicit stable Fedora release remain future work.
+### Stage 1 completion and remaining release gates
+
+The owner deferred new clean-distribution builds. Added local coverage includes:
+
+- Original, reproducibly generated stored RAR4/RAR5 image archives: filtering, nested tree, bounded original-byte reads, sequential stream equivalence, and pixel-correct decode. See [fixture provenance](../tests/fixtures/README.md). Compressed, solid, multivolume and encrypted RAR are not qualified by these fixtures.
+- Bottom-up/top-down 24-bit BMP-family `.dib` files through file and ZIP paths, checking row orientation. Headerless DIB succeeds on the current file-backed loader but is rejected with a clear error by the archive streaming path. This is an existing backend limitation, not a newly added raw DIB reader. A tiny 3 x 2 BMP fixture also exposed archive sniffing failure while file decode succeeded; the passing orientation fixture is 3 x 8. Small BMP archive decode remains a known issue.
+- `main_window_async_tests.cpp` completes controlled `QPromise` futures through real Qt watcher callbacks. It checks current-result application, stale decode rejection after image/source transitions, stale errors and cancellation without replacing the displayed raster or populating the cache, stale source-scan rejection and stale lazy-folder-load rejection. Current-result controls verify that the handlers still apply valid work. It does not test CPU-level interruption of libvips or every loader scheduling interleaving.
+
+The UI test uses temporary settings and a narrow test friend, without adding a production decoder injection API. CMake shares the UI source list with the test executable; application layering and behavior are unchanged.
+
+The initial matrix selects Arch rolling and **Fedora 44** as explicit candidates for later qualification. All `native_qualified` and `release_required` flags remain false; `native_qualification_complete` and `release_ready` are false. No release can use an empty qualified target set. Ubuntu 24.04 and Debian 13 are excluded; Ubuntu 26.04 remains blocked. The earlier Ubuntu diagnostic run and original eight-target results above remain historical evidence; the expanded suite was run locally only.
+
+Clean Arch/Fedora builds, exact Qt 6.6 testing, broader archive fixtures, interactive X11/Wayland acceptance, native package installation/upgrade/removal and hosted CI remain later gates. Fuzzing and sanitizer campaigns were not performed. Existing password/archive and zoom issues remain separately tracked in the roadmap.
+
+Local completion validation: all 9 CTest entries pass, with 102 core checks and 11 MainWindow async checks (including Qt Test setup/cleanup). No new distribution build was run. Fixture regeneration is deterministic in the recorded local environment.

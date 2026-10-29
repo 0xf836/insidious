@@ -57,7 +57,10 @@ The build creates:
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert embedded ICC profiles to sRGB when color management is enabled, normalize to 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
 - `tools/vips_vector_benchmark.py` reproduces the developer-only SIMD comparison in the [dependency audit](dependency-audit.md), recording raw timings and CPU/SIMD metadata; its committed evidence is under `docs/evidence/`.
-- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. DIB extension coverage uses a BMP container; it does not qualify headerless DIB inputs.
+- `tests/main_window_async_tests.cpp` uses controlled Qt futures and a private test friend to test current/stale/cancelled loader completions. CMake reuses `UI_SOURCES` for this test target and the app.
+- `tests/fixtures/` contains original stored RAR4/RAR5 fixtures with a stdlib-only regeneration script; tests do not require RAR tooling or Python at runtime.
+- `packaging/platforms.json` records native candidate decisions and explicitly pending qualification; it does not authorize a release.
+- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. Additional RAR4/RAR5 tests cover original stored fixtures. DIB variants test row order and distinguish file-backed headerless decode from archive rejection.
 
 ## Data flow
 

@@ -13,7 +13,7 @@ Opening a single image also scans its parent folder and selects that image, so p
 
 Several images become one temporary flat collection. Several folders or several archives appear under a synthetic root in the order selected. A mixed set such as an image plus an archive is rejected as one operation; Insidious never opens only the supported part of a drop.
 
-Supported images are JPEG, PNG, WebP, BMP, and DIB. Supported archives are ZIP, 7z, and RAR.
+Supported images are JPEG, PNG, WebP, BMP, and DIB. Supported archives are ZIP, 7z, and RAR. Headerless DIB may depend on the file-backed system loader and cannot currently be decoded from an archive; use a BMP-file container for that path.
 
 ## Main window
 

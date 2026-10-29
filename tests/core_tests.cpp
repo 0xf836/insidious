@@ -13,6 +13,7 @@
 #include "core/viewer_controller.h"
 
 #include <QDir>
+#include <QDataStream>
 #include <QBuffer>
 #include <QColor>
 #include <QColorSpace>
@@ -67,6 +68,10 @@ private slots:
     void decoderColorManagementCanBeDisabled();
     void decoderReportsEmbeddedIccConversion();
     void decoderKeepsInvalidIccImageViewable();
+    void rarImageRoundTrip_data();
+    void rarImageRoundTrip();
+    void dibVariants_data();
+    void dibVariants();
     void decoderSupportedFormats_data();
     void decoderSupportedFormats();
     void decoderExifRotationAndRegion_data();
@@ -920,6 +925,117 @@ void CoreTests::decoderKeepsInvalidIccImageViewable()
     const QColor pixel = decoded.image.pixelColor(16, 10);
     QVERIFY(pixel.blue() > 245);
     QVERIFY(pixel.red() < 10);
+}
+
+void CoreTests::rarImageRoundTrip_data()
+{
+    QTest::addColumn<QString>("fixture");
+    QTest::newRow("rar4-stored") << QStringLiteral("fixtures/images-rar4.rar");
+    QTest::newRow("rar5-stored") << QStringLiteral("fixtures/images-rar5.rar");
+}
+
+void CoreTests::rarImageRoundTrip()
+{
+    QFETCH(QString, fixture);
+    const QString path = QFINDTESTDATA(qPrintable(fixture));
+    QVERIFY(!path.isEmpty());
+    const ScanResult scan = scanArchive(path);
+    QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+    QCOMPARE(scan.entries.size(), 2);
+    const CollectionTreeResult tree = scanArchiveSourceTree(path);
+    QVERIFY2(tree.ok(), qPrintable(tree.errorMessage));
+    QCOMPARE(tree.root->children.size(), 1);
+    QCOMPARE(tree.root->children.first()->images.size(), 2);
+    for (const ImageEntry &entry : scan.entries) {
+        const ArchiveEntryReadResult bytes = readArchiveEntry(entry);
+        QVERIFY2(bytes.ok(), qPrintable(bytes.errorMessage));
+        QVERIFY(!readArchiveEntry(entry, {}, 1).ok());
+        ArchiveEntryStreamReader stream(entry);
+        QVERIFY(stream.open());
+        QByteArray streamed;
+        char buffer[7];
+        qint64 count;
+        while ((count = stream.read(buffer, sizeof(buffer))) > 0) {
+            streamed.append(buffer, count);
+        }
+        QCOMPARE(count, 0);
+        QCOMPARE(streamed, bytes.data);
+        DecodeRequest request;
+        request.fitToWindow = false;
+        request.regionRendering = false;
+        const DecodedImage decoded = VipsImageDecoder().decode(entry, request);
+        QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+        QCOMPARE(decoded.image.size(), QSize(3, 2));
+        const QColor expected = entry.archiveEntryPath.contains(QStringLiteral("green")) ? QColor(Qt::green) : QColor(Qt::red);
+        QCOMPARE(decoded.image.pixelColor(1, 1), expected);
+        QCOMPARE(QImage::fromData(bytes.data).pixelColor(1, 1), expected);
+    }
+}
+
+void CoreTests::dibVariants_data()
+{
+    QTest::addColumn<bool>("headerless");
+    QTest::addColumn<bool>("topDown");
+    QTest::addColumn<bool>("archived");
+    for (bool headerless : { false, true }) {
+        for (bool topDown : { false, true }) {
+            for (bool archived : { false, true }) {
+                const QByteArray name = QByteArray::number(headerless) + '-' + QByteArray::number(topDown) + '-' + QByteArray::number(archived);
+                QTest::newRow(name.constData()) << headerless << topDown << archived;
+            }
+        }
+    }
+}
+
+void CoreTests::dibVariants()
+{
+    QFETCH(bool, headerless);
+    QFETCH(bool, topDown);
+    QFETCH(bool, archived);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QByteArray bitmap;
+    QDataStream out(&bitmap, QIODevice::WriteOnly);
+    out.setByteOrder(QDataStream::LittleEndian);
+    if (!headerless) {
+        out.writeRawData("BM", 2);
+        out << quint32(150) << quint32(0) << quint32(54);
+    }
+    out << quint32(40) << qint32(3) << qint32(topDown ? -8 : 8)
+        << quint16(1) << quint16(24) << quint32(0) << quint32(96)
+        << qint32(0) << qint32(0) << quint32(0) << quint32(0);
+    const QByteArray redRow = QByteArray::fromHex("0000ff0000ff0000ff000000");
+    const QByteArray blueRow = QByteArray::fromHex("ff0000ff0000ff0000000000");
+    const QByteArray rows = topDown ? redRow.repeated(4) + blueRow.repeated(4) : blueRow.repeated(4) + redRow.repeated(4);
+    out.writeRawData(rows.constData(), rows.size());
+    const QString path = QDir(dir.path()).filePath(QStringLiteral("sample.dib"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QCOMPARE(file.write(bitmap), bitmap.size());
+    file.close();
+    ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    if (archived) {
+        const QString archivePath = QDir(dir.path()).filePath(QStringLiteral("sample.zip"));
+        QVERIFY(writeZipArchive(archivePath, { { QStringLiteral("sample.dib"), bitmap } }));
+        const ScanResult scan = scanArchive(archivePath);
+        QVERIFY(scan.ok());
+        QCOMPARE(scan.entries.size(), 1);
+        entry = scan.entries.first();
+    }
+    DecodeRequest request;
+    request.fitToWindow = false;
+    request.regionRendering = false;
+    const DecodedImage decoded = VipsImageDecoder().decode(entry, request);
+    if (headerless && archived) {
+        // The sequential source has no filename hint for a headerless DIB.
+        QVERIFY(!decoded.ok());
+        QVERIFY(!decoded.errorMessage.isEmpty());
+    } else {
+        QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+        QCOMPARE(decoded.image.size(), QSize(3, 8));
+        QCOMPARE(decoded.image.pixelColor(1, 0), QColor(Qt::red));
+        QCOMPARE(decoded.image.pixelColor(1, 7), QColor(Qt::blue));
+    }
 }
 
 void CoreTests::decoderSupportedFormats_data()

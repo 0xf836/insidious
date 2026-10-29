@@ -93,6 +93,8 @@ The explicit image allowlist is:
 - WebP (`.webp`);
 - BMP and DIB (`.bmp`, `.dib`).
 
+Bitmap-file headers and top-down/bottom-up rows are covered by regression tests. Headerless DIB depends on the file-backed system loader and is currently unsupported through archive streaming; failed entries must report an error while preserving navigation.
+
 The explicit archive allowlist is:
 
 - ZIP (`.zip`);
