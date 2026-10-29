@@ -19,7 +19,8 @@ This is a native Linux GUI image viewer. The application should quickly open and
 - Prefer small, reviewable diffs.
 - Do not rewrite unrelated code.
 - Do not introduce new dependencies without explaining why they are needed.
-- Keep `docs/`, `AGENTS.md`, and `README.md` up to date.
+- Keep relevant documentation up to date. Update `README.md` and `AGENTS.md` only when their project overview or durable working guidance needs to change.
+- Keep `README.md` and `AGENTS.md` clean and concise. Put minor feature details, implementation notes, test descriptions/results, and task progress in the relevant `docs/` document; link to it instead of duplicating details. Do not append an entry for every small change.
 - Any feature addition, change, or removal must be reflected in the relevant documentation.
 - Any change to project structure, architecture, layering, dependencies, or implementation flow must be reflected in the relevant documentation.
 - Keep GUI code separate from core image, collection, archive, metadata, and cache logic.
@@ -139,7 +140,7 @@ Current fullscreen behavior:
 - Prefetch cache writes must use `MemoryImageCache` generation guards so stale background prefetch cannot repopulate cache after source switches or cache clears.
 - Prefetch jobs should be tracked/coalesced by cache key and limited to fit-sized decode requests. Do not start speculative prefetch for actual-size/custom zoom requests or password-protected archive entries.
 - `Copy Original Image` must copy original source bytes to the clipboard and may add compatible clipboard image data decoded from those same bytes, but it must not use the rendered raster. Filesystem and archive reads must stay off the UI thread; clipboard archive entries use bounded full-entry reads, display decode uses streaming archive reads, neither extracts to disk, and archive passwords must remain only in memory.
-- When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, `docs/`, `README.md`, and this file together.
+- When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, and the relevant documentation in `docs/` together.
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
 - Transient loading during image navigation should preserve the currently displayed raster and use a delayed subtle overlay so fast decodes do not flash a loading label. Zoom-triggered loading should preserve the displayed raster and decoded state without showing a loading label or moving the old image. Do not stack additional zoom/view-transform requests while an image render is pending; navigation may still cancel the pending render. Zoom-triggered render-too-large errors should restore the previous zoom/pan/raster and show a compact overlay instead of clearing the image. Error, empty, and scanning states may clear the image and show a full message.
 - Prefer display-sized rasters for `fit` and region-sized rasters for non-fit zoom/actual-size rendering by default. The viewer setting `regionRenderingEnabled` may disable region rendering for smoother panning at higher memory cost; this must still go through the shared render-memory budget and fallback path. The viewer scaling quality, color management mode, and device pixel ratio must flow through `DecodeRequest` and the decoded image cache key.
