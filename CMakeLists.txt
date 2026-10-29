@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.24)
 
+include(cmake/Version.cmake)
+insidious_read_version("${CMAKE_CURRENT_SOURCE_DIR}" INSIDIOUS_SOURCE_VERSION)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/version.txt")
+
 project(insidious
-    VERSION 0.1.0
+    VERSION ${INSIDIOUS_SOURCE_VERSION}
     LANGUAGES CXX
 )
 
@@ -16,6 +20,8 @@ find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Concurrent Test)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VIPSCPP REQUIRED IMPORTED_TARGET vips-cpp>=8.18.3)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
+
+include(cmake/BuildMetadata.cmake)
 
 set(CORE_SOURCES
     src/core/app_settings.cpp
@@ -61,6 +67,8 @@ target_link_libraries(insidious_core
 )
 
 set(UI_SOURCES
+    src/ui/about_dialog.cpp
+    src/ui/about_dialog.h
     src/ui/collection_tree_model.cpp
     src/ui/collection_tree_model.h
     src/ui/comparison_drag_mime_data.cpp
@@ -92,10 +100,7 @@ target_link_libraries(insidious
         insidious_core
         Qt6::Widgets
 )
-target_compile_definitions(insidious
-    PRIVATE
-        INSIDIOUS_VERSION="${PROJECT_VERSION}"
-)
+target_link_libraries(insidious PRIVATE insidious_version)
 
 install(TARGETS insidious
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
@@ -104,6 +109,7 @@ install(FILES
     README.md
     LICENSE
     PKGBUILD
+    version.txt
     DESTINATION "${CMAKE_INSTALL_DOCDIR}"
 )
 install(DIRECTORY docs/
@@ -243,6 +249,18 @@ add_executable(insidious_main_window_async_tests
     tests/main_window_async_tests.cpp
     ${UI_SOURCES}
 )
-target_link_libraries(insidious_main_window_async_tests PRIVATE insidious_core Qt6::Widgets Qt6::Test)
+target_link_libraries(insidious_main_window_async_tests PRIVATE insidious_core Qt6::Widgets Qt6::Test insidious_version)
 add_test(NAME insidious_main_window_async_tests COMMAND insidious_main_window_async_tests)
-set_tests_properties(insidious_main_window_async_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_tests_properties(insidious_main_window_async_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 30
+)
+
+add_test(NAME insidious_version_metadata_tests
+    COMMAND "${CMAKE_COMMAND}" "-DPROJECT_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/version-metadata-tests"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/version_metadata_tests.cmake")
+add_test(NAME insidious_headless_version_tests
+    COMMAND "${CMAKE_COMMAND}" "-DAPP=$<TARGET_FILE:insidious>"
+        "-DHEADER=${VERSION_OUTPUT_DIR}/build_version.h"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/headless_version_tests.cmake")

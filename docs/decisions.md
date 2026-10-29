@@ -156,7 +156,7 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 
 **Status:** Accepted.
 
-**Decision:** The repository ships a root `PKGBUILD` for `insidious-git`. It clones the public Git repository, derives a development version from the CMake version and Git revision, builds with CMake and Ninja, runs CTest, and installs through the project’s native CMake install rules.
+**Decision:** The repository ships a root `PKGBUILD` for `insidious-git`. It clones the public Git repository, derives a development version from `version.txt` and Git revision, builds with CMake and Ninja, runs CTest, and installs through the project’s native CMake install rules.
 
 **Rationale:** The project has no tagged release archive yet, so a VCS package is more truthful than a release recipe with a moving source or skipped checksum. A future release package must use a tag-bound immutable archive and a real checksum. Desktop integration is intentionally separate from the first package because it needs a privacy-aware design for MIME and recent-item behavior.
 
@@ -167,6 +167,8 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 **Decision:** Use SemVer, Conventional Commit squash titles, and release-please with a single `version.txt` application version. A maintainer merges the tested release PR; GitHub Actions then builds from its exact tagged source, verifies all required packages, and publishes a complete immutable GitHub Release from a draft. Keep `master` and one ordinary release channel initially. The [release specification](releasing.md) owns configuration, validation, and recovery details.
 
 **Rationale:** A reviewable release PR keeps release timing under maintainer control while automating repetitive version and changelog work. Draft staging prevents users from seeing incomplete downloads. Immutable tags/assets and explicit retry validation preserve artifact identity.
+
+Version identity is implemented: `version.txt`, shared build metadata, headless CLI/About and VCS recipe extraction. Version/archive fixtures verify identity boundaries and incremental refresh. Release-please, changelog automation and publication remain planned.
 
 ## ADR-021: Native distribution uses qualified system dependencies
 

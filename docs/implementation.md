@@ -13,7 +13,7 @@ This document maps the current codebase for maintainers and coding agents. Stabl
 - Tests: Qt Test.
 - Build: CMake + Ninja.
 
-The install target places `insidious` under the configured binary directory, installs the repository documentation tree under the configured documentation directory, and installs the MIT license under the shared licenses directory. `insidious --version` reports the CMake project version.
+The install target places `insidious` under the configured binary directory, installs the repository documentation tree under the configured documentation directory, and installs the MIT license under the shared licenses directory. `version.txt` is the numeric version source. `cmake/Version.cmake` validates/resolves identity, `BuildMetadata.cmake` wires configure/build-time generation, and `GenerateVersion.cmake` refreshes the build-only header without rewriting identical contents. The C++ header exposes only the displayed version; the full commit remains in CMake and archive metadata. `insidious --version`, `-v`, Qt metadata and About share the generated identity. `WriteSourceMetadata.cmake` prepares the validated archive identity file for later packaging.
 
 The build creates:
 
@@ -31,6 +31,7 @@ The build creates:
 ## Directory structure
 
 - `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, sets libvips cache limits, creates `QApplication`, parses an optional image/folder/archive path, and opens `MainWindow`.
+- `src/ui/about_dialog.*` presents Qt application version, MIT license and project link without fetching remote content. MainWindow shares its About action across menu surfaces.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, single/multi-path open and drag'n'drop classification, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
 - The normal main menu is built from the same `QAction` objects as toolbars but is hidden by default; a plain `Alt` key press shows it transiently for keyboard menu navigation, and it hides again after action trigger, popup close, or focus loss. The normal toolbar exposes a right-aligned compact app menu button, while the fullscreen toolbar keeps the same button inside the main button cluster so the right edge overlay does not cover it.
 - `src/ui/settings_dialog.*` implements the Preferences dialog. It edits an `AppSettings` value and leaves persistence/schema/defaults to core.

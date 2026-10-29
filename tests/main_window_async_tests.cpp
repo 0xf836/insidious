@@ -1,4 +1,16 @@
 #include "ui/main_window.h"
+#include "ui/about_dialog.h"
+#include "build_version.h"
+
+#include <QAction>
+#include <QDesktopServices>
+#include <QDialogButtonBox>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QUrl>
+#include <QMenu>
+#include <QMenuBar>
+#include <QToolButton>
 
 #include <QPromise>
 #include <QSettings>
@@ -11,23 +23,151 @@ class MainWindowAsyncTests : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase();
+    void aboutUsesApplicationVersionAndSharedAction();
+    void wrongModalTypeIsClosed_data();
+    void wrongModalTypeIsClosed();
+    void aboutLinkWorksFromKeyboard();
     void decodeCompletion_data();
     void decodeCompletion();
     void staleScanDoesNotReplaceSource_data();
     void staleScanDoesNotReplaceSource();
     void staleFolderLoadDoesNotReplaceBranch_data();
     void staleFolderLoadDoesNotReplaceBranch();
+public slots:
+    void captureUrl(const QUrl &url) { m_openedUrls.append(url); }
+
 private:
+    QList<QUrl> m_openedUrls;
     QTemporaryDir m_settingsDirectory;
 };
+
+namespace {
+
+// Own both timers so an action that returns without a dialog leaves no callbacks.
+bool triggerAboutAndCloseModal(QAction *action, bool *timedOut)
+{
+    bool correctType = false;
+    *timedOut = false;
+    auto closeModal = [&correctType]() {
+        QWidget *modal = QApplication::activeModalWidget();
+        correctType = qobject_cast<AboutDialog *>(modal) != nullptr;
+        if (auto *dialog = qobject_cast<QDialog *>(modal)) {
+            dialog->reject();
+        } else if (modal != nullptr) {
+            modal->close();
+        }
+    };
+    QTimer closer;
+    closer.setSingleShot(true);
+    QObject::connect(&closer, &QTimer::timeout, &closer, closeModal);
+    QTimer watchdog;
+    watchdog.setSingleShot(true);
+    QObject::connect(&watchdog, &QTimer::timeout, &watchdog, [&]() {
+        *timedOut = true;
+        closeModal();
+    });
+    closer.start(0);
+    watchdog.start(2000);
+    action->trigger();
+    return correctType;
+}
+
+} // namespace
 
 void MainWindowAsyncTests::initTestCase()
 {
     QVERIFY(m_settingsDirectory.isValid());
     QCoreApplication::setOrganizationName(QStringLiteral("InsidiousTests"));
     QCoreApplication::setApplicationName(QStringLiteral("AsyncResults"));
+    QCoreApplication::setApplicationVersion(QString::fromLatin1(build::Version));
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsDirectory.path());
+}
+
+void MainWindowAsyncTests::aboutUsesApplicationVersionAndSharedAction()
+{
+    MainWindow window;
+    QVERIFY(window.m_aboutAction != nullptr);
+    QVERIFY(window.m_appMenuButton->menu()->actions().contains(window.m_aboutAction));
+    QVERIFY(window.m_fullscreenAppMenuButton->menu()->actions().contains(window.m_aboutAction));
+    bool inMenuBar = false;
+    for (QAction *action : window.menuBar()->actions()) {
+        if (action->menu() && action->menu()->actions().contains(window.m_aboutAction)) {
+            inMenuBar = true;
+        }
+    }
+    QVERIFY(inMenuBar);
+    AboutDialog dialog;
+    QCOMPARE(dialog.findChild<QLabel *>(QStringLiteral("aboutVersion"))->text(),
+        QStringLiteral("Insidious ") + QCoreApplication::applicationVersion());
+    QVERIFY(dialog.findChild<QLabel *>(QStringLiteral("aboutLicense"))->text().contains(QStringLiteral("MIT")));
+    QVERIFY(dialog.findChild<QLabel *>(QStringLiteral("aboutProjectLink"))->text().contains(QStringLiteral("https://github.com/0xf836/insidious")));
+    bool timedOut = false;
+    const bool opened = triggerAboutAndCloseModal(window.m_aboutAction, &timedOut);
+    QVERIFY(!timedOut);
+    QVERIFY(opened);
+}
+
+void MainWindowAsyncTests::wrongModalTypeIsClosed_data()
+{
+    QTest::addColumn<bool>("messageBox");
+    QTest::newRow("generic-dialog") << false;
+    QTest::newRow("message-box") << true;
+}
+
+void MainWindowAsyncTests::wrongModalTypeIsClosed()
+{
+    QFETCH(bool, messageBox);
+    QAction action;
+    connect(&action, &QAction::triggered, this, [messageBox]() {
+        if (messageBox) {
+            QMessageBox dialog;
+            dialog.exec();
+        } else {
+            QDialog dialog;
+            dialog.exec();
+        }
+    });
+    bool timedOut = false;
+    QVERIFY(!triggerAboutAndCloseModal(&action, &timedOut));
+    QVERIFY(!timedOut);
+}
+
+void MainWindowAsyncTests::aboutLinkWorksFromKeyboard()
+{
+    // RAII unregisters the handler even if a QVERIFY returns early.
+    struct UrlHandlerReset {
+        ~UrlHandlerReset() { QDesktopServices::unsetUrlHandler("https"); }
+    } reset;
+    m_openedUrls.clear();
+    QDesktopServices::setUrlHandler("https", this, "captureUrl");
+    AboutDialog dialog;
+    auto *link = dialog.findChild<QLabel *>(QStringLiteral("aboutProjectLink"));
+    auto *version = dialog.findChild<QLabel *>(QStringLiteral("aboutVersion"));
+    auto *buttons = dialog.findChild<QDialogButtonBox *>();
+    QVERIFY(link != nullptr);
+    QVERIFY(version != nullptr);
+    QVERIFY(buttons != nullptr);
+    QVERIFY(link->textInteractionFlags().testFlag(Qt::LinksAccessibleByKeyboard));
+    QVERIFY(version->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard));
+    dialog.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+    dialog.activateWindow();
+    QTRY_VERIFY(dialog.isActiveWindow());
+    QVERIFY(m_openedUrls.isEmpty());
+    // Start at Close, then traverse the actual tab chain to the link.
+    buttons->button(QDialogButtonBox::Close)->setFocus();
+    for (int i = 0; i < 6 && !(link->hasFocus() && link->hasSelectedText()); ++i) {
+        QTest::keyClick(QApplication::focusWidget(), Qt::Key_Tab);
+    }
+    QVERIFY(link->hasFocus());
+    QVERIFY(link->hasSelectedText());
+    QTest::keyClick(link, Qt::Key_Return);
+    QTRY_COMPARE_WITH_TIMEOUT(m_openedUrls.size(), 1, 1000);
+    QCOMPARE(m_openedUrls.first(), QUrl(QStringLiteral("https://github.com/0xf836/insidious")));
+    version->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(version, Qt::Key_A, Qt::ControlModifier);
+    QCOMPARE(version->selectedText(), version->text());
 }
 
 void MainWindowAsyncTests::decodeCompletion_data()

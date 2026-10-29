@@ -46,7 +46,7 @@ Requirements:
 Arch Linux and similar systems:
 
 ```sh
-sudo pacman -S qt6-base libvips libarchive cmake ninja pkgconf
+sudo pacman -S qt6-base libvips libarchive cmake ninja pkgconf git bash
 ```
 
 Debian, Ubuntu, and similar systems:
@@ -54,7 +54,7 @@ Debian, Ubuntu, and similar systems:
 Check the [dependency audit](docs/dependency-audit.md) and [platform matrix](packaging/platforms.json) before using the package names below. Arch and Fedora 44 are candidates; clean native qualification is deferred. Standard Ubuntu 24.04 lacks the required Qt API, and Ubuntu 26.04 currently ships libvips 8.18.0, below the retained 8.18.3 minimum. These commands do not imply native support for those releases.
 
 ```sh
-sudo apt install qt6-base-dev libvips-dev libarchive-dev cmake ninja-build pkg-config
+sudo apt install qt6-base-dev libvips-dev libarchive-dev cmake ninja-build pkg-config git bash
 ```
 
 Configure, build, and test:
@@ -106,7 +106,7 @@ Wheel navigation, zoom behavior, rendering quality, fullscreen presentation, the
 - [Architecture](docs/architecture.md) — system boundaries and major data flows.
 - [Current implementation](docs/implementation.md) — code map for maintainers and coding agents.
 - [Arch Linux package](docs/arch-linux.md) — build and install the VCS package with makepkg.
-- [Versioning and distribution design](docs/releasing.md) — planned versions, CI, releases, native packages, and platform qualification.
+- [Versioning and distribution](docs/releasing.md) — current build identity and planned CI, releases, native packages, and platform qualification.
 - [Roadmap](docs/roadmap.md) — planned work and research directions.
 - [Project evolution](docs/project-evolution.md) — how the initial viewer foundation grew into the current application.
 

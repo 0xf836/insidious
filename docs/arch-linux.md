@@ -37,8 +37,8 @@ The package installs:
 
 ## Versioning and release packages
 
-`insidious-git` derives its package version from the CMake project version, the current commit count, and the short Git revision. Its VCS source intentionally uses `b2sums=('SKIP')`, which is the accepted makepkg policy for a moving Git source.
+`insidious-git` derives its package version from `version.txt`, the current commit count, and the short Git revision. CMake uses the same numeric source version; the application displays a generated release/development identity as described in the [version policy](releasing.md#one-application-version). Its VCS source intentionally uses `b2sums=('SKIP')`, which is the accepted makepkg policy for a moving Git source.
 
 When the project publishes a tagged release, add a separate non-VCS `insidious` recipe that downloads the immutable release archive and records its real checksum. Do not reuse the VCS recipe as a release package or publish a release archive recipe with `SKIP` checksums.
 
-The [versioning and distribution specification](releasing.md) defines this future stable recipe, its relationship to `insidious-git`, the planned move to `version.txt`, desktop integration, and release qualification. These changes are planned; the current recipe still reads the CMake version and does not install desktop integration. AUR publication is a separate later task.
+The [versioning and distribution specification](releasing.md) defines the future stable recipe, its relationship to `insidious-git`, desktop integration, and release qualification. The move to `version.txt` is implemented; desktop integration and release packaging remain planned. Installed documentation also includes `version.txt`. AUR publication is a separate later task.

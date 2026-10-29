@@ -28,7 +28,9 @@ pkgver() {
     cd "${srcdir}/insidious"
 
     local project_version
-    project_version=$(sed -n -E 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*/\1/p' CMakeLists.txt | head -n 1)
+    IFS= read -r project_version < version.txt || return 1
+    [[ $(wc -l < version.txt) -eq 1 ]] || return 1
+    [[ "$project_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || return 1
     printf '%s.r%s.g%s' \
         "${project_version}" \
         "$(git rev-list --count HEAD)" \

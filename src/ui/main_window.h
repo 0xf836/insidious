@@ -316,6 +316,7 @@ private:
     void applyShortcutSettings();
     [[nodiscard]] bool triggerMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button);
 
+    QAction *m_aboutAction = nullptr;
     ImageViewWidget *m_imageView = nullptr;
     QTabWidget *m_centralTabs = nullptr;
     ComparisonViewWidget *m_comparisonView = nullptr;

@@ -1,4 +1,5 @@
 #include "ui/main_window.h"
+#include "build_version.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -51,7 +52,7 @@ int main(int argc, char *argv[])
 {
     for (int index = 1; index < argc; ++index) {
         if (isVersionArgument(argv[index])) {
-            std::cout << "Insidious " << INSIDIOUS_VERSION << '\n';
+            std::cout << "Insidious " << insidious::build::Version << '\n';
             return 0;
         }
     }
@@ -73,7 +74,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("Insidious"));
     QApplication::setOrganizationName(QStringLiteral("Insidious"));
-    QApplication::setApplicationVersion(QStringLiteral(INSIDIOUS_VERSION));
+    QApplication::setApplicationVersion(QString::fromLatin1(insidious::build::Version));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QApplication::translate("main", "Native Linux image viewer."));

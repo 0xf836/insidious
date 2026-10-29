@@ -1,8 +1,8 @@
 # Versioning, Releases, and Linux Distribution
 
-**Status: Release infrastructure planned; dependency audit, local regression tests and initial platform matrix implemented.**
+**Status: Dependency audit, initial platform matrix and version identity implemented; CI and release publication remain planned.**
 
-This is the canonical technical specification for future versioning, CI, release publication, and Linux packaging. It records the agreed design and acceptance gates; it does not claim that workflows, release packages, desktop integration, or platform qualification already exist. Implement it in the stages below rather than as one large change.
+This is the canonical technical specification for version identity and planned CI, release publication, and Linux packaging. It records the agreed design and acceptance gates; it does not claim that workflows, release packages, desktop integration, or platform qualification already exist. Implement it in the stages below rather than as one large change.
 
 ## Goals and current baseline
 
@@ -10,8 +10,8 @@ Provide a predictable maintainer workflow and complete, clearly labelled downloa
 
 The planning baseline is:
 
-- `CMakeLists.txt` declares version `0.1.0`, Qt >= 6.6, and vips-cpp >= 8.18.3. The [dependency audit](dependency-audit.md) records the implemented requirement correction and Ubuntu 26.04 experiments; release infrastructure remains planned.
-- `src/app/main.cpp` exposes the CMake version through `--version` and Qt application metadata. The early version path does not require a display.
+- `version.txt` declares version `0.1.0`; CMake reads it before `project()`. The dependency requirements are Qt >= 6.6 and vips-cpp >= 8.18.3. The [dependency audit](dependency-audit.md) records the implemented requirement correction and Ubuntu 26.04 experiments; release infrastructure remains planned.
+- `src/app/main.cpp` exposes generated build identity through `--version`, `-v` and Qt application metadata. About displays the same identity. The early version path does not initialize Qt or libvips and does not require a display.
 - The root `PKGBUILD` builds `insidious-git` from Git and installs through CMake.
 - No workflow files or local release tags were present during planning. Remote tags and GitHub Releases must be checked before bootstrapping releases.
 - Package installation currently includes the binary, documentation, and license; desktop integration is future work.
@@ -22,7 +22,7 @@ Current behavior remains documented in [Current implementation](implementation.m
 
 ### One application version
 
-Introduce root `version.txt` containing one numeric `MAJOR.MINOR.PATCH` version and a trailing newline. CMake reads and validates it before `project(VERSION ...)`; release recipes consume that value rather than maintaining independent application versions. Release-please uses its `simple` strategy to update this file and `CHANGELOG.md`.
+Root `version.txt` contains one numeric `MAJOR.MINOR.PATCH` version and a trailing newline. CMake validates it before `project(VERSION ...)`; leading zeroes, suffixes, missing newline and extra lines are rejected. The Arch VCS recipe reads and validates this file too. Future release recipes must consume this value rather than maintain independent application versions. Planned release-please automation will use its `simple` strategy to update this file and `CHANGELOG.md`.
 
 The release-please manifest is automation state, not a second manually maintained version source. CI checks that its root package version agrees with `version.txt` in release PRs and release commits. The release tag must equal `v` followed by that version.
 
@@ -35,9 +35,9 @@ The release-please manifest is automation state, not a second manually maintaine
 | Ubuntu package version | `0.2.0-1+ubuntu24.04` | Separate build for a qualified Ubuntu target |
 | RPM version/release | `0.2.0`, `1%{?dist}` | Upstream version plus distribution release suffix |
 
-These package examples describe naming, not confirmed platform support. Development VCS package versions remain distinct from stable package versions; update their extraction to read `version.txt` when that file is introduced.
+These package examples describe naming, not confirmed platform support. Development VCS package versions remain distinct from stable package versions. The existing VCS recipe reads `version.txt` and retains its `.r<count>.g<sha>` suffix.
 
-Generate build metadata once for the executable and Qt application version. Use these display rules:
+The shared CMake metadata module generates `build_version.h` for the executable; the bootstrap sets Qt application version from that same value. A build-time target checks identity on every build and only rewrites the header when its contents change. It considers tracked, staged and untracked non-ignored files; ignored build output does not mark a checkout dirty. It uses a 12-character commit abbreviation and recognizes both lightweight and annotated matching tags. A Git-less source directory never inherits a parent checkout. Display rules:
 
 - Clean checkout at the matching release tag, or an official source archive: `Insidious 0.2.0`.
 - Other Git checkout: `Insidious 0.2.0-dev+g<short-sha>`.
@@ -46,7 +46,23 @@ Generate build metadata once for the executable and Qt application version. Use 
 
 Release builds require clean sources and explicit validation of version, tag, and commit. An official source archive includes generated source metadata with version and full commit SHA; that metadata must agree with `version.txt`. Do not embed local absolute paths, usernames, or build timestamps in the displayed version. Record build environment details in the release manifest instead.
 
-Preserve headless `--version`/`-v` behavior. Add a localizable About dialog showing the same version, license, and project link. Opening About must not perform network requests. Do not change the Qt organization/application names or the settings schema merely to introduce release metadata.
+Headless `--version`/`-v` behavior is preserved. `Help -> About Insidious` and the normal/fullscreen compact menus share one action. The localizable dialog displays the same version, MIT license and project link, with keyboard access to the link and version selection. Opening it performs no network request; clicking the link explicitly opens the browser. Qt organization/application names and the settings schema are unchanged.
+
+### Source archive metadata contract
+
+A Git-less official source archive carries root `source-metadata.json` with string fields `version` and `commit`. The version must match `version.txt`; the commit must be a full 40-character lowercase SHA-1. Malformed JSON, mismatches and invalid commit identifiers fail configuration/build metadata generation. Without this file, a Git-less export identifies as `-dev+unknown`. In a Git checkout, Git state takes precedence over archive metadata.
+
+To prepare metadata from a clean checkout at the matching release tag, future packaging can invoke:
+
+```sh
+cmake -DSOURCE_DIR=/path/to/clean/release-checkout \
+  -DOUTPUT_FILE=/path/to/staging/source-metadata.json \
+  -P cmake/WriteSourceMetadata.cmake
+```
+
+Run from the project root. The helper refuses dirty/untagged sources and existing output files; keep staging outside the source checkout. The later source-archive pipeline must include the resulting file at the archive root and verify tag/SHA/source identity before publication. This metadata is an identity record, not an authenticity proof or archive integrity check. Checksums and provenance belong to release publication.
+
+Git is optional for building an unidentified source export, but is required for checkout identity and the isolated version tests. Those tests also use Bash (already required by the Arch recipe) to verify `pkgver()`. No new application runtime dependency is introduced.
 
 ### Semantic versioning and compatibility
 
@@ -250,7 +266,7 @@ Before implementing Flatpak, resolve file access, adjacent-folder navigation, ar
 | Stage | Deliverable | Exit criteria |
 | --- | --- | --- |
 | 1. Compatibility (complete, revised scope) | Dependency audit, local regression tests and initial platform matrix | API/fix evidence, retained test results, explicit candidates/exclusions; clean qualification deferred to stages 3/4 |
-| 2. Version identity | `version.txt`, generated metadata, About, VCS recipe adaptation | Consistent versions; headless output; clean/dirty/unknown/archive cases tested |
+| 2. Version identity (complete) | `version.txt`, generated metadata, About, VCS recipe adaptation | Local tests cover consistent versions, headless output, clean/dirty/unknown/archive cases and incremental refresh; release/archive publication remains future work |
 | 3. CI | Reusable build/test jobs, candidate build qualification and PR conventions | Clean Arch/Fedora build evidence; required aggregate check handles failures/skips; untrusted PRs have no release credentials |
 | 4. Packages and desktop | Native recipes, completed platform qualification, install rules, icon/desktop/AppStream | Behavioral and package checks, installation/upgrade/removal, X11/Wayland launch acceptance; promote only qualified matrix entries |
 | 5. Release automation | Release-please and verified draft-to-public pipeline | Test-repository release, retry, conflict, and missing-artifact scenarios pass |
