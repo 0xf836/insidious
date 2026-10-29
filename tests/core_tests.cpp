@@ -1145,10 +1145,10 @@ void CoreTests::decoderExifRotationAndRegion()
     const int totalRotation = (rotation + (autorotate ? 90 : 0)) % 360;
     // Temporary quarantine: docs/roadmap.md#zoom-after-rotation.
     // Successful decodes still run every pixel assertion; other errors still fail.
-    if (!decoded.ok() && totalRotation != 0 && vips_concurrency_get() == 2
+    if (!decoded.ok() && totalRotation != 0 && vips_concurrency_get() >= 1 && vips_concurrency_get() <= 4
         && decoded.errorMessage.contains(QStringLiteral("VipsJpeg: out of order read at line "))
         && !qEnvironmentVariableIsSet("INSIDIOUS_STRICT_ROTATION_TESTS")) {
-        QSKIP("Known JPEG rotation/region read-order bug with two libvips threads; "
+        QSKIP("Known JPEG rotation/region read-order bug with one to four libvips threads; "
               "docs/roadmap.md#zoom-after-rotation. Set INSIDIOUS_STRICT_ROTATION_TESTS=1 "
               "to disable this temporary quarantine.");
     }

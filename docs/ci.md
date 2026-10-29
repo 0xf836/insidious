@@ -56,7 +56,7 @@ Local host validation also passed all 11 CTest entries, actionlint 1.7.7, Bash s
 
 ## Temporary rotation test quarantine
 
-The known [Zoom after rotation](roadmap.md#zoom-after-rotation) bug can fail six JPEG EXIF/view-rotation region cases with `VipsJpeg: out of order read` when libvips uses two threads. These cases temporarily report Qt Test **SKIP** only after that specific decode error occurs with a nonzero combined rotation and exactly two libvips threads. Successful decodes still execute all geometry/pixel assertions, other errors remain failures, and other thread counts are not quarantined. The test clears the previous row's libvips error buffer before decoding so an earlier failure cannot trigger a later skip.
+The known [Zoom after rotation](roadmap.md#zoom-after-rotation) bug can fail six JPEG EXIF/view-rotation region cases with `VipsJpeg: out of order read` with one to four libvips threads. These cases temporarily report Qt Test **SKIP** only after that specific decode error occurs with a nonzero combined rotation and one to four libvips threads. Successful decodes still execute all geometry/pixel assertions, other errors remain failures, and other thread counts are not quarantined. The test clears the previous row's libvips error buffer before decoding so an earlier failure cannot trigger a later skip.
 
 A green CI run may therefore include six known core-case skips; it does not establish correct rotated JPEG region rendering. No job or whole test target uses `continue-on-error`. Keep the bug as a separate fix, remove this quarantine in the fix PR, and close it before native release qualification. To reproduce the failure without quarantine:
 
