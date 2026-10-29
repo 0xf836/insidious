@@ -15,6 +15,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 - Do not implement large features in one step.
 - Before coding, read the relevant files in `docs/` and the current implementation.
 - Use `docs/README.md` to identify the canonical document for product behavior, architecture, implementation, decisions, risks, and future work.
+- For versioning, CI, releases, packaging, or desktop integration, read `docs/releasing.md`. It is a planned specification, not current infrastructure. Implement its stages separately; qualify system dependencies before lowering minimum versions or claiming platform support. Native packages must not bundle private Qt/libvips or replace system libraries.
 - Prefer small, reviewable diffs.
 - Do not rewrite unrelated code.
 - Do not introduce new dependencies without explaining why they are needed.

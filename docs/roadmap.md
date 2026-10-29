@@ -60,11 +60,15 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Distribution
 
-- Establish application versioning and a documented version-bump and release-tag policy, keeping the CMake version, application version reporting, and package versions aligned.
-- Add CI build and test jobs, then automate tagged releases with versioned artifacts and checksums.
-- Prepare release packaging for Arch Linux, Debian-based distributions (`.deb`), and RPM-based distributions (`.rpm`), with documented build/install workflows and validated dependencies.
-- Build on the existing Arch Linux `insidious-git` recipe and add a separate tagged-release `insidious` recipe with an immutable source archive and real checksum when a release tag exists.
-- Design desktop integration, icons, and MIME associations without weakening the recent-item privacy policy.
+Follow the [versioning, releases, and Linux distribution specification](releasing.md), which records the planned design and acceptance criteria. Implement it in these stages:
+
+1. Audit the actual minimum Qt/libvips requirements and qualify native targets using system libraries. Evaluate Arch, Debian 13, Ubuntu 24.04/26.04 LTS, and an explicitly selected stable Fedora release on x86_64; exclude targets that cannot preserve current capabilities without private libraries or major rework.
+2. Introduce one application version source, consistent release/development identities, and an About dialog; adapt the existing Arch VCS recipe.
+3. Add reusable CI build/test checks and Conventional Commit PR validation.
+4. Add native stable Arch, Debian/Ubuntu, and Fedora recipes for qualified targets, plus icons, desktop entries, and AppStream metadata without adding recent-item writes.
+5. Automate release PRs and complete draft-to-public GitHub Releases with source archives, packages, checksums, provenance, and recovery checks.
+6. Qualify and publish the first release through the maintainer runbook.
+7. Design Flatpak for systems excluded from native support. Keep AUR publication, hosted apt/RPM repositories, and ARM64 as separate future work.
 
 ### Memory auditing
 

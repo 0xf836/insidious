@@ -104,6 +104,7 @@ Wheel navigation, zoom behavior, rendering quality, fullscreen presentation, the
 - [Architecture](docs/architecture.md) — system boundaries and major data flows.
 - [Current implementation](docs/implementation.md) — code map for maintainers and coding agents.
 - [Arch Linux package](docs/arch-linux.md) — build and install the VCS package with makepkg.
+- [Versioning and distribution design](docs/releasing.md) — planned versions, CI, releases, native packages, and platform qualification.
 - [Roadmap](docs/roadmap.md) — planned work and research directions.
 - [Project evolution](docs/project-evolution.md) — how the initial viewer foundation grew into the current application.
 

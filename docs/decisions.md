@@ -1,6 +1,6 @@
 # Architecture Decisions
 
-Decision status is one of **Accepted**, **Historical**, or **Superseded**. Historical records explain how the current architecture emerged but no longer prescribe a staged implementation. Superseded records retain context and point to the replacement decision.
+Decision status is one of **Accepted**, **Planned**, **Historical**, or **Superseded**. Planned records specify an agreed future direction but do not describe implemented behavior; change their status when the relevant implementation and validation are complete. Historical records explain how the current architecture emerged but no longer prescribe a staged implementation. Superseded records retain context and point to the replacement decision.
 
 ## ADR-001: Product documentation was written primarily in Russian
 
@@ -157,3 +157,27 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 **Decision:** The repository ships a root `PKGBUILD` for `insidious-git`. It clones the public Git repository, derives a development version from the CMake version and Git revision, builds with CMake and Ninja, runs CTest, and installs through the project’s native CMake install rules.
 
 **Rationale:** The project has no tagged release archive yet, so a VCS package is more truthful than a release recipe with a moving source or skipped checksum. A future release package must use a tag-bound immutable archive and a real checksum. Desktop integration is intentionally separate from the first package because it needs a privacy-aware design for MIME and recent-item behavior.
+
+## ADR-020: Release PRs control versioning and publication
+
+**Status:** Planned.
+
+**Decision:** Use SemVer, Conventional Commit squash titles, and release-please with a single `version.txt` application version. A maintainer merges the tested release PR; GitHub Actions then builds from its exact tagged source, verifies all required packages, and publishes a complete immutable GitHub Release from a draft. Keep `master` and one ordinary release channel initially. The [release specification](releasing.md) owns configuration, validation, and recovery details.
+
+**Rationale:** A reviewable release PR keeps release timing under maintainer control while automating repetitive version and changelog work. Draft staging prevents users from seeing incomplete downloads. Immutable tags/assets and explicit retry validation preserve artifact identity.
+
+## ADR-021: Native distribution uses qualified system dependencies
+
+**Status:** Planned.
+
+**Decision:** Audit the actual Qt/libvips requirements before changing minimums. Qualify target distributions with their standard libraries and the existing feature set. Do not bundle private Qt/libvips, replace system libraries, or require third-party repositories for native packages. Exclude incompatible targets; plan Flatpak separately as a future runtime-based distribution channel.
+
+**Rationale:** Current version constraints have historical explanations but need API, behavior, and relevant-fix evidence before they define distribution coverage. Preserving native dependency management avoids a second private runtime maintenance burden. See [dependency qualification](releasing.md#dependency-qualification-and-native-support).
+
+## ADR-022: Native recipes share installation and desktop identity
+
+**Status:** Planned.
+
+**Decision:** Use separate stable Arch, debhelper Debian/Ubuntu, and Fedora RPM recipes over common CMake install rules. Retain the root Arch VCS recipe. Adopt `io.github.0xf836.Insidious` for desktop/icon/AppStream identity, with Open With integration but no automatic default-association changes or application recent-item writes. Publish packages through GitHub Releases first; AUR and hosted package repositories remain later work.
+
+**Rationale:** Native recipes provide distribution-specific dependency and package validation while shared install rules keep contents consistent. One desktop identity prepares future Flatpak integration without changing the existing settings namespace. See [package and desktop design](releasing.md#package-design-and-desktop-integration). ADR-019 remains the description of current Arch packaging until these stages are implemented.
