@@ -44,5 +44,4 @@
 .DS_Store
 
 # AI
-.agents/
-.codex/
+/.codex/*
