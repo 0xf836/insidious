@@ -107,9 +107,11 @@ The libvips decoder:
 4. calculates a display-sized or region-sized request;
 5. checks the shared output-raster memory budget;
 6. resizes with the selected kernel;
-7. converts an embedded profile to sRGB when enabled and available;
-8. normalizes pixels to an 8-bit RGB or RGBA layout;
-9. returns a `QImage` that owns its backing buffer.
+7. for non-identity orientation/view transforms, evaluates the cropped/resized native raster in strips ordered by increasing source row, then materializes that final-sized raster in memory;
+8. converts an embedded profile to sRGB when enabled and available;
+9. normalizes pixels to an 8-bit RGB or RGBA layout and returns a `QImage` that owns its backing buffer.
+
+The strip sink preserves the existing orientation → crop → resize sampling graph. It changes evaluation order rather than moving resize across reflections. Rotated output columns or reversed rows are requested as necessary to keep sequential JPEG/archive readers moving forward. No complete source raster or temporary image file is introduced. Native sample depth/bands are checked through the shared estimator before allocating the intermediate. Its interpretation and embedded ICC profile are retained so ICC fallback can replay memory without rereading a consumed archive stream. Per-request native buffers invalidate downstream operations on scope exit and use libvips-tracked allocation so cache retention participates in the existing backend memory policy. The transformed graph drops the sequential-output metadata hint before resize while keeping sequential source access.
 
 Profile conversion failure is non-fatal and falls back to an sRGB assumption. Display-profile matching is a separate future layer and is not implied by embedded-profile conversion.
 
@@ -121,7 +123,7 @@ Neighbor prefetch is limited to fit-sized requests. Jobs are tracked and coalesc
 
 Actual-size, custom zoom, and password-protected archive entries do not start speculative prefetch.
 
-The render-memory budget estimates output raster memory only. libvips working memory, source buffering, displayed images, caches, thumbnails, and concurrent tasks contribute to total process peak memory and are measured separately by the [memory audit](memory-audit.md).
+The render-memory budget estimates the final output raster. A transformed request also checks its final-sized native intermediate, including sample depth, against the same byte limit before allocation. Each allocation is bounded separately; this is not a combined process-memory cap. libvips working memory, source buffering, displayed images, caches, thumbnails, and concurrent tasks contribute to total process peak memory and are measured separately by the [memory audit](memory-audit.md).
 
 ## Asynchronous work and stale results
 

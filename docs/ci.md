@@ -54,15 +54,13 @@ Initial clean builds exposed an undeclared supported-format dependency: both pas
 
 Local host validation also passed all 11 CTest entries, actionlint 1.7.7, Bash syntax, policy tests and documentation link checks. A separate consumer configuration built with tests and audit tooling disabled, and an explicit audit-enabled configuration built `insidious_memory_audit`. No native package installation/upgrade/removal or interactive X11/Wayland acceptance was performed.
 
-## Temporary rotation test quarantine
+## Rotation regression coverage
 
-The known [Zoom after rotation](roadmap.md#zoom-after-rotation) bug can fail six JPEG EXIF/view-rotation region cases with `VipsJpeg: out of order read` with one to four libvips threads. These cases temporarily report Qt Test **SKIP** only after that specific decode error occurs with a nonzero combined rotation and one to four libvips threads. Successful decodes still execute all geometry/pixel assertions, other errors remain failures, and other thread counts are not quarantined. The test clears the previous row's libvips error buffer before decoding so an earlier failure cannot trigger a later skip.
-
-A green CI run may therefore include six known core-case skips; it does not establish correct rotated JPEG region rendering. No job or whole test target uses `continue-on-error`. Keep the bug as a separate fix, remove this quarantine in the fix PR, and close it before native release qualification. To reproduce the failure without quarantine:
+The temporary JPEG rotation quarantine has been removed. `decoderExifRotationAndRegion` is mandatory at every thread count; no `INSIDIOUS_STRICT_ROTATION_TESTS` opt-out or known-case skips remain. Transformed rendering uses source-ordered strip evaluation, described in [Current implementation](implementation.md#sequential-decode-and-rotated-rendering). Reproduce the former failing low-thread condition with:
 
 ```sh
-INSIDIOUS_STRICT_ROTATION_TESTS=1 VIPS_CONCURRENCY=2 QT_QPA_PLATFORM=offscreen \
-  build/insidious_core_tests decoderExifRotationAndRegion
+VIPS_CONCURRENCY=2 QT_QPA_PLATFORM=offscreen \
+  build/insidious_core_tests decoderExifRotationAndRegion decoderTransformedSampling
 ```
 
 ## Repository setup and remaining acceptance

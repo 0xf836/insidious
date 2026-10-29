@@ -165,6 +165,10 @@ Neighbor prefetch is limited to fit-sized requests, tracked by cache key, and gu
 
 Decoded images and thumbnails use bounded memory-only caches. Render-memory estimates must use the shared core budget logic. A `QImage` returned from decoder-owned memory must own its buffer through a cleanup callback or be a real copy.
 
+## Sequential rendering of transformed images
+
+EXIF orientation and view rotation must remain usable with fit, actual-size and fractional zoom requests at low decoder thread counts. Region rendering must keep forward-only file/archive decoding compatible with transforms without extracting archives or spooling decoded images to disk. A transformed request may hold a final-sized native intermediate alongside its 8-bit output; each raster must pass the shared memory-budget check, including native sample depth for the intermediate. If either exceeds the limit, fail through the existing render-too-large path. This is an allocation bound, not a total-RSS guarantee.
+
 ## Loading and errors
 
 Navigation to an uncached image keeps the previous raster visible. A subtle loading overlay appears only after a short delay so fast decodes do not flash. Zoom-triggered renders also preserve the previous raster and decoded state but do not display a loading label or move the old raster prematurely.
