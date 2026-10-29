@@ -178,6 +178,6 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 
 **Status:** Planned.
 
-**Decision:** Use separate stable Arch, debhelper Debian/Ubuntu, and Fedora RPM recipes over common CMake install rules. Retain the root Arch VCS recipe. Adopt `io.github.0xf836.Insidious` for desktop/icon/AppStream identity, with Open With integration but no automatic default-association changes or application recent-item writes. Publish packages through GitHub Releases first; AUR and hosted package repositories remain later work.
+**Decision:** Use separate stable Arch, debhelper Debian/Ubuntu, and Fedora RPM recipes over common CMake install rules. Retain the root Arch VCS recipe. Adopt `io.github._0xf836.Insidious` for desktop/icon/AppStream and future Flatpak identity, escaping the owner's initial digit according to D-Bus naming rules, with Open With integration but no automatic default-association changes or application recent-item writes. Publish packages through GitHub Releases first; AUR and hosted package repositories remain later work.
 
 **Rationale:** Native recipes provide distribution-specific dependency and package validation while shared install rules keep contents consistent. One desktop identity prepares future Flatpak integration without changing the existing settings namespace. See [package and desktop design](releasing.md#package-design-and-desktop-integration). ADR-019 remains the description of current Arch packaging until these stages are implemented.

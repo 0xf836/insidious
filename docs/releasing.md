@@ -102,10 +102,10 @@ Use `include(CTest)`/`BUILD_TESTING` to make test targets and Qt Test requiremen
 1. Merge the approved release PR.
 2. Release-please creates the matching tag and draft Release for the exact release commit.
 3. Invoke the release build explicitly through dependent jobs/reusable workflows, passing tag and full SHA. Do not rely on another workflow starting from an event emitted by `GITHUB_TOKEN`.
-4. Verify tag, commit, version file, manifest, and changelog agreement.
-5. Create the official source archive and source metadata. Build every package from that archive, without access to `.git`.
+4. Verify tag, commit, version file, release-please manifest, and changelog agreement.
+5. Create the official source archive and source metadata. Transfer the archive and its SHA-256 digest through CI artifacts to package jobs. Build every package from that archive, without access to `.git`; seed the Arch source cache as described below rather than downloading an unpublished release asset.
 6. Test all required packages in clean target systems.
-7. Generate the release manifest, checksums, and build provenance attestations; upload the full artifact set to the draft.
+7. Generate `release-manifest.json`, checksums, and build provenance attestations. Persist them with the payloads as CI artifacts before uploading the full artifact set to the draft.
 8. Verify the remote asset inventory and digests, then publish the draft automatically and mark it Latest.
 
 Use one serialized publication concurrency group without cancelling an in-progress publication on a new push. PR checks may cancel obsolete PR runs. A failed draft blocks another production publication until recovered or explicitly abandoned in the runbook.
@@ -162,6 +162,8 @@ All recipes use CMake installation with the target distribution's directory conv
 
 Stable Arch metadata and Debian changelog entries are generated from the selected release version in a staging directory. The stable Arch source checksum is computed after creating the official source archive; publish the rendered recipe separately to avoid requiring an archive to contain its own checksum. Keep generation deterministic and retain templates in Git.
 
+The rendered stable Arch recipe retains the final public release URL. Before running `makepkg` in CI, transfer the canonical source archive from the source job's CI artifact into the clean build environment's `SRCDEST`, using the exact filename expected by the recipe. Verify its SHA-256 digest against the source job's recorded digest and run makepkg's source-integrity checks against the rendered recipe. This avoids fetching a source asset that is not public yet while testing the same archive and checksum that users will receive. After publication, separately verify that the public source URL serves those same bytes. A missing or mismatched cached source must fail the pre-publication build rather than fall back to the unpublished URL.
+
 Ship source packages where supported (`.dsc` and associated Debian source files, Fedora `.src.rpm`) and the rendered Arch recipe alongside binaries. Preserve package-manager-native filenames; use per-target directories during CI and ensure uploaded filenames cannot collide across distributions.
 
 Install the application, desktop resources, documentation, and licenses. Do not install tests, audit tools, build caches, or private runtime libraries. Use native desktop/cache triggers where needed; maintainer scripts must not access the network, edit user preferences, or set default file associations.
@@ -170,13 +172,13 @@ For the initial release system, an application or packaging correction after pub
 
 ### Desktop identity
 
-Use `io.github.0xf836.Insidious` consistently for the desktop file, icon, and AppStream component. This does not rename the existing QSettings namespace.
+Use `io.github._0xf836.Insidious` consistently for the desktop file, icon, AppStream component, and future Flatpak application ID. The leading underscore escapes the GitHub owner's initial digit to satisfy D-Bus well-known name rules, which Flatpak application IDs follow. This does not rename the existing QSettings namespace.
 
 Provide a scalable icon, appropriate raster sizes, a localizable desktop entry, and AppStream metadata. Use `Exec=insidious %f` for the current one-path CLI, `Terminal=false`, and suitable Graphics/Viewer categories. Do not use `%F` until the command-line interface explicitly supports multiple paths.
 
 Register Open With MIME types only for the supported image/archive allowlists. Do not advertise every format exposed by the system libvips build or make Insidious the default archive handler. Include project/help links and the MIT license in metadata; keep application metadata consistent with release versions.
 
-Validate with desktop-file and AppStream validators. Exercise launching paths containing spaces and Unicode, plus normal menu launch, on X11 and Wayland.
+Validate the application ID against Flatpak/D-Bus naming rules, including rejection of components starting with digits, and check identity agreement across desktop, icon, and AppStream resources. Validate with desktop-file and AppStream validators. Exercise launching paths containing spaces and Unicode, plus normal menu launch, on X11 and Wayland.
 
 Desktop integration must not add application-owned recent-item writes. A separate file manager or desktop shell may record its own activity; do not claim that a desktop entry can prevent all traces created by other applications. Retain the existing non-native file-dialog policy unless a separate privacy decision changes it.
 
@@ -220,12 +222,18 @@ A green ordinary development PR is not release evidence. A successful package bu
 ### Failure and retry
 
 - Build/test failure: keep the draft unpublished and retain logs/artifacts. Retry transient infrastructure failures against the same SHA; code fixes require a new version.
-- Interrupted upload: resume the draft after verifying its tag/SHA and manifest. Reuse existing assets only if their digests match. A same-name mismatch is a hard failure, never an automatic overwrite.
+- Interrupted upload: resume the draft after verifying its tag/SHA and the persisted `release-manifest.json`. Reuse existing assets only if their digests match. A same-name mismatch is a hard failure, never an automatic overwrite.
 - Publication failure after upload: verify the complete remote inventory and retry publication. If publication already succeeded, verify it and exit successfully without changing assets.
 - Incomplete/abandoned draft: explicitly record abandonment, retain any existing tag, and use a new version for changed sources. Never move a previously created release tag.
 - Fault discovered after publication: publish a corrective version. If necessary, point Latest back to the previous verified release while the fix is prepared. Record the problem in the corrective release/issue; do not replace immutable assets.
 
-Provide a trusted `workflow_dispatch` recovery entry point accepting an existing release tag. It must validate the tag's syntax, ancestry on the release branch, version, full SHA, draft/published state, and manifest before acting. It cannot create arbitrary releases from user-supplied refs or bypass qualification checks.
+Provide a trusted `workflow_dispatch` recovery entry point accepting an existing release tag. Always validate the tag's syntax, ancestry on the release branch, full SHA, version, originating release PR, release-please manifest, and draft/published state before acting. Distinguish the release-please manifest (version automation state in the tagged source) from `release-manifest.json` (artifact inventory generated after package validation). Recovery then follows these states:
+
+- **Draft before release manifest generation:** validate the platform matrix from the tagged commit and repeat the source/package build and all mandatory checks at that SHA. No `release-manifest.json` is required to restart this stage. Reuse retained source artifacts only after checking their source identity and recorded digest. Unexpected remote payload assets at this stage require investigation before proceeding.
+- **Draft after release manifest generation or partial upload:** retrieve the persisted `release-manifest.json` and payloads from the original trusted CI run, verify their source identity, target matrix, and digests, and compare every existing remote asset against that inventory. Resume only missing uploads and publication checks. If the trusted inventory or matching payloads cannot be recovered, stop for explicit abandonment/new-version handling rather than inventing an inventory from remote files or overwriting them.
+- **Published release:** verify the complete published inventory and provenance, then exit without changing assets. Missing or mismatched files are an error requiring a corrective release.
+
+The recovery entry point cannot create arbitrary releases from user-supplied refs or bypass qualification checks.
 
 ## Deferred distribution channels
 
@@ -251,7 +259,7 @@ For package acceptance, test fresh installation, upgrade from the preceding pack
 
 Rendering acceptance must cover the supported formats, all scaling presets, ICC/EXIF, rotated region rendering, and HiDPI. Document pre-existing bugs separately; do not claim packaging fixes archive or zoom bugs tracked elsewhere in the roadmap.
 
-Release tests must cover a missing mandatory target, tag/version mismatch, duplicate asset with a different digest, interrupted upload, rerun after publication, source archive without Git, and fork PR isolation. Publication is allowed only after all mandatory target results and manifest checks pass.
+Release tests must cover a missing mandatory target, tag/version mismatch, early build failure before `release-manifest.json` exists, duplicate asset with a different digest, interrupted upload with the release manifest retained only in CI artifacts, unavailable recovery artifacts, rerun after publication, source archive without Git, and fork PR isolation. Arch acceptance must include building from the seeded source cache while the public source URL is unavailable, rejecting a mismatched source digest, and checking the public source URL after publication. Publication is allowed only after all mandatory target results and release-manifest checks pass.
 
 The documentation stage itself is complete when this specification, ADRs, roadmap, documentation index, README, Arch guide, and agent guidance agree; local links resolve; and `git diff --check` passes. No application build or hosted release proof is implied by documentation validation.
 
@@ -271,4 +279,6 @@ These are design references, not promises that an upstream service or distributi
 - [Debian libvips package listing](https://packages.debian.org/search?keywords=libvips42)
 - [Fedora libvips package listing](https://packages.fedoraproject.org/pkgs/vips/vips/)
 - [Desktop Entry Specification](https://specifications.freedesktop.org/desktop-entry/latest/)
+- [Flatpak application ID conventions](https://docs.flatpak.org/en/latest/conventions.html#application-ids)
+- [D-Bus bus-name rules and escaping leading digits](https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-bus)
 - [Flatpak runtime, dependencies, and sandbox concepts](https://docs.flatpak.org/en/latest/basic-concepts.html)
