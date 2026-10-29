@@ -1,0 +1,714 @@
+{
+  "date_utc": "2026-10-29T13:03:09.378866+00:00",
+  "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.43",
+  "cpu": "processor\t: 0\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 183\nmodel name\t: 13th Gen Intel(R) Core(TM) i7-13700K\nstepping\t: 1\nmicrocode\t: 0x137\ncpu MHz\t\t: 2315.492\ncache size\t: 30720 KB\nphysical id\t: 0\nsiblings\t: 24\ncore id\t\t: 0\ncpu cores\t: 16\napicid\t\t: 0\ninitial apicid\t: 0\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 32\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf tsc_known_freq pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb intel_pt sha_ni xsaveopt xsavec xgetbv1 xsaves split_lock_detect user_shstk avx_vnni dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp hwp_pkg_req hfi vnmi umip pku ospke waitpkg gfni vaes vpclmulqdq rdpid movdiri movdir64b fsrm md_clear serialize pconfig arch_lbr flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer posted_intr invvpid ept_x_only ept_ad ept_1gb flexpriority apicv tsc_offset vtpr mtf vapic ept vpid unrestricted_guest vapic_reg vid ple shadow_vmcs ept_violation_ve ept_mode_based_exec tsc_scaling usr_wait_pause\nbugs\t\t: spectre_v1 spectre_v2 spec_store_bypass swapgs eibrs_pbrsb rfds bhi spectre_v2_user vmscape\nbogomips\t: 6835.20\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 46 bits physical, 48 bits virtual\npower management:",
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+  ],
+  "simd_targets": {
+    "vips_vector_get_builtin_targets": 19328,
+    "vips_vector_get_supported_targets": 23040
+  },
+  "os_release": "PRETTY_NAME=\"Ubuntu 26.04.1 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04.1 LTS (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+  "vips_version": "vips-8.18.0",
+  "method": {
+    "width": 6000,
+    "height": 4000,
+    "concurrency": 4,
+    "pairs": 6,
+    "discard_first_pairs": 1,
+    "command": "vips resize INPUT.v OUTPUT.v SCALE --kernel KERNEL",
+    "scalar_environment": {
+      "VIPS_NOVECTOR": "1"
+    }
+  },
+  "results": [
+    {
+      "kernel": "linear",
+      "scale": "0.125",
+      "samples": [
+        {
+          "pair": 0,
+          "mode": "simd",
+          "warmup": true,
+          "seconds": 0.04532908403780311
+        },
+        {
+          "pair": 0,
+          "mode": "scalar",
+          "warmup": true,
+          "seconds": 0.07254975102841854
+        },
+        {
+          "pair": 1,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.0827554389834404
+        },
+        {
+          "pair": 1,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.05574120196979493
+        },
+        {
+          "pair": 2,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.051071980968117714
+        },
+        {
+          "pair": 2,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.10000638500787318
+        },
+        {
+          "pair": 3,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.09879582095891237
+        },
+        {
+          "pair": 3,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.058986926916986704
+        },
+        {
+          "pair": 4,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.060221125022508204
+        },
+        {
+          "pair": 4,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.07367155596148223
+        },
+        {
+          "pair": 5,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.08686120097991079
+        },
+        {
+          "pair": 5,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.05022915999870747
+        }
+      ],
+      "median_seconds": {
+        "simd": 0.05574120196979493,
+        "scalar": 0.08686120097991079
+      },
+      "slowdown": 1.5582943659338238
+    },
+    {
+      "kernel": "linear",
+      "scale": "0.625",
+      "samples": [
+        {
+          "pair": 0,
+          "mode": "simd",
+          "warmup": true,
+          "seconds": 0.07071461202576756
+        },
+        {
+          "pair": 0,
+          "mode": "scalar",
+          "warmup": true,
+          "seconds": 0.14536239800509065
+        },
+        {
+          "pair": 1,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.10623926890548319
+        },
+        {
+          "pair": 1,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.04624155105557293
+        },
+        {
+          "pair": 2,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.03685749392025173
+        },
+        {
+          "pair": 2,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.1741370219970122
+        },
+        {
+          "pair": 3,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.1154278430622071
+        },
+        {
+          "pair": 3,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.04787840403150767
+        },
+        {
+          "pair": 4,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.0419387340079993
+        },
+        {
+          "pair": 4,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.11996463302057236
+        },
+        {
+          "pair": 5,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.13835304195526987
+        },
+        {
+          "pair": 5,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.06237970991060138
+        }
+      ],
+      "median_seconds": {
+        "simd": 0.04624155105557293,
+        "scalar": 0.11996463302057236
+      },
+      "slowdown": 2.5943038302586197
+    },
+    {
+      "kernel": "mitchell",
+      "scale": "0.125",
+      "samples": [
+        {
+          "pair": 0,
+          "mode": "simd",
+          "warmup": true,
+          "seconds": 0.05309971794486046
+        },
+        {
+          "pair": 0,
+          "mode": "scalar",
+          "warmup": true,
+          "seconds": 0.13014252111315727
+        },
+        {
+          "pair": 1,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.11368191102519631
+        },
+        {
+          "pair": 1,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.08177849708590657
+        },
+        {
+          "pair": 2,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.06226975400932133
+        },
+        {
+          "pair": 2,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.08536266698502004
+        },
+        {
+          "pair": 3,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.11088674189522862
+        },
+        {
+          "pair": 3,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.06407436402514577
+        },
+        {
+          "pair": 4,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.055105286999605596
+        },
+        {
+          "pair": 4,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.09592899295967072
+        },
+        {
+          "pair": 5,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.08826007600873709
+        },
+        {
+          "pair": 5,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.05759734206367284
+        }
+      ],
+      "median_seconds": {
+        "simd": 0.06226975400932133,
+        "scalar": 0.09592899295967072
+      },
+      "slowdown": 1.5405391347027138
+    },
+    {
+      "kernel": "mitchell",
+      "scale": "0.625",
+      "samples": [
+        {
+          "pair": 0,
+          "mode": "simd",
+          "warmup": true,
+          "seconds": 0.05891033203806728
+        },
+        {
+          "pair": 0,
+          "mode": "scalar",
+          "warmup": true,
+          "seconds": 0.15643933205865324
+        },
+        {
+          "pair": 1,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.1632055309601128
+        },
+        {
+          "pair": 1,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.04731479205656797
+        },
+        {
+          "pair": 2,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.049614830990321934
+        },
+        {
+          "pair": 2,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.13959930511191487
+        },
+        {
+          "pair": 3,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.13502075499854982
+        },
+        {
+          "pair": 3,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.04555546399205923
+        },
+        {
+          "pair": 4,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.04520886193495244
+        },
+        {
+          "pair": 4,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.15118852409068495
+        },
+        {
+          "pair": 5,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.165035254904069
+        },
+        {
+          "pair": 5,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.045312996953725815
+        }
+      ],
+      "median_seconds": {
+        "simd": 0.04555546399205923,
+        "scalar": 0.15118852409068495
+      },
+      "slowdown": 3.318779150554555
+    },
+    {
+      "kernel": "lanczos3",
+      "scale": "0.125",
+      "samples": [
+        {
+          "pair": 0,
+          "mode": "simd",
+          "warmup": true,
+          "seconds": 0.07022741390392184
+        },
+        {
+          "pair": 0,
+          "mode": "scalar",
+          "warmup": true,
+          "seconds": 0.10315527196507901
+        },
+        {
+          "pair": 1,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.10551957995630801
+        },
+        {
+          "pair": 1,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.057001962093636394
+        },
+        {
+          "pair": 2,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.08304652001243085
+        },
+        {
+          "pair": 2,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.12531439994927496
+        },
+        {
+          "pair": 3,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.10353577695786953
+        },
+        {
+          "pair": 3,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.05242751003243029
+        },
+        {
+          "pair": 4,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.056146222981624305
+        },
+        {
+          "pair": 4,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.10715543199330568
+        },
+        {
+          "pair": 5,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.1109956419095397
+        },
+        {
+          "pair": 5,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.07510201400145888
+        }
+      ],
+      "median_seconds": {
+        "simd": 0.057001962093636394,
+        "scalar": 0.10715543199330568
+      },
+      "slowdown": 1.8798551498505056
+    },
+    {
+      "kernel": "lanczos3",
+      "scale": "0.625",
+      "samples": [
+        {
+          "pair": 0,
+          "mode": "simd",
+          "warmup": true,
+          "seconds": 0.04912569699808955
+        },
+        {
+          "pair": 0,
+          "mode": "scalar",
+          "warmup": true,
+          "seconds": 0.20409663091413677
+        },
+        {
+          "pair": 1,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.1868015310028568
+        },
+        {
+          "pair": 1,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.04587524908129126
+        },
+        {
+          "pair": 2,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.041645008022896945
+        },
+        {
+          "pair": 2,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.18087586597539485
+        },
+        {
+          "pair": 3,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.19672121398616582
+        },
+        {
+          "pair": 3,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.05377540201880038
+        },
+        {
+          "pair": 4,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.05485768802464008
+        },
+        {
+          "pair": 4,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.19795697508379817
+        },
+        {
+          "pair": 5,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.1929013900225982
+        },
+        {
+          "pair": 5,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.048599969944916666
+        }
+      ],
+      "median_seconds": {
+        "simd": 0.048599969944916666,
+        "scalar": 0.1929013900225982
+      },
+      "slowdown": 3.9691668583588253
+    },
+    {
+      "kernel": "mks2021",
+      "scale": "0.125",
+      "samples": [
+        {
+          "pair": 0,
+          "mode": "simd",
+          "warmup": true,
+          "seconds": 0.05402265896555036
+        },
+        {
+          "pair": 0,
+          "mode": "scalar",
+          "warmup": true,
+          "seconds": 0.13400540698785335
+        },
+        {
+          "pair": 1,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.11689958209171891
+        },
+        {
+          "pair": 1,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.06555251008830965
+        },
+        {
+          "pair": 2,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.092157689970918
+        },
+        {
+          "pair": 2,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.1268466340843588
+        },
+        {
+          "pair": 3,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.13231135299429297
+        },
+        {
+          "pair": 3,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.08157110004685819
+        },
+        {
+          "pair": 4,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.061178361997008324
+        },
+        {
+          "pair": 4,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.11912023602053523
+        },
+        {
+          "pair": 5,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.12511068407911807
+        },
+        {
+          "pair": 5,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.056882355944253504
+        }
+      ],
+      "median_seconds": {
+        "simd": 0.06555251008830965,
+        "scalar": 0.12511068407911807
+      },
+      "slowdown": 1.9085567266695678
+    },
+    {
+      "kernel": "mks2021",
+      "scale": "0.625",
+      "samples": [
+        {
+          "pair": 0,
+          "mode": "simd",
+          "warmup": true,
+          "seconds": 0.06670249998569489
+        },
+        {
+          "pair": 0,
+          "mode": "scalar",
+          "warmup": true,
+          "seconds": 0.27397485997062176
+        },
+        {
+          "pair": 1,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.2636064300313592
+        },
+        {
+          "pair": 1,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.06283029401674867
+        },
+        {
+          "pair": 2,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.04872096795588732
+        },
+        {
+          "pair": 2,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.2776101010385901
+        },
+        {
+          "pair": 3,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.252428617910482
+        },
+        {
+          "pair": 3,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.07282662903890014
+        },
+        {
+          "pair": 4,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.05162913096137345
+        },
+        {
+          "pair": 4,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.26136690692510456
+        },
+        {
+          "pair": 5,
+          "mode": "scalar",
+          "warmup": false,
+          "seconds": 0.2810109390411526
+        },
+        {
+          "pair": 5,
+          "mode": "simd",
+          "warmup": false,
+          "seconds": 0.058847619919106364
+        }
+      ],
+      "median_seconds": {
+        "simd": 0.058847619919106364,
+        "scalar": 0.2636064300313592
+      },
+      "slowdown": 4.479474792586688
+    }
+  ]
+}

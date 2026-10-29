@@ -138,7 +138,7 @@ def main():
 
     executable = Path(args.build_dir) / "insidious_memory_audit"
     if not executable.exists():
-        raise SystemExit(f"audit executable not found: {executable}; run cmake --build {args.build_dir}")
+        raise SystemExit(f"audit executable not found: {executable}; configure with -DINSIDIOUS_BUILD_MEMORY_AUDIT=ON and run cmake --build {args.build_dir} --target insidious_memory_audit")
 
     owned_temp = None
     if args.fixture_dir:

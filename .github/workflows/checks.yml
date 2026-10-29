@@ -1,0 +1,21 @@
+name: Reusable validation
+on:
+  workflow_call:
+    outputs:
+      matrix:
+        description: Validated candidate build matrix
+        value: ${{ jobs.validation.outputs.matrix }}
+permissions:
+  contents: read
+jobs:
+  validation:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.policy.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s tests -p 'ci_policy_tests.py' -v
+      - id: policy
+        run: python3 tools/ci/checks.py validate

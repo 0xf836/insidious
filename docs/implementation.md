@@ -5,19 +5,21 @@ This document maps the current codebase for maintainers and coding agents. Stabl
 ## Stack
 
 - Language: C++20.
-- GUI: Qt6 Widgets.
+- GUI: Qt6 Widgets 6.6+ (`QEvent::DevicePixelRatioChange`).
 - Async work: `QtConcurrent::run` with `QFutureWatcher` in the UI layer.
-- Image backend: libvips/vips-cpp.
+- Image backend: libvips/vips-cpp 8.18.3+. See the [dependency audit](dependency-audit.md) for the API/fix distinction and older-library experiments.
 - Archive backend: libarchive.
 - Persistent preferences: Qt `QSettings` for non-history settings only.
 - Tests: Qt Test.
 - Build: CMake + Ninja.
 
-The build creates:
+The install target places `insidious` under the configured binary directory, installs the repository documentation tree under the configured documentation directory, and installs the MIT license under the shared licenses directory. `version.txt` is the numeric version source. `cmake/Version.cmake` validates/resolves identity, `BuildMetadata.cmake` wires configure/build-time generation, and `GenerateVersion.cmake` refreshes the build-only header without rewriting identical contents. The C++ header exposes only the displayed version; the full commit remains in CMake and archive metadata. `insidious --version`, `-v`, Qt metadata and About share the generated identity. `WriteSourceMetadata.cmake` prepares the validated archive identity file for later packaging.
+
+The build creates the following targets (test targets require the default `BUILD_TESTING=ON`):
 
 - `insidious_core`: static library for core image/viewer logic.
 - `insidious`: GUI executable.
-- `insidious_memory_audit`: developer-only peak-memory scenario runner.
+- `insidious_memory_audit`: optional developer-only peak-memory scenario runner (`INSIDIOUS_BUILD_MEMORY_AUDIT=ON`).
 - `insidious_core_tests`: core behavior tests.
 - `insidious_ui_tests`: status-line formatter tests.
 - `insidious_comparison_view_widget_tests`: comparison behavior tests.
@@ -29,6 +31,7 @@ The build creates:
 ## Directory structure
 
 - `src/app/main.cpp` initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, sets libvips cache limits, creates `QApplication`, parses an optional image/folder/archive path, and opens `MainWindow`.
+- `src/ui/about_dialog.*` presents Qt application version, MIT license and project link without fetching remote content. MainWindow shares its About action across menu surfaces.
 - `src/ui/main_window.*` owns the top-level Qt window, actions, shortcuts, single/multi-path open and drag'n'drop classification, statusbar, fullscreen, async scan/decode jobs, cache lookup, and neighbor prefetch.
 - The normal main menu is built from the same `QAction` objects as toolbars but is hidden by default; a plain `Alt` key press shows it transiently for keyboard menu navigation, and it hides again after action trigger, popup close, or focus loss. The normal toolbar exposes a right-aligned compact app menu button, while the fullscreen toolbar keeps the same button inside the main button cluster so the right edge overlay does not cover it.
 - `src/ui/settings_dialog.*` implements the Preferences dialog. It edits an `AppSettings` value and leaves persistence/schema/defaults to core.
@@ -54,7 +57,12 @@ The build creates:
 - `src/core/render_memory_budget.*` estimates the memory required for an output raster and exposes the shared render-budget guard. For `fit` this is the full display-sized raster; for non-fit zoom/actual-size this is the decoded visible region plus overscan when region rendering is enabled, or the full scaled raster when it is disabled.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert embedded ICC profiles to sRGB when color management is enabled, normalize to 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
-- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
+- `tools/vips_vector_benchmark.py` reproduces the developer-only SIMD comparison in the [dependency audit](dependency-audit.md), recording raw timings and CPU/SIMD metadata; its committed evidence is under `docs/evidence/`.
+- `tests/main_window_async_tests.cpp` uses controlled Qt futures and a private test friend to test current/stale/cancelled loader completions. CMake reuses `UI_SOURCES` for this test target and the app.
+- `tests/fixtures/` contains original stored RAR4/RAR5 fixtures with a stdlib-only regeneration script; tests do not require RAR tooling or Python at runtime.
+- `.github/workflows/` and `tools/ci/` implement reusable CI validation and clean candidate builds; see [CI](ci.md).
+- `packaging/platforms.json` records native candidate decisions and explicitly pending qualification; it does not authorize a release.
+- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. Additional RAR4/RAR5 tests cover original stored fixtures. DIB variants test row order and distinguish file-backed headerless decode from archive rejection.
 
 ## Data flow
 

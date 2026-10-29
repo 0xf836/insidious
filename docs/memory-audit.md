@@ -5,6 +5,7 @@ This audit is a developer-only baseline for total process peak memory. It measur
 Run it from the repository root after building:
 
 ```sh
+cmake -S . -B build -DINSIDIOUS_BUILD_MEMORY_AUDIT=ON
 cmake --build build --target insidious_memory_audit
 python3 tools/memory_audit.py --build-dir build
 ```

@@ -7,6 +7,7 @@ The documentation is organized by audience and responsibility. Each topic has on
 - [User guide](user-guide.md) explains how to open sources, browse folders and archives, control the viewer, compare images, use fullscreen, and configure preferences.
 - [Requirements](requirements.md) records the precise behavioral and privacy guarantees behind the user-facing workflow.
 - [Roadmap](roadmap.md) lists future work and known areas of investigation. It is not a release promise.
+- [Arch Linux package](arch-linux.md) documents the `makepkg` workflow and package boundaries.
 
 ## Product context
 
@@ -19,6 +20,10 @@ The documentation is organized by audience and responsibility. Each topic has on
 - [Architecture](architecture.md) describes stable layer boundaries, source abstractions, threading, rendering, caching, and privacy design.
 - [Current implementation](implementation.md) maps those concepts to the current files, classes, build targets, and data flows.
 - [Architecture decisions](decisions.md) records important choices, their status, and their rationale.
+- [Versioning, releases, and Linux distribution](releasing.md) documents version identity, CI, the planned release workflow, dependency qualification, native packaging and implementation stages; publication remains future work.
+- [Continuous integration](ci.md) describes reusable validation/build workflows, required checks, evidence and remaining hosted acceptance.
+- [Platform matrix](../packaging/README.md) explains the machine-readable target inventory, candidates, exclusions and deferred qualification.
+- [Dependency compatibility audit](dependency-audit.md) records the current Qt/libvips minimum rationale, Ubuntu 26.04 experiments, and remaining native-platform qualification limits.
 - [Technical risks](technical-risks.md) tracks unresolved engineering risks and active mitigations.
 - [Total peak memory audit](memory-audit.md) documents the developer-only memory measurement workflow and baseline.
 - [AGENTS.md](../AGENTS.md) contains repository-wide implementation rules for coding agents.

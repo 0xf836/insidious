@@ -44,5 +44,8 @@
 .DS_Store
 
 # AI
-.agents/
-.codex/
+/.codex/*
+
+# CI evidence and Python policy-check bytecode
+/.ci-results/
+__pycache__/

@@ -90,6 +90,8 @@ private slots:
     void handleMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button, bool *handled);
 
 private:
+    friend class MainWindowAsyncTests;
+
     struct DecodeJobResult {
         quint64 generation = 0;
         QString cacheKey;
@@ -314,6 +316,7 @@ private:
     void applyShortcutSettings();
     [[nodiscard]] bool triggerMouseShortcut(Qt::KeyboardModifiers modifiers, Qt::MouseButton button);
 
+    QAction *m_aboutAction = nullptr;
     ImageViewWidget *m_imageView = nullptr;
     QTabWidget *m_centralTabs = nullptr;
     ComparisonViewWidget *m_comparisonView = nullptr;

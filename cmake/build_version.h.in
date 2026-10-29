@@ -1,0 +1,5 @@
+#pragma once
+
+namespace insidious::build {
+inline constexpr char Version[] = "@INSIDIOUS_BUILD_VERSION@";
+} // namespace insidious::build

@@ -15,10 +15,12 @@ This is a native Linux GUI image viewer. The application should quickly open and
 - Do not implement large features in one step.
 - Before coding, read the relevant files in `docs/` and the current implementation.
 - Use `docs/README.md` to identify the canonical document for product behavior, architecture, implementation, decisions, risks, and future work.
+- For versioning, CI, releases, packaging, or desktop integration, read `docs/releasing.md`. It is a planned specification, not current infrastructure. Implement its stages separately; qualify system dependencies before lowering minimum versions or claiming platform support. Native packages must not bundle private Qt/libvips or replace system libraries.
 - Prefer small, reviewable diffs.
 - Do not rewrite unrelated code.
 - Do not introduce new dependencies without explaining why they are needed.
-- Keep `docs/`, `AGENTS.md`, and `README.md` up to date.
+- Keep relevant documentation up to date. Update `README.md` and `AGENTS.md` only when their project overview or durable working guidance needs to change.
+- Keep `README.md` and `AGENTS.md` clean and concise. Put minor feature details, implementation notes, test descriptions/results, and task progress in the relevant `docs/` document; link to it instead of duplicating details. Do not append an entry for every small change.
 - Any feature addition, change, or removal must be reflected in the relevant documentation.
 - Any change to project structure, architecture, layering, dependencies, or implementation flow must be reflected in the relevant documentation.
 - Keep GUI code separate from core image, collection, archive, metadata, and cache logic.
@@ -29,9 +31,9 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 ## Current implementation quick map
 
-The current implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.3+, and libarchive.
+The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18.3+, and libarchive. BMP/DIB require the system libvips ImageMagick loader (`imagemagick` on Arch, `vips-magick` on Fedora); keep it in runtime package dependencies and clean CI environments.
 
-- `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, and the Qt Test targets.
+- `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, the Qt Test targets, and native install rules for the binary, documentation tree, and license.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
 - `src/ui/main_window.*` coordinates UI commands, single/multi-path open and drag'n'drop classification, async source scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
@@ -44,6 +46,7 @@ The current implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.3+, 
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
 - `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive/multi-source scanning, viewer state, settings schema, decode request/result types, render-memory budget estimation, memory cache, libarchive full-entry/stream reading, and libvips decoding.
+- `tools/vips_vector_benchmark.py` is developer-only SIMD comparison tooling. It uses temporary fixtures and writes raw measurements plus CPU/SIMD metadata only to an explicit JSON destination; it is not installed with the application.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` are developer-only total peak memory audit tooling. They generate temporary synthetic fixtures and must not introduce persistent app data or user-facing settings.
 - `tests/` contains core and UI-focused Qt Test targets. Update the most relevant target for non-trivial behavior.
 - `docs/implementation.md` is the longer orientation document for current code structure and data flow.
@@ -106,7 +109,7 @@ Current mouse behavior:
 - In left-button zoom modes, show the idle magnifier cursor only while zoom/restore or hold-to-zoom is available: a decoded image is visible, no render is pending, and hold zoom is not active.
 - Toolbar, shortcut, and wheel zoom use the same configurable zoom step. The default is 25%. Toolbar and shortcut zoom anchor at the viewport center.
 - `Actual size / 100%` uses physical-pixel 1:1 semantics on HiDPI screens: one source image pixel maps to one physical screen pixel, while mouse input, pan offsets, overlays, and widget geometry remain in Qt logical pixels.
-- Scaling/filter quality is configurable in Preferences as a preset over libvips resize kernels. The default is `High quality (Lanczos3)`, so the project requires libvips/vips-cpp 8.18.3 or newer.
+- Scaling/filter quality is configurable in Preferences as a preset over libvips resize kernels. The default is `High quality (Lanczos3)`. MKS2021 is available from libvips 8.17, but the project retains libvips/vips-cpp 8.18.3+ for relevant resize fixes. Qt 6.6+ is required for `QEvent::DevicePixelRatioChange`. Consult `docs/dependency-audit.md` before changing these minimums; passing functional tests on an older library does not resolve known backend defects.
 - Embedded ICC color management is configurable in Preferences and enabled by default. The decoder targets sRGB through libvips/lcms2 when available, assumes sRGB for unprofiled images, and falls back without failing the current entry when ICC support or a specific profile fails. Display-profile/monitor-profile matching is outside the current product.
 - Rotate left/right is a view-only transform exposed through `View`, the normal toolbar, the fullscreen top overlay, and configurable shortcuts. It applies after EXIF autorotate, participates in the decode cache key, does not change copied original image bytes, and resets when the current image changes.
 - Core viewer shortcuts are configurable in Preferences through stable command ids stored in `AppSettings`. The current set covers open file/folder, navigation, quick jump, copy original image bytes, Preferences, zoom/fit/actual size, rotate, EXIF orientation, and fullscreen. Commands may have keyboard shortcuts and mouse button shortcuts at the same time. Empty shortcuts are allowed, duplicate non-empty shortcuts must be rejected before save, and `Quit` plus dock toggles remain static for now.
@@ -137,7 +140,7 @@ Current fullscreen behavior:
 - Prefetch cache writes must use `MemoryImageCache` generation guards so stale background prefetch cannot repopulate cache after source switches or cache clears.
 - Prefetch jobs should be tracked/coalesced by cache key and limited to fit-sized decode requests. Do not start speculative prefetch for actual-size/custom zoom requests or password-protected archive entries.
 - `Copy Original Image` must copy original source bytes to the clipboard and may add compatible clipboard image data decoded from those same bytes, but it must not use the rendered raster. Filesystem and archive reads must stay off the UI thread; clipboard archive entries use bounded full-entry reads, display decode uses streaming archive reads, neither extracts to disk, and archive passwords must remain only in memory.
-- When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, `docs/`, `README.md`, and this file together.
+- When adding, changing, or removing a setting, update `src/core/app_settings.*`, `src/ui/settings_dialog.*`, and the relevant documentation in `docs/` together.
 - Failed current entries must not destroy collection/navigation state. Show a clear error and keep next/previous navigation available.
 - Transient loading during image navigation should preserve the currently displayed raster and use a delayed subtle overlay so fast decodes do not flash a loading label. Zoom-triggered loading should preserve the displayed raster and decoded state without showing a loading label or moving the old image. Do not stack additional zoom/view-transform requests while an image render is pending; navigation may still cancel the pending render. Zoom-triggered render-too-large errors should restore the previous zoom/pan/raster and show a compact overlay instead of clearing the image. Error, empty, and scanning states may clear the image and show a full message.
 - Prefer display-sized rasters for `fit` and region-sized rasters for non-fit zoom/actual-size rendering by default. The viewer setting `regionRenderingEnabled` may disable region rendering for smoother panning at higher memory cost; this must still go through the shared render-memory budget and fallback path. The viewer scaling quality, color management mode, and device pixel ratio must flow through `DecodeRequest` and the decoded image cache key.
@@ -154,6 +157,7 @@ Current fullscreen behavior:
 - The left file list should mirror the active folder collection only. Do not put source scanning, archive access, decoding, thumbnails, comparison decoding, or persistence there. The separate thumbnail tab may request thumbnail decode work only while visibly active; comparison work belongs to the comparison widget and only after explicit context-menu launch.
 - The right info panel should display existing entry/decode data only, including decoder-provided color profile status. EXIF currently comes from libvips metadata collected during decode; do not add separate metadata backends or persistent panel state unless explicitly planned.
 - If adding dependencies, update `README.md`, `docs/decisions.md`, and this file with why they are needed.
+- Keep `PKGBUILD`, `docs/arch-linux.md`, install rules, and package dependency lists aligned when changing build dependencies or installed files.
 
 ## Definition of done
 
@@ -164,3 +168,4 @@ A task is done when:
 - Relevant tests are added or updated where practical.
 - Error handling is present for common failure modes.
 - The final response explains what changed, how it was tested, and what was intentionally left out.
+- The final response also includes a concise proposed commit message in English that accurately reflects the completed changes. Do not create the commit unless explicitly asked.

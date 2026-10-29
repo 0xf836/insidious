@@ -1,19 +1,33 @@
 cmake_minimum_required(VERSION 3.24)
 
+include(cmake/Version.cmake)
+insidious_read_version("${CMAKE_CURRENT_SOURCE_DIR}" INSIDIOUS_SOURCE_VERSION)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/version.txt")
+
 project(insidious
-    VERSION 0.1.0
+    VERSION ${INSIDIOUS_SOURCE_VERSION}
     LANGUAGES CXX
 )
+
+include(GNUInstallDirs)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Concurrent Test)
+include(CTest)
+option(INSIDIOUS_BUILD_MEMORY_AUDIT "Build developer memory-audit tooling" OFF)
+
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
+if(BUILD_TESTING)
+    find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VIPSCPP REQUIRED IMPORTED_TARGET vips-cpp>=8.18.3)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
+
+include(cmake/BuildMetadata.cmake)
 
 set(CORE_SOURCES
     src/core/app_settings.cpp
@@ -58,8 +72,9 @@ target_link_libraries(insidious_core
         PkgConfig::LIBARCHIVE
 )
 
-add_executable(insidious
-    src/app/main.cpp
+set(UI_SOURCES
+    src/ui/about_dialog.cpp
+    src/ui/about_dialog.h
     src/ui/collection_tree_model.cpp
     src/ui/collection_tree_model.h
     src/ui/comparison_drag_mime_data.cpp
@@ -85,12 +100,32 @@ add_executable(insidious
     src/ui/thumbnail_loader.cpp
     src/ui/thumbnail_loader.h
 )
+add_executable(insidious src/app/main.cpp ${UI_SOURCES})
 target_link_libraries(insidious
     PRIVATE
         insidious_core
         Qt6::Widgets
 )
+target_link_libraries(insidious PRIVATE insidious_version)
 
+install(TARGETS insidious
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+install(FILES
+    README.md
+    LICENSE
+    PKGBUILD
+    version.txt
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+)
+install(DIRECTORY docs/
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}/docs"
+)
+install(FILES LICENSE
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME}"
+)
+
+if(INSIDIOUS_BUILD_MEMORY_AUDIT)
 add_executable(insidious_memory_audit
     tools/memory_audit.cpp
 )
@@ -99,7 +134,9 @@ target_link_libraries(insidious_memory_audit
         insidious_core
 )
 
-enable_testing()
+endif()
+
+if(BUILD_TESTING)
 
 add_executable(insidious_core_tests
     tests/core_tests.cpp
@@ -216,3 +253,25 @@ add_test(NAME insidious_collection_tree_model_tests COMMAND insidious_collection
 set_tests_properties(insidious_collection_tree_model_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+add_executable(insidious_main_window_async_tests
+    tests/main_window_async_tests.cpp
+    ${UI_SOURCES}
+)
+target_link_libraries(insidious_main_window_async_tests PRIVATE insidious_core Qt6::Widgets Qt6::Test insidious_version)
+add_test(NAME insidious_main_window_async_tests COMMAND insidious_main_window_async_tests)
+set_tests_properties(insidious_main_window_async_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 30
+)
+
+add_test(NAME insidious_version_metadata_tests
+    COMMAND "${CMAKE_COMMAND}" "-DPROJECT_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/version-metadata-tests"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/version_metadata_tests.cmake")
+add_test(NAME insidious_headless_version_tests
+    COMMAND "${CMAKE_COMMAND}" "-DAPP=$<TARGET_FILE:insidious>"
+        "-DHEADER=${VERSION_OUTPUT_DIR}/build_version.h"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/headless_version_tests.cmake")
+
+endif()

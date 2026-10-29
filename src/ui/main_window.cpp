@@ -1,4 +1,5 @@
 #include "ui/main_window.h"
+#include "ui/about_dialog.h"
 
 #include "core/archive_collection_source.h"
 #include "core/image_entry_validation.h"
@@ -1514,11 +1515,12 @@ void MainWindow::setupActions()
     auto *editMenu = menuBar()->addMenu(tr("&Edit"));
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     auto *navigateMenu = menuBar()->addMenu(tr("&Navigate"));
+    auto *helpMenu = menuBar()->addMenu(tr("&Help"));
     menuBar()->installEventFilter(this);
     connect(menuBar(), &QMenuBar::triggered, this, [this]() {
         hideTransientMenuBar();
     });
-    const QList<QMenu *> menus { fileMenu, editMenu, viewMenu, navigateMenu };
+    const QList<QMenu *> menus { fileMenu, editMenu, viewMenu, navigateMenu, helpMenu };
     for (QMenu *menu : menus) {
         connect(menu, &QMenu::aboutToHide, this, [this]() {
             scheduleTransientMenuBarHide();
@@ -1663,6 +1665,15 @@ void MainWindow::setupActions()
     m_fullscreenAction = new QAction(tr("Fullscreen"), this);
     connect(m_fullscreenAction, &QAction::triggered, this, &MainWindow::toggleFullscreen);
     viewMenu->addAction(m_fullscreenAction);
+
+    m_aboutAction = new QAction(tr("About Insidious"), this);
+    m_aboutAction->setObjectName(QStringLiteral("aboutAction"));
+    m_aboutAction->setMenuRole(QAction::AboutRole);
+    connect(m_aboutAction, &QAction::triggered, this, [this]() {
+        AboutDialog dialog(this);
+        dialog.exec();
+    });
+    helpMenu->addAction(m_aboutAction);
 
     addToolbarSpacer(m_mainToolBar);
     m_appMenuButton = addAppMenuButton(m_mainToolBar, false);
@@ -3766,6 +3777,7 @@ QMenu *MainWindow::createAppMenu(QWidget *parent)
     menu->addMenu(createSortMenu(menu));
     menu->addSeparator();
     menu->addAction(m_preferencesAction);
+    menu->addAction(m_aboutAction);
     menu->addSeparator();
     menu->addAction(m_quitAction);
     return menu;

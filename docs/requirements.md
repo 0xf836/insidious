@@ -17,6 +17,10 @@ The application must open:
 
 Opening one image must use its parent folder as browsing context while selecting the requested file as the current entry. Multiple-source operations must be homogeneous: mixed images, folders, and archives, or sets containing unsupported paths, must fail as a whole rather than opening partially.
 
+## Application identity
+
+The numeric source version comes from `version.txt`. CLI `--version`/`-v`, Qt application metadata and About share the generated build identity. Version flags work without a display or image-backend initialization. Development/modified/unidentified source builds must not imply a tagged release. About shows the version, MIT license and project link with localizable UI text; opening it performs no network request. The project link and version text must be accessible from the keyboard.
+
 ## Viewing and rendering
 
 The viewer must provide:
@@ -92,6 +96,8 @@ The explicit image allowlist is:
 - PNG (`.png`);
 - WebP (`.webp`);
 - BMP and DIB (`.bmp`, `.dib`).
+
+Bitmap-file headers and top-down/bottom-up rows are covered by regression tests. Headerless DIB depends on the file-backed system loader and is currently unsupported through archive streaming; failed entries must report an error while preserving navigation.
 
 The explicit archive allowlist is:
 

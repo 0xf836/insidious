@@ -4,6 +4,21 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ## Next
 
+### Password-protected archive opening
+
+- Reproduce and fix the reported failure when opening a password-protected archive.
+- Verify successful opening with a correct password, retry after an incorrect password, and cancellation without losing navigation state. Keep passwords in memory only and do not extract entries to disk.
+
+### High zoom levels
+
+- Reproduce and fix the reported inability to reach high zoom levels.
+- Check zoom limits, region rendering, and render-memory budget handling so supported zoom levels remain usable without bypassing memory safeguards.
+
+### Zoom after rotation
+
+- Reproduce and fix the reported error when zooming after rotating an image.
+- Verify zoom after left and right rotation, including fit, actual-size, and region-rendered views.
+
 ### Quick Jump polish
 
 - Make the fullscreen search surface more compact.
@@ -16,6 +31,7 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Archive performance characterization
 
+- Reproduce tiny BMP archive decode failure and headerless DIB streaming limitations; current file and archive loaders differ.
 - Benchmark navigation through large ZIP, 7z, and RAR sources.
 - Measure repeated header traversal and format-specific access costs.
 - Revisit speculative archive prefetch only after the access pattern is understood.
@@ -33,8 +49,9 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Formats
 
-- Evaluate AVIF and JPEG XL against target-distribution codec availability and memory behavior.
-- Evaluate TIFF only if libvips behavior is reliable across supported environments.
+- Expand the supported format allowlist to include AVIF, JPEG 2000, JPEG XL, HEIC, GIF, and other libvips-supported formats that fit the existing viewer and decoder architecture without major rework.
+- Inventory additional candidates, including TIFF, and verify loader availability, target-distribution codec dependencies, rendering correctness, and memory behavior before enabling each format.
+- Define still-frame or page selection behavior for animated and multi-page inputs before enabling them; full animation playback is a separate scope decision.
 - Treat RAW as a separate research effort because it requires preview policy, color processing, and heavier dependencies.
 
 ### Input customization
@@ -44,8 +61,13 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Distribution
 
-- Document runtime dependencies for target Linux distributions.
-- Design a packaging and desktop-integration path without weakening the recent-item privacy policy.
+Follow the [versioning, releases, and Linux distribution specification](releasing.md), which records the planned design and acceptance criteria. The dependency audit, initial platform inventory and targeted local tests are complete; evidence lives in the [audit](dependency-audit.md) and [matrix](../packaging/platforms.json). Version identity and About are also implemented; their contract is recorded in the [version policy](releasing.md#one-application-version). Reusable CI workflows and clean Arch/Fedora candidate builds are implemented; [CI evidence and setup](ci.md) records passing local tests and the remaining hosted acceptance. Native package qualification remains separate. Remaining work:
+
+3. Verify the implemented CI workflows on GitHub, including fork PR isolation and cancellation/failure handling, and enable the documented required-check and squash-title repository settings.
+4. Add native stable Arch, Debian/Ubuntu, and Fedora recipes for qualified targets, plus icons, desktop entries, and AppStream metadata without adding recent-item writes.
+5. Automate release PRs and complete draft-to-public GitHub Releases with source archives, packages, checksums, provenance, and recovery checks.
+6. Qualify and publish the first release through the maintainer runbook.
+7. Design Flatpak for systems excluded from native support. Keep AUR publication, hosted apt/RPM repositories, and ARM64 as separate future work.
 
 ### Memory auditing
 

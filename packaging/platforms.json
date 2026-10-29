@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "architecture": "x86_64",
+  "dependency_minimums": {
+    "qt": "6.6",
+    "vips_cpp": "8.18.3"
+  },
+  "scope": "dependency audit, local regression tests and clean candidate CI builds",
+  "audit_complete": true,
+  "native_qualification_complete": false,
+  "release_ready": false,
+  "qualification_deferred_to": [
+    "ci",
+    "packages-and-desktop"
+  ],
+  "platforms": [
+    {
+      "id": "arch-x86_64",
+      "os": "arch",
+      "release": "rolling",
+      "architecture": "x86_64",
+      "selected_for_future_qualification": true,
+      "status": "candidate",
+      "native_qualified": false,
+      "release_required": false,
+      "artifact_kind": "pkg.tar.zst",
+      "build_validation": "clean-container-tests-passed",
+      "reason": "Clean official-image build and all 11 CTest entries pass with standard system packages and the ImageMagick loader; package and interactive desktop qualification remain pending.",
+      "image_digest": "sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413",
+      "evidence": [
+        "docs/dependency-audit.md",
+        "docs/ci.md"
+      ],
+      "observed_dependencies": {
+        "qt": "6.12.0",
+        "vips_cpp": "8.18.7",
+        "libarchive": "3.8.10",
+        "magick_package": "imagemagick"
+      },
+      "ci_image": "docker.io/library/archlinux@sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413"
+    },
+    {
+      "id": "fedora44-x86_64",
+      "os": "fedora",
+      "release": "44",
+      "architecture": "x86_64",
+      "selected_for_future_qualification": true,
+      "status": "candidate",
+      "native_qualified": false,
+      "release_required": false,
+      "artifact_kind": "rpm",
+      "build_validation": "clean-container-tests-passed",
+      "reason": "Clean official-image build and all 11 CTest entries pass with standard system packages and the ImageMagick loader; package and interactive desktop qualification remain pending.",
+      "image_digest": "sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
+      "evidence": [
+        "docs/dependency-audit.md",
+        "docs/ci.md"
+      ],
+      "selection_basis": "Fedora 44 package listings inspected during the audit; this is not a moving latest-stable selector.",
+      "ci_image": "docker.io/library/fedora@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
+      "observed_dependencies": {
+        "qt": "6.11.2",
+        "vips_cpp": "8.18.3",
+        "libarchive": "3.8.7",
+        "magick_package": "vips-magick"
+      }
+    },
+    {
+      "id": "debian13-x86_64",
+      "os": "debian",
+      "release": "13",
+      "architecture": "x86_64",
+      "selected_for_future_qualification": false,
+      "status": "excluded",
+      "native_qualified": false,
+      "release_required": false,
+      "artifact_kind": "deb",
+      "build_validation": "not-run",
+      "reason": "Standard libvips 8.16.1 lacks MKS2021.",
+      "image_digest": null,
+      "evidence": [
+        "docs/dependency-audit.md"
+      ]
+    },
+    {
+      "id": "ubuntu2404-x86_64",
+      "os": "ubuntu",
+      "release": "24.04",
+      "architecture": "x86_64",
+      "selected_for_future_qualification": false,
+      "status": "excluded",
+      "native_qualified": false,
+      "release_required": false,
+      "artifact_kind": "deb",
+      "build_validation": "not-run",
+      "reason": "Standard Qt 6.4.2 lacks QEvent::DevicePixelRatioChange; libvips also predates MKS2021.",
+      "image_digest": null,
+      "evidence": [
+        "docs/dependency-audit.md"
+      ]
+    },
+    {
+      "id": "ubuntu2604-x86_64",
+      "os": "ubuntu",
+      "release": "26.04",
+      "architecture": "x86_64",
+      "selected_for_future_qualification": false,
+      "status": "blocked",
+      "native_qualified": false,
+      "release_required": false,
+      "artifact_kind": "deb",
+      "build_validation": "diagnostic-only",
+      "reason": "Standard libvips 8.18.0 lacks relevant SIMD resize fixes; passing diagnostic tests do not qualify the native target.",
+      "image_digest": "sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c",
+      "evidence": [
+        "docs/dependency-audit.md"
+      ],
+      "diagnostic_constraint_override": "vips-cpp>=8.18.0 in disposable copy only"
+    }
+  ],
+  "recorded_on": "2026-10-30"
+}

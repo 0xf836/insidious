@@ -24,7 +24,7 @@ Current mitigation: scans run off the UI thread, stale results are rejected, loa
 
 Actual decode behavior depends on the libvips build and its optional loaders. Embedded ICC conversion also depends on usable lcms2 support and valid source profiles.
 
-Current mitigation: an explicit format allowlist prevents accidental feature exposure; profile failures fall back without failing the entry; the build requires libvips/vips-cpp 8.18.3 or newer. Target-distribution coverage must be checked before adding formats or packaging.
+Current mitigation: an explicit format allowlist prevents accidental feature exposure; profile failures fall back without failing the entry; the build requires libvips/vips-cpp 8.18.3 or newer. The [dependency audit](dependency-audit.md) records missing SIMD resize bounds fixes in Ubuntu 26.04's 8.18.0 package and the performance cost of disabling SIMD. Target-distribution coverage must be checked before adding formats or packaging.
 
 ## Fullscreen behavior across window managers
 

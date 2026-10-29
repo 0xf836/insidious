@@ -1,6 +1,6 @@
 # Architecture Decisions
 
-Decision status is one of **Accepted**, **Historical**, or **Superseded**. Historical records explain how the current architecture emerged but no longer prescribe a staged implementation. Superseded records retain context and point to the replacement decision.
+Decision status is one of **Accepted**, **Planned**, **Historical**, or **Superseded**. Planned records specify an agreed future direction but do not describe implemented behavior; change their status when the relevant implementation and validation are complete. Historical records explain how the current architecture emerged but no longer prescribe a staged implementation. Superseded records retain context and point to the replacement decision.
 
 ## ADR-001: Product documentation was written primarily in Russian
 
@@ -54,7 +54,7 @@ Decision status is one of **Accepted**, **Historical**, or **Superseded**. Histo
 
 **Status:** Accepted.
 
-**Decision:** The application uses C++20, Qt 6 Widgets, QtConcurrent, and Qt Test.
+**Decision:** The application uses C++20, Qt 6.6+ Widgets, QtConcurrent, and Qt Test. `QEvent::DevicePixelRatioChange` sets the Qt API floor; Ubuntu 24.04 with its standard Qt is excluded.
 
 **Rationale:** Qt provides a native Linux GUI, mature actions and input handling, drag and drop, asynchronous task integration, and a suitable test framework without introducing a web runtime.
 
@@ -65,6 +65,8 @@ Decision status is one of **Accepted**, **Historical**, or **Superseded**. Histo
 **Decision:** Image decoding, scaling, orientation, region extraction, and optional ICC conversion use libvips/vips-cpp. Unsupported or unavailable codecs produce a decode error rather than switching to a second backend.
 
 **Rationale:** libvips is demand-driven, supports streaming and parallel processing, and fits the application’s performance and memory goals. One backend keeps color, orientation, and memory behavior consistent.
+
+The minimum remains libvips/vips-cpp 8.18.3. MKS2021 itself appeared in 8.17, but Ubuntu 26.04's unpatched 8.18.0 package lacks relevant SIMD resize bounds fixes. A diagnostic build passes functional tests; disabling SIMD as a workaround materially slows resizing and was not adopted. See the [dependency audit](dependency-audit.md) for evidence and limits.
 
 ## ADR-009: Decode the raster needed for the current view
 
@@ -149,3 +151,47 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 **Decision:** README files, product and engineering documentation, agent instructions, internal comments, identifiers, commit messages, and developer-facing notes are written in English. User-visible UI strings remain prepared for localization.
 
 **Rationale:** One documentation language makes the public repository accessible to a broader audience and reduces ambiguity for contributors and coding agents. Historical context is translated rather than discarded.
+
+## ADR-019: Arch Linux development builds use a VCS package
+
+**Status:** Accepted.
+
+**Decision:** The repository ships a root `PKGBUILD` for `insidious-git`. It clones the public Git repository, derives a development version from `version.txt` and Git revision, builds with CMake and Ninja, runs CTest, and installs through the project’s native CMake install rules.
+
+**Rationale:** The project has no tagged release archive yet, so a VCS package is more truthful than a release recipe with a moving source or skipped checksum. A future release package must use a tag-bound immutable archive and a real checksum. Desktop integration is intentionally separate from the first package because it needs a privacy-aware design for MIME and recent-item behavior.
+
+## ADR-020: Release PRs control versioning and publication
+
+**Status:** Planned.
+
+**Decision:** Use SemVer, Conventional Commit squash titles, and release-please with a single `version.txt` application version. A maintainer merges the tested release PR; GitHub Actions then builds from its exact tagged source, verifies all required packages, and publishes a complete immutable GitHub Release from a draft. Keep `master` and one ordinary release channel initially. The [release specification](releasing.md) owns configuration, validation, and recovery details.
+
+**Rationale:** A reviewable release PR keeps release timing under maintainer control while automating repetitive version and changelog work. Draft staging prevents users from seeing incomplete downloads. Immutable tags/assets and explicit retry validation preserve artifact identity.
+
+Version identity is implemented: `version.txt`, shared build metadata, headless CLI/About and VCS recipe extraction. Version/archive fixtures verify identity boundaries and incremental refresh. Release-please, changelog automation and publication remain planned.
+
+## ADR-021: Native distribution uses qualified system dependencies
+
+**Status:** Planned.
+
+**Decision:** Audit the actual Qt/libvips requirements before changing minimums. Qualify target distributions with their standard libraries and the existing feature set. Do not bundle private Qt/libvips, replace system libraries, or require third-party repositories for native packages. Exclude incompatible targets; plan Flatpak separately as a future runtime-based distribution channel.
+
+**Implementation status:** Dependency evidence, local regression tests and the initial [platform matrix](../packaging/platforms.json) are complete. The owner deferred clean Arch/Fedora 44 qualification to CI/package preparation. This does not declare native packages qualified or relax publication gates.
+
+**Rationale:** Current version constraints have historical explanations but need API, behavior, and relevant-fix evidence before they define distribution coverage. Preserving native dependency management avoids a second private runtime maintenance burden. See [dependency qualification](releasing.md#dependency-qualification-and-native-support).
+
+## ADR-022: Native recipes share installation and desktop identity
+
+**Status:** Planned.
+
+**Decision:** Use separate stable Arch, debhelper Debian/Ubuntu, and Fedora RPM recipes over common CMake install rules. Retain the root Arch VCS recipe. Adopt `io.github._0xf836.Insidious` for desktop/icon/AppStream and future Flatpak identity, escaping the owner's initial digit according to D-Bus naming rules, with Open With integration but no automatic default-association changes or application recent-item writes. Publish packages through GitHub Releases first; AUR and hosted package repositories remain later work.
+
+**Rationale:** Native recipes provide distribution-specific dependency and package validation while shared install rules keep contents consistent. One desktop identity prepares future Flatpak integration without changing the existing settings namespace. See [package and desktop design](releasing.md#package-design-and-desktop-integration). ADR-019 remains the description of current Arch packaging until these stages are implemented.
+
+## ADR-023: Supported formats require the distribution ImageMagick loader
+
+**Status:** Accepted.
+
+**Decision:** Require the system libvips ImageMagick loader in clean build environments and native runtime dependency lists: `imagemagick` on Arch and `vips-magick` on Fedora. Keep missing Magick module warnings visible. No private library, new image backend or format allowlist expansion is introduced.
+
+**Rationale:** Clean candidate builds with the main libvips packages compiled successfully but failed all BMP/DIB decode checks (12 core cases). Arch ships the module with libvips but leaves its ImageMagick library optional; Fedora ships it as a separate subpackage. The viewer already promises these formats, so a successful host build with undeclared installed codecs is insufficient. [CI evidence](ci.md) records the qualification results and remaining package gates.
