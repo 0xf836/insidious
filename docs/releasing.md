@@ -10,7 +10,7 @@ Provide a predictable maintainer workflow and complete, clearly labelled downloa
 
 The planning baseline is:
 
-- `CMakeLists.txt` declares version `0.1.0`, Qt >= 6.5, and vips-cpp >= 8.18.3.
+- `CMakeLists.txt` declares version `0.1.0`, Qt >= 6.6, and vips-cpp >= 8.18.3. The [dependency audit](dependency-audit.md) records the implemented requirement correction and Ubuntu 26.04 experiments; release infrastructure remains planned.
 - `src/app/main.cpp` exposes the CMake version through `--version` and Qt application metadata. The early version path does not require a display.
 - The root `PKGBUILD` builds `insidious-git` from Git and installs through CMake.
 - No workflow files or local release tags were present during planning. Remote tags and GitHub Releases must be checked before bootstrapping releases.
@@ -114,13 +114,15 @@ Use one serialized publication concurrency group without cancelling an in-progre
 
 ### Audit before lowering requirements
 
-The first implementation stage is an evidence-based compatibility audit. Current minimum versions remain in force until that audit justifies a change.
+The first implementation stage is an evidence-based compatibility audit. The [2026-10-29 audit](dependency-audit.md) corrects the Qt minimum to 6.6 and retains libvips 8.18.3 after testing Ubuntu 26.04's 8.18.0. Complete native-platform qualification remains pending. Current minimum versions remain in force until further evidence justifies a change.
 
 Repository history provides leads, not qualification results:
 
 - Qt 6.5 was required by the first MVP (`d70d449`).
 - vips-cpp 8.18.3 was added with configurable scaling quality (`059020a`); the accompanying decision cited MKS2021.
 - The decoder directly uses `VIPS_KERNEL_MKS2021`; Lanczos3 alone is not sufficient evidence for the current minimum.
+
+Upstream introduced MKS2021 in 8.17.0, not 8.18.3. The retained 8.18.3 floor instead covers relevant SIMD resize bounds fixes missing from the tested Ubuntu package. Qt 6.5 is insufficient for the existing unconditional `QEvent::DevicePixelRatioChange` use, introduced in 6.6.
 
 For each candidate distribution, record OS release, architecture, repository snapshot/date, compiler, CMake, Qt, libvips, libarchive, relevant codec packages, and test outcomes. Inspect API introduction versions, relevant upstream fixes, and distribution backports. Version-number comparison alone cannot establish either compatibility or vulnerability exposure.
 
@@ -137,12 +139,12 @@ Initial architecture: x86_64 (Debian/Ubuntu package architecture name: amd64).
 | Candidate | Package | Qualification status |
 | --- | --- | --- |
 | Arch Linux rolling | `.pkg.tar.zst` | Existing VCS recipe; release package still needs qualification |
-| Debian 13 | `.deb` | Pending dependency audit and tests |
-| Ubuntu 24.04 LTS | Separate `.deb` | Pending dependency audit and tests |
-| Ubuntu 26.04 LTS | Separate `.deb` | Pending dependency audit and tests |
+| Debian 13 | `.deb` | Excluded with current standard libvips 8.16.1: no MKS2021 |
+| Ubuntu 24.04 LTS | Separate `.deb` | Excluded: standard Qt 6.4.2 lacks the required API |
+| Ubuntu 26.04 LTS | Separate `.deb` | Diagnostic build/tests pass with 8.18.0; native support blocked by missing SIMD resize fixes |
 | Latest stable Fedora at implementation time | `.rpm` | Select an explicit release number, then qualify |
 
-At planning time, the official package listings showed Qt 6.4.2 for Ubuntu 24.04 and libvips 8.16.1 for Debian 13. These conflict with the current CMake minimums and must not be presented as supported installations. Recheck repository versions during the audit.
+The audit records actual installed Ubuntu 26.04 package versions and distinguishes diagnostic tests from qualification. Recheck repository versions and distribution backports before reconsidering exclusions; do not present these candidates as supported installations based only on API availability or passing smoke tests.
 
 After qualification, maintain one machine-readable platform matrix consumed by CI and release inventory validation, with explicit OS releases, architectures, image digests, and expected artifacts. Publish the same matrix in release notes. Adding/removing a qualified platform requires a reviewed change; a failed release build cannot silently remove a mandatory platform.
 

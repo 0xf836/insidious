@@ -62,7 +62,7 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 Follow the [versioning, releases, and Linux distribution specification](releasing.md), which records the planned design and acceptance criteria. Implement it in these stages:
 
-1. Audit the actual minimum Qt/libvips requirements and qualify native targets using system libraries. Evaluate Arch, Debian 13, Ubuntu 24.04/26.04 LTS, and an explicitly selected stable Fedora release on x86_64; exclude targets that cannot preserve current capabilities without private libraries or major rework.
+1. Complete native-target qualification using system libraries, following the [dependency audit](dependency-audit.md). The Qt floor is 6.6; Ubuntu 24.04 is excluded, Debian 13 lacks MKS2021, and Ubuntu 26.04's 8.18.0 package remains blocked by missing SIMD resize fixes. Qualify Arch and an explicitly selected stable Fedora release on x86_64; reconsider blocked targets when their standard packages satisfy the requirements without losing capabilities or materially slowing rendering.
 2. Introduce one application version source, consistent release/development identities, and an About dialog; adapt the existing Arch VCS recipe.
 3. Add reusable CI build/test checks and Conventional Commit PR validation.
 4. Add native stable Arch, Debian/Ubuntu, and Fedora recipes for qualified targets, plus icons, desktop entries, and AppStream metadata without adding recent-item writes.

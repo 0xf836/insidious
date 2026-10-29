@@ -27,6 +27,7 @@
 #include <archive.h>
 #include <archive_entry.h>
 #include <array>
+#include <cmath>
 #include <limits>
 #include <vips/vips8>
 
@@ -65,6 +66,11 @@ private slots:
     void decoderColorManagementTagsSrgb();
     void decoderColorManagementCanBeDisabled();
     void decoderReportsEmbeddedIccConversion();
+    void decoderKeepsInvalidIccImageViewable();
+    void decoderSupportedFormats_data();
+    void decoderSupportedFormats();
+    void decoderExifRotationAndRegion_data();
+    void decoderExifRotationAndRegion();
     void decoderFitHonorsDevicePixelRatio();
     void decoderActualSizeHonorsDevicePixelRatio();
     void decoderAppliesViewRotation();
@@ -77,6 +83,7 @@ private slots:
     void decoderRegionRenderingHonorsDevicePixelRatio();
     void decoderReportsRenderTooLargeReason();
     void decoderUsesConfiguredScalingQuality();
+    void decoderUsesConfiguredScalingQuality_data();
     void decoderRejectsBrokenSupportedFile();
     void archiveScanRejectsBrokenArchive();
     void decodeRequestCacheKeyIncludesExifAutorotate();
@@ -105,11 +112,15 @@ QByteArray pngBytes(QSize size = QSize(4, 4), QColor color = Qt::green)
     return bytes;
 }
 
-bool writeZipArchive(const QString &path, const QVector<QPair<QString, QByteArray>> &files)
+bool writeZipArchive(const QString &path, const QVector<QPair<QString, QByteArray>> &files, bool sevenZip = false)
 {
     archive *writer = archive_write_new();
     archive_write_add_filter_none(writer);
-    archive_write_set_format_zip(writer);
+    if (sevenZip) {
+        archive_write_set_format_7zip(writer);
+    } else {
+        archive_write_set_format_zip(writer);
+    }
 
     const QByteArray archivePath = path.toUtf8();
     if (archive_write_open_filename(writer, archivePath.constData()) != ARCHIVE_OK) {
@@ -876,6 +887,180 @@ void CoreTests::decoderReportsEmbeddedIccConversion()
     QCOMPARE(decoded.image.colorSpace(), QColorSpace(QColorSpace::SRgb));
 }
 
+void CoreTests::decoderKeepsInvalidIccImageViewable()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString taggedPath = QDir(tempDir.path()).filePath(QStringLiteral("invalid-profile.jpg"));
+    QImage source(64, 40, QImage::Format_RGB32);
+    source.fill(Qt::blue);
+    QByteArray jpeg;
+    QBuffer buffer(&jpeg);
+    QVERIFY(buffer.open(QIODevice::WriteOnly));
+    QVERIFY(source.save(&buffer, "JPEG"));
+    // Inject APP2 directly: an image writer may discard an invalid profile.
+    QByteArray profile("ICC_PROFILE\0\1\1", 14);
+    profile += QByteArray(128, '\0');
+    const int segmentLength = profile.size() + 2;
+    QByteArray segment = QByteArray::fromHex("ffe2");
+    segment.append(static_cast<char>(segmentLength >> 8));
+    segment.append(static_cast<char>(segmentLength & 0xff));
+    segment += profile;
+    jpeg.insert(2, segment);
+    QFile file(taggedPath);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QCOMPARE(file.write(jpeg), jpeg.size());
+    file.close();
+    DecodeRequest request;
+    request.viewportSize = QSize(32, 20);
+    const DecodedImage decoded = VipsImageDecoder().decode(imageEntryFromFileInfo(QFileInfo(taggedPath)), request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    // libvips may substitute sRGB internally without throwing a VError.
+    QCOMPARE(decoded.image.colorSpace(), QColorSpace(QColorSpace::SRgb));
+    const QColor pixel = decoded.image.pixelColor(16, 10);
+    QVERIFY(pixel.blue() > 245);
+    QVERIFY(pixel.red() < 10);
+}
+
+void CoreTests::decoderSupportedFormats_data()
+{
+    QTest::addColumn<QString>("extension");
+    QTest::addColumn<int>("archiveType");
+    for (const QString &extension : { QStringLiteral("jpg"), QStringLiteral("png"), QStringLiteral("webp"),
+             QStringLiteral("bmp"), QStringLiteral("dib") }) {
+        for (int archiveType = 0; archiveType < 3; ++archiveType) {
+            const QByteArray name = extension.toLatin1() + '-' + QByteArray::number(archiveType);
+            QTest::newRow(name.constData()) << extension << archiveType;
+        }
+    }
+}
+
+void CoreTests::decoderSupportedFormats()
+{
+    QFETCH(QString, extension);
+    QFETCH(int, archiveType);
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QDir root(tempDir.path());
+    const QString sourcePath = root.filePath(QStringLiteral("source.png"));
+    const QString imagePath = root.filePath(QStringLiteral("sample.") + extension);
+    QImage source(64, 40, QImage::Format_RGB32);
+    source.fill(QColor(40, 120, 200));
+    QVERIFY(source.save(sourcePath));
+    if (extension == QStringLiteral("bmp") || extension == QStringLiteral("dib")) {
+        // DIB extension coverage uses a BMP container, not a headerless DIB fixture.
+        QVERIFY(source.save(imagePath, "BMP"));
+    } else {
+        try {
+            vips::VImage::new_from_file(sourcePath.toUtf8().constData()).write_to_file(imagePath.toUtf8().constData());
+        } catch (const vips::VError &error) {
+            QFAIL(error.what());
+        }
+    }
+    ImageEntry entry = imageEntryFromFileInfo(QFileInfo(imagePath));
+    if (archiveType != 0) {
+        QFile file(imagePath);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QString archivePath = root.filePath(archiveType == 1 ? QStringLiteral("sample.zip") : QStringLiteral("sample.7z"));
+        QVERIFY(writeZipArchive(archivePath, { { QFileInfo(imagePath).fileName(), file.readAll() } }, archiveType == 2));
+        const ScanResult scan = scanArchive(archivePath);
+        QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+        QCOMPARE(scan.entries.size(), 1);
+        entry = scan.entries.first();
+    }
+    DecodeRequest request;
+    request.viewportSize = QSize(32, 20);
+    const DecodedImage decoded = VipsImageDecoder().decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.sourceSize, source.size());
+    QCOMPARE(decoded.image.size(), QSize(32, 20));
+    const QColor pixel = decoded.image.pixelColor(16, 10);
+    QVERIFY(std::abs(pixel.red() - 40) <= 5);
+    QVERIFY(std::abs(pixel.green() - 120) <= 5);
+    QVERIFY(std::abs(pixel.blue() - 200) <= 5);
+}
+
+void CoreTests::decoderExifRotationAndRegion_data()
+{
+    QTest::addColumn<bool>("autorotate");
+    QTest::addColumn<int>("rotation");
+    for (bool autorotate : { false, true }) {
+        for (int rotation : { 0, 90, 180, 270 }) {
+            const QByteArray name = QByteArray::number(autorotate) + '-' + QByteArray::number(rotation);
+            QTest::newRow(name.constData()) << autorotate << rotation;
+        }
+    }
+}
+
+void CoreTests::decoderExifRotationAndRegion()
+{
+    QFETCH(bool, autorotate);
+    QFETCH(int, rotation);
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString sourcePath = QDir(tempDir.path()).filePath(QStringLiteral("source.png"));
+    const QString orientedPath = QDir(tempDir.path()).filePath(QStringLiteral("oriented.jpg"));
+    QImage source(1280, 960, QImage::Format_RGB32);
+    for (int y = 0; y < source.height(); ++y) {
+        for (int x = 0; x < source.width(); ++x) {
+            source.setPixelColor(x, y, QColor(20 + x * 200 / source.width(),
+                20 + y * 200 / source.height(), 30 + (x + 2 * y) * 150 / 3200));
+        }
+    }
+    QVERIFY(source.save(sourcePath));
+    try {
+        vips::VImage image = vips::VImage::new_from_file(sourcePath.toUtf8().constData());
+        image.set(VIPS_META_ORIENTATION, 6);
+        image.write_to_file(orientedPath.toUtf8().constData());
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
+    DecodeRequest request;
+    request.viewportSize = QSize(100, 80);
+    request.devicePixelRatio = 2.0;
+    request.fitToWindow = false;
+    request.regionRendering = true;
+    request.exifAutorotate = autorotate;
+    request.rotationDegrees = rotation;
+    request.panOffset = QPointF(37, -23);
+    const DecodedImage decoded = VipsImageDecoder().decode(imageEntryFromFileInfo(QFileInfo(orientedPath)), request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    const QSize orientedSize = autorotate ? QSize(960, 1280) : QSize(1280, 960);
+    const QSize rotatedSize = rotation % 180 == 0 ? orientedSize : orientedSize.transposed();
+    QCOMPARE(decoded.sourceSize, orientedSize);
+    QCOMPARE(decoded.fullDisplaySize, rotatedSize / 2);
+    QCOMPARE(decoded.image.devicePixelRatio(), 2.0);
+    QVERIFY(decoded.regionBased);
+    QVERIFY(QRect(QPoint(), rotatedSize).contains(decoded.sourceRegion));
+    QCOMPARE(decoded.image.size(), decoded.sourceRegion.size());
+    // Independently derive the crop from the logical viewport, pan and 128px overscan.
+    const QRect expectedRegion = QRect(rotatedSize.width() / 2 - 430,
+        rotatedSize.height() / 2 - 290, 712, 672).intersected(QRect(QPoint(), rotatedSize));
+    QCOMPARE(decoded.sourceRegion, expectedRegion);
+    QCOMPARE(decoded.displayRegionOffset, expectedRegion.topLeft() / 2);
+    const int totalRotation = (rotation + (autorotate ? 90 : 0)) % 360;
+    for (double fy : { 0.1, 0.5, 0.9 }) {
+        for (double fx : { 0.1, 0.5, 0.9 }) {
+            const QPoint local(qRound((decoded.image.width() - 1) * fx),
+                qRound((decoded.image.height() - 1) * fy));
+            const QPoint rotated = expectedRegion.topLeft() + local;
+            QPoint original;
+            switch (totalRotation) {
+            case 90: original = QPoint(rotated.y(), source.height() - 1 - rotated.x()); break;
+            case 180: original = QPoint(source.width() - 1 - rotated.x(), source.height() - 1 - rotated.y()); break;
+            case 270: original = QPoint(source.width() - 1 - rotated.y(), rotated.x()); break;
+            default: original = rotated; break;
+            }
+            const QColor expected = source.pixelColor(original);
+            const QColor actual = decoded.image.pixelColor(local);
+            // JPEG quantization and chroma subsampling may perturb this smooth fixture.
+            QVERIFY(std::abs(actual.red() - expected.red()) <= 5);
+            QVERIFY(std::abs(actual.green() - expected.green()) <= 5);
+            QVERIFY(std::abs(actual.blue() - expected.blue()) <= 5);
+        }
+    }
+}
+
 void CoreTests::decoderFitHonorsDevicePixelRatio()
 {
     QTemporaryDir tempDir;
@@ -1189,13 +1374,28 @@ void CoreTests::decoderReportsRenderTooLargeReason()
     QCOMPARE(decoded.errorReason, DecodeErrorReason::RenderTooLarge);
 }
 
+void CoreTests::decoderUsesConfiguredScalingQuality_data()
+{
+    QTest::addColumn<int>("quality");
+    QTest::addColumn<double>("scale");
+    for (ScalingQuality quality : { ScalingQuality::FastLinear, ScalingQuality::BalancedMitchell,
+             ScalingQuality::HighLanczos3, ScalingQuality::SharpestMks2021 }) {
+        for (double scale : { 0.125, 0.625, 1.5, 3.0 }) {
+            const QByteArray name = QByteArray::number(static_cast<int>(quality)) + '-' + QByteArray::number(scale);
+            QTest::newRow(name.constData()) << static_cast<int>(quality) << scale;
+        }
+    }
+}
+
 void CoreTests::decoderUsesConfiguredScalingQuality()
 {
+    QFETCH(int, quality);
+    QFETCH(double, scale);
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
     const QString path = QDir(tempDir.path()).filePath(QStringLiteral("sample.png"));
 
-    QImage source(16, 8, QImage::Format_RGB32);
+    QImage source(64, 40, QImage::Format_RGB32);
     for (int y = 0; y < source.height(); ++y) {
         for (int x = 0; x < source.width(); ++x) {
             source.setPixelColor(x, y, QColor((x * 17) % 255, (y * 31) % 255, ((x + y) * 11) % 255));
@@ -1207,21 +1407,36 @@ void CoreTests::decoderUsesConfiguredScalingQuality()
     DecodeRequest request;
     request.viewportSize = QSize(24, 12);
     request.fitToWindow = false;
-    request.scaleFactor = 1.5;
-    request.scalingQuality = ScalingQuality::SharpestMks2021;
+    request.regionRendering = false;
+    request.colorManagementEnabled = false;
+    request.scaleFactor = scale;
+    request.scalingQuality = static_cast<ScalingQuality>(quality);
 
     VipsImageDecoder decoder;
-    const DecodedImage sharpest = decoder.decode(entry, request);
-    QVERIFY2(sharpest.ok(), qPrintable(sharpest.errorMessage));
-    QCOMPARE(sharpest.image.size(), QSize(24, 12));
-    QCOMPARE(sharpest.fullDisplaySize, QSize(24, 12));
-    QCOMPARE(sharpest.sourceSize, QSize(16, 8));
-    QCOMPARE(sharpest.effectiveScale, 1.5);
+    const DecodedImage decoded = decoder.decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.image.size(), QSize(qRound(64 * scale), qRound(40 * scale)));
+    QCOMPARE(decoded.fullDisplaySize, decoded.image.size());
+    QCOMPARE(decoded.sourceSize, source.size());
+    QCOMPARE(decoded.effectiveScale, scale);
+    // Independent backend oracle checks the preset-to-kernel contract, not just geometry.
+    const std::array<VipsKernel, 4> kernels = { VIPS_KERNEL_LINEAR, VIPS_KERNEL_MITCHELL,
+        VIPS_KERNEL_LANCZOS3, VIPS_KERNEL_MKS2021 };
+    try {
+        const vips::VImage input = vips::VImage::new_from_file(path.toUtf8().constData());
+        const vips::VImage reference = input.resize(scale,
+            vips::VImage::option()->set("kernel", kernels.at(quality))).cast(VIPS_FORMAT_UCHAR);
+        size_t length = 0;
+        void *memory = reference.write_to_memory(&length);
+        const QImage expected(static_cast<const uchar *>(memory), reference.width(), reference.height(),
+            reference.width() * 3, QImage::Format_RGB888);
+        const bool matches = decoded.image.convertToFormat(QImage::Format_RGB888) == expected;
+        g_free(memory);
+        QVERIFY2(matches, "Rendered pixels do not match the selected kernel");
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
 
-    request.scalingQuality = ScalingQuality::HighLanczos3;
-    const DecodedImage highQuality = decoder.decode(entry, request);
-    QVERIFY2(highQuality.ok(), qPrintable(highQuality.errorMessage));
-    QCOMPARE(highQuality.image.size(), sharpest.image.size());
 }
 
 void CoreTests::decoderRejectsBrokenSupportedFile()

@@ -5,9 +5,9 @@ This document maps the current codebase for maintainers and coding agents. Stabl
 ## Stack
 
 - Language: C++20.
-- GUI: Qt6 Widgets.
+- GUI: Qt6 Widgets 6.6+ (`QEvent::DevicePixelRatioChange`).
 - Async work: `QtConcurrent::run` with `QFutureWatcher` in the UI layer.
-- Image backend: libvips/vips-cpp.
+- Image backend: libvips/vips-cpp 8.18.3+. See the [dependency audit](dependency-audit.md) for the API/fix distinction and older-library experiments.
 - Archive backend: libarchive.
 - Persistent preferences: Qt `QSettings` for non-history settings only.
 - Tests: Qt Test.
@@ -56,7 +56,8 @@ The build creates:
 - `src/core/render_memory_budget.*` estimates the memory required for an output raster and exposes the shared render-budget guard. For `fit` this is the full display-sized raster; for non-fit zoom/actual-size this is the decoded visible region plus overscan when region rendering is enabled, or the full scaled raster when it is disabled.
 - `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert embedded ICC profiles to sRGB when color management is enabled, normalize to 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
-- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, filesystem PNG decode, archive PNG decode, and broken file/archive errors.
+- `tools/vips_vector_benchmark.py` reproduces the developer-only SIMD comparison in the [dependency audit](dependency-audit.md), recording raw timings and CPU/SIMD metadata; its committed evidence is under `docs/evidence/`.
+- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. DIB extension coverage uses a BMP container; it does not qualify headerless DIB inputs.
 
 ## Data flow
 

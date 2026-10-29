@@ -54,7 +54,7 @@ Decision status is one of **Accepted**, **Planned**, **Historical**, or **Supers
 
 **Status:** Accepted.
 
-**Decision:** The application uses C++20, Qt 6 Widgets, QtConcurrent, and Qt Test.
+**Decision:** The application uses C++20, Qt 6.6+ Widgets, QtConcurrent, and Qt Test. `QEvent::DevicePixelRatioChange` sets the Qt API floor; Ubuntu 24.04 with its standard Qt is excluded.
 
 **Rationale:** Qt provides a native Linux GUI, mature actions and input handling, drag and drop, asynchronous task integration, and a suitable test framework without introducing a web runtime.
 
@@ -65,6 +65,8 @@ Decision status is one of **Accepted**, **Planned**, **Historical**, or **Supers
 **Decision:** Image decoding, scaling, orientation, region extraction, and optional ICC conversion use libvips/vips-cpp. Unsupported or unavailable codecs produce a decode error rather than switching to a second backend.
 
 **Rationale:** libvips is demand-driven, supports streaming and parallel processing, and fits the application’s performance and memory goals. One backend keeps color, orientation, and memory behavior consistent.
+
+The minimum remains libvips/vips-cpp 8.18.3. MKS2021 itself appeared in 8.17, but Ubuntu 26.04's unpatched 8.18.0 package lacks relevant SIMD resize bounds fixes. A diagnostic build passes functional tests; disabling SIMD as a workaround materially slows resizing and was not adopted. See the [dependency audit](dependency-audit.md) for evidence and limits.
 
 ## ADR-009: Decode the raster needed for the current view
 

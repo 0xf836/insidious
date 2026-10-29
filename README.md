@@ -38,7 +38,7 @@ Requirements:
 - CMake 3.24 or newer
 - Ninja
 - C++20 compiler
-- Qt 6.5 or newer with Core, Gui, Widgets, Concurrent, and Test components
+- Qt 6.6 or newer with Core, Gui, Widgets, Concurrent, and Test components
 - libvips/vips-cpp 8.18.3 or newer
 - libarchive
 - pkg-config
@@ -50,6 +50,8 @@ sudo pacman -S qt6-base libvips libarchive cmake ninja pkgconf
 ```
 
 Debian, Ubuntu, and similar systems:
+
+Check the [dependency audit](docs/dependency-audit.md) before using the package names below. Standard Ubuntu 24.04 lacks the required Qt API, and Ubuntu 26.04 currently ships libvips 8.18.0, below the retained 8.18.3 minimum. These commands do not imply native support for those releases.
 
 ```sh
 sudo apt install qt6-base-dev libvips-dev libarchive-dev cmake ninja-build pkg-config

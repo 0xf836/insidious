@@ -8,8 +8,8 @@ arch=('x86_64')
 url='https://github.com/0xf836/insidious'
 license=('MIT')
 depends=(
-    'qt6-base'
-    'libvips'
+    'qt6-base>=6.6'
+    'libvips>=8.18.3'
     'libarchive'
 )
 makedepends=(

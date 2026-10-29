@@ -2,6 +2,8 @@
 
 The repository provides a VCS package recipe for current development builds. It produces `insidious-git`, which tracks the `master` branch of the public repository and installs the native binary, full documentation tree, and MIT license through CMake.
 
+The recipe declares Qt >= 6.6 and libvips >= 8.18.3, matching CMake. The [dependency audit](dependency-audit.md) explains these minimums; an older cached package set is not sufficient merely because the package names match.
+
 ## Build and install
 
 Install the required Arch build and runtime dependencies:

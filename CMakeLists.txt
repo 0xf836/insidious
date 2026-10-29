@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Concurrent Test)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Concurrent Test)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VIPSCPP REQUIRED IMPORTED_TARGET vips-cpp>=8.18.3)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)

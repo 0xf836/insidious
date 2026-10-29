@@ -30,7 +30,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 ## Current implementation quick map
 
-The current implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.3+, and libarchive.
+The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18.3+, and libarchive.
 
 - `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, the Qt Test targets, and native install rules for the binary, documentation tree, and license.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
@@ -45,6 +45,7 @@ The current implementation is C++20 with Qt6 Widgets, libvips/vips-cpp 8.18.3+, 
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
 - `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive/multi-source scanning, viewer state, settings schema, decode request/result types, render-memory budget estimation, memory cache, libarchive full-entry/stream reading, and libvips decoding.
+- `tools/vips_vector_benchmark.py` is developer-only SIMD comparison tooling. It uses temporary fixtures and writes raw measurements plus CPU/SIMD metadata only to an explicit JSON destination; it is not installed with the application.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` are developer-only total peak memory audit tooling. They generate temporary synthetic fixtures and must not introduce persistent app data or user-facing settings.
 - `tests/` contains core and UI-focused Qt Test targets. Update the most relevant target for non-trivial behavior.
 - `docs/implementation.md` is the longer orientation document for current code structure and data flow.
@@ -107,7 +108,7 @@ Current mouse behavior:
 - In left-button zoom modes, show the idle magnifier cursor only while zoom/restore or hold-to-zoom is available: a decoded image is visible, no render is pending, and hold zoom is not active.
 - Toolbar, shortcut, and wheel zoom use the same configurable zoom step. The default is 25%. Toolbar and shortcut zoom anchor at the viewport center.
 - `Actual size / 100%` uses physical-pixel 1:1 semantics on HiDPI screens: one source image pixel maps to one physical screen pixel, while mouse input, pan offsets, overlays, and widget geometry remain in Qt logical pixels.
-- Scaling/filter quality is configurable in Preferences as a preset over libvips resize kernels. The default is `High quality (Lanczos3)`, so the project requires libvips/vips-cpp 8.18.3 or newer.
+- Scaling/filter quality is configurable in Preferences as a preset over libvips resize kernels. The default is `High quality (Lanczos3)`. MKS2021 is available from libvips 8.17, but the project retains libvips/vips-cpp 8.18.3+ for relevant resize fixes. Qt 6.6+ is required for `QEvent::DevicePixelRatioChange`. Consult `docs/dependency-audit.md` before changing these minimums; passing functional tests on an older library does not resolve known backend defects.
 - Embedded ICC color management is configurable in Preferences and enabled by default. The decoder targets sRGB through libvips/lcms2 when available, assumes sRGB for unprofiled images, and falls back without failing the current entry when ICC support or a specific profile fails. Display-profile/monitor-profile matching is outside the current product.
 - Rotate left/right is a view-only transform exposed through `View`, the normal toolbar, the fullscreen top overlay, and configurable shortcuts. It applies after EXIF autorotate, participates in the decode cache key, does not change copied original image bytes, and resets when the current image changes.
 - Core viewer shortcuts are configurable in Preferences through stable command ids stored in `AppSettings`. The current set covers open file/folder, navigation, quick jump, copy original image bytes, Preferences, zoom/fit/actual size, rotate, EXIF orientation, and fullscreen. Commands may have keyboard shortcuts and mouse button shortcuts at the same time. Empty shortcuts are allowed, duplicate non-empty shortcuts must be rejected before save, and `Quit` plus dock toggles remain static for now.
