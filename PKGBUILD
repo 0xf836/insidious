@@ -10,6 +10,7 @@ license=('MIT')
 depends=(
     'qt6-base>=6.6'
     'libvips>=8.18.3'
+    'imagemagick'
     'libarchive'
 )
 makedepends=(

@@ -1,0 +1,41 @@
+name: Reusable build and test
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        description: Candidate matrix from reusable validation
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Clean distribution build
+        env:
+          CI_IMAGE: ${{ matrix.image }}
+          CI_DISTRIBUTION: ${{ matrix.distribution }}
+        run: |
+          mkdir -p .ci-results
+          docker run --rm --platform linux/amd64 \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -v "$GITHUB_WORKSPACE/.ci-results:/results" \
+            "$CI_IMAGE" bash /src/tools/ci/build.sh "$CI_DISTRIBUTION"
+      - name: Retain build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-${{ matrix.target }}
+          path: .ci-results/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

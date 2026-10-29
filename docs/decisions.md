@@ -187,3 +187,11 @@ Version identity is implemented: `version.txt`, shared build metadata, headless 
 **Decision:** Use separate stable Arch, debhelper Debian/Ubuntu, and Fedora RPM recipes over common CMake install rules. Retain the root Arch VCS recipe. Adopt `io.github._0xf836.Insidious` for desktop/icon/AppStream and future Flatpak identity, escaping the owner's initial digit according to D-Bus naming rules, with Open With integration but no automatic default-association changes or application recent-item writes. Publish packages through GitHub Releases first; AUR and hosted package repositories remain later work.
 
 **Rationale:** Native recipes provide distribution-specific dependency and package validation while shared install rules keep contents consistent. One desktop identity prepares future Flatpak integration without changing the existing settings namespace. See [package and desktop design](releasing.md#package-design-and-desktop-integration). ADR-019 remains the description of current Arch packaging until these stages are implemented.
+
+## ADR-023: Supported formats require the distribution ImageMagick loader
+
+**Status:** Accepted.
+
+**Decision:** Require the system libvips ImageMagick loader in clean build environments and native runtime dependency lists: `imagemagick` on Arch and `vips-magick` on Fedora. Keep missing Magick module warnings visible. No private library, new image backend or format allowlist expansion is introduced.
+
+**Rationale:** Clean candidate builds with the main libvips packages compiled successfully but failed all BMP/DIB decode checks (12 core cases). Arch ships the module with libvips but leaves its ImageMagick library optional; Fedora ships it as a separate subpackage. The viewer already promises these formats, so a successful host build with undeclared installed codecs is insufficient. [CI evidence](ci.md) records the qualification results and remaining package gates.

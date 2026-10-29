@@ -5,7 +5,7 @@
     "qt": "6.6",
     "vips_cpp": "8.18.3"
   },
-  "scope": "dependency audit and local regression tests",
+  "scope": "dependency audit, local regression tests and clean candidate CI builds",
   "audit_complete": true,
   "native_qualification_complete": false,
   "release_ready": false,
@@ -24,17 +24,20 @@
       "native_qualified": false,
       "release_required": false,
       "artifact_kind": "pkg.tar.zst",
-      "build_validation": "local-tests-only",
-      "reason": "Local Arch build and regression tests; clean distribution/package qualification deferred.",
-      "image_digest": null,
+      "build_validation": "clean-container-tests-passed",
+      "reason": "Clean official-image build and all 11 CTest entries pass with standard system packages and the ImageMagick loader; package and interactive desktop qualification remain pending.",
+      "image_digest": "sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413",
       "evidence": [
-        "docs/dependency-audit.md"
+        "docs/dependency-audit.md",
+        "docs/ci.md"
       ],
       "observed_dependencies": {
         "qt": "6.12.0",
         "vips_cpp": "8.18.7",
-        "libarchive": "3.8.10"
-      }
+        "libarchive": "3.8.10",
+        "magick_package": "imagemagick"
+      },
+      "ci_image": "docker.io/library/archlinux@sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413"
     },
     {
       "id": "fedora44-x86_64",
@@ -46,13 +49,21 @@
       "native_qualified": false,
       "release_required": false,
       "artifact_kind": "rpm",
-      "build_validation": "not-run",
-      "reason": "Explicit candidate release; standard package listings meet main version gates, build/test qualification deferred.",
-      "image_digest": null,
+      "build_validation": "clean-container-tests-passed",
+      "reason": "Clean official-image build and all 11 CTest entries pass with standard system packages and the ImageMagick loader; package and interactive desktop qualification remain pending.",
+      "image_digest": "sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
       "evidence": [
-        "docs/dependency-audit.md"
+        "docs/dependency-audit.md",
+        "docs/ci.md"
       ],
-      "selection_basis": "Fedora 44 package listings inspected during the audit; this is not a moving latest-stable selector."
+      "selection_basis": "Fedora 44 package listings inspected during the audit; this is not a moving latest-stable selector.",
+      "ci_image": "docker.io/library/fedora@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
+      "observed_dependencies": {
+        "qt": "6.11.2",
+        "vips_cpp": "8.18.3",
+        "libarchive": "3.8.7",
+        "magick_package": "vips-magick"
+      }
     },
     {
       "id": "debian13-x86_64",
@@ -107,5 +118,5 @@
       "diagnostic_constraint_override": "vips-cpp>=8.18.0 in disposable copy only"
     }
   ],
-  "recorded_on": "2026-10-29"
+  "recorded_on": "2026-10-30"
 }

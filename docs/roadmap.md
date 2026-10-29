@@ -61,9 +61,9 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Distribution
 
-Follow the [versioning, releases, and Linux distribution specification](releasing.md), which records the planned design and acceptance criteria. The dependency audit, initial platform inventory and targeted local tests are complete; evidence lives in the [audit](dependency-audit.md) and [matrix](../packaging/platforms.json). Version identity and About are also implemented; their contract is recorded in the [version policy](releasing.md#one-application-version). Clean candidate qualification is deferred to the CI/package stages. Remaining work:
+Follow the [versioning, releases, and Linux distribution specification](releasing.md), which records the planned design and acceptance criteria. The dependency audit, initial platform inventory and targeted local tests are complete; evidence lives in the [audit](dependency-audit.md) and [matrix](../packaging/platforms.json). Version identity and About are also implemented; their contract is recorded in the [version policy](releasing.md#one-application-version). Reusable CI workflows and clean Arch/Fedora candidate builds are implemented; [CI evidence and setup](ci.md) records passing local tests and the remaining hosted acceptance. Native package qualification remains separate. Remaining work:
 
-3. Add reusable CI build/test checks and Conventional Commit PR validation; qualify clean Arch and Fedora 44 builds against the platform matrix.
+3. Verify the implemented CI workflows on GitHub, including fork PR isolation and cancellation/failure handling, and enable the documented required-check and squash-title repository settings.
 4. Add native stable Arch, Debian/Ubuntu, and Fedora recipes for qualified targets, plus icons, desktop entries, and AppStream metadata without adding recent-item writes.
 5. Automate release PRs and complete draft-to-public GitHub Releases with source archives, packages, checksums, provenance, and recovery checks.
 6. Qualify and publish the first release through the maintainer runbook.

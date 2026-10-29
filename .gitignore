@@ -45,3 +45,7 @@
 
 # AI
 /.codex/*
+
+# CI evidence and Python policy-check bytecode
+/.ci-results/
+__pycache__/

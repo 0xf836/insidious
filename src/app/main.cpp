@@ -34,7 +34,7 @@ bool isOptionalVipsModuleDependencyWarning(const char *message)
         return false;
     }
 
-    return contains(text, "/vips-magick.so") || contains(text, "/vips-openslide.so");
+    return contains(text, "/vips-openslide.so");
 }
 
 void vipsLogHandler(const gchar *logDomain, GLogLevelFlags logLevel, const gchar *message, gpointer userData)

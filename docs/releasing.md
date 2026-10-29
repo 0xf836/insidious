@@ -1,8 +1,8 @@
 # Versioning, Releases, and Linux Distribution
 
-**Status: Dependency audit, initial platform matrix and version identity implemented; CI and release publication remain planned.**
+**Status: Dependency audit, version identity and CI workflow implementation are present; hosted CI acceptance, package qualification and release publication remain separate gates.**
 
-This is the canonical technical specification for version identity and planned CI, release publication, and Linux packaging. It records the agreed design and acceptance gates; it does not claim that workflows, release packages, desktop integration, or platform qualification already exist. Implement it in the stages below rather than as one large change.
+This is the canonical technical specification for version identity, CI, release publication, and Linux packaging. Implemented CI and its acceptance limits are recorded in [Continuous integration](ci.md). It records the agreed design and acceptance gates. Validation/build workflows and passing local clean Arch/Fedora builds are implemented; hosted CI acceptance, stable release packages, desktop integration and full native-platform qualification remain pending. Implement it in the stages below rather than as one large change.
 
 ## Goals and current baseline
 
@@ -13,7 +13,7 @@ The planning baseline is:
 - `version.txt` declares version `0.1.0`; CMake reads it before `project()`. The dependency requirements are Qt >= 6.6 and vips-cpp >= 8.18.3. The [dependency audit](dependency-audit.md) records the implemented requirement correction and Ubuntu 26.04 experiments; release infrastructure remains planned.
 - `src/app/main.cpp` exposes generated build identity through `--version`, `-v` and Qt application metadata. About displays the same identity. The early version path does not initialize Qt or libvips and does not require a display.
 - The root `PKGBUILD` builds `insidious-git` from Git and installs through CMake.
-- No workflow files or local release tags were present during planning. Remote tags and GitHub Releases must be checked before bootstrapping releases.
+- No workflow files or local release tags were present during planning; stage 3 now adds validation/build workflows. Remote tags and GitHub Releases must be checked before bootstrapping releases.
 - Package installation currently includes the binary, documentation, and license; desktop integration is future work.
 
 Current behavior remains documented in [Current implementation](implementation.md) and [Arch Linux package](arch-linux.md). The decisions behind this design are recorded in [ADR-020 through ADR-022](decisions.md#adr-020-release-prs-control-versioning-and-publication).
@@ -111,7 +111,9 @@ Required checks:
 
 Do not expose release secrets to fork PRs or execute untrusted PR code in a privileged `pull_request_target` workflow. Build jobs upload artifacts; a separate trusted publication job verifies the expected inventory and publishes them.
 
-Use `include(CTest)`/`BUILD_TESTING` to make test targets and Qt Test requirements optional for consumers. Keep tests enabled in CI. Put developer memory-audit tooling behind a separate build option, disabled for shipping builds and absent from installed packages.
+CMake now uses `include(CTest)`/`BUILD_TESTING` to make test targets and Qt Test requirements optional for consumers. CI keeps tests enabled. Developer memory-audit tooling requires `INSIDIOUS_BUILD_MEMORY_AUDIT=ON`, defaults to off, and is absent from installed packages.
+
+Stage 3 workflows run the complete candidate build matrix on every change, without path-based skips. `checks.yml` and `build.yml` are reusable; `ci.yml` supplies PR/push/manual orchestration and the stable `CI required` aggregate. There are no package builds or publication jobs yet. See [CI policy and evidence](ci.md) for credentials, pinned environments, local checks and the remaining hosted/repository setup.
 
 ### Publication state machine
 
@@ -154,15 +156,15 @@ Initial architecture: x86_64 (Debian/Ubuntu package architecture name: amd64).
 
 | Candidate | Package | Qualification status |
 | --- | --- | --- |
-| Arch Linux rolling | `.pkg.tar.zst` | Existing VCS recipe; release package still needs qualification |
+| Arch Linux rolling | `.pkg.tar.zst` | Existing VCS recipe; local clean build and CTest pass; release package and desktop acceptance remain pending |
 | Debian 13 | `.deb` | Excluded with current standard libvips 8.16.1: no MKS2021 |
 | Ubuntu 24.04 LTS | Separate `.deb` | Excluded: standard Qt 6.4.2 lacks the required API |
 | Ubuntu 26.04 LTS | Separate `.deb` | Diagnostic build/tests pass with 8.18.0; native support blocked by missing SIMD resize fixes |
-| Fedora 44 | `.rpm` | Explicit candidate; clean build and behavior qualification deferred to stages 3/4 |
+| Fedora 44 | `.rpm` | Local clean build and CTest pass; hosted CI, package and desktop acceptance remain pending |
 
 The audit records actual installed Ubuntu 26.04 package versions and distinguishes diagnostic tests from qualification. Recheck repository versions and distribution backports before reconsidering exclusions; do not present these candidates as supported installations based only on API availability or passing smoke tests.
 
-The initial machine-readable matrix is maintained in [packaging/platforms.json](../packaging/platforms.json); its [contract](../packaging/README.md) distinguishes selected candidates from qualified mandatory targets. Fedora 44 is the explicit Fedora candidate. Image digests remain null for untested environments. During stages 3 and 4, qualify candidates and consume this matrix in CI and release inventory validation, recording exact images and artifacts. Publish the same matrix in release notes. Adding/removing a qualified platform requires a reviewed change; a failed release build cannot silently remove a mandatory platform.
+The initial machine-readable matrix is maintained in [packaging/platforms.json](../packaging/platforms.json); its [contract](../packaging/README.md) distinguishes selected candidates from qualified mandatory targets. Fedora 44 is the explicit Fedora candidate. Image digests remain null for untested environments. CI consumes the selected candidates, and the matrix records their pinned images and local clean-build results. Complete hosted acceptance and stage 4 package/desktop qualification before promoting targets; release inventory validation remains later work. Publish the same matrix in release notes. Adding/removing a qualified platform requires a reviewed change; a failed release build cannot silently remove a mandatory platform.
 
 Debian and Ubuntu builds are separate even if they use the same recipe. Fedora support does not imply support for RHEL, Rocky Linux, AlmaLinux, or openSUSE. ARM64 is deferred.
 
@@ -267,7 +269,7 @@ Before implementing Flatpak, resolve file access, adjacent-folder navigation, ar
 | --- | --- | --- |
 | 1. Compatibility (complete, revised scope) | Dependency audit, local regression tests and initial platform matrix | API/fix evidence, retained test results, explicit candidates/exclusions; clean qualification deferred to stages 3/4 |
 | 2. Version identity (complete) | `version.txt`, generated metadata, About, VCS recipe adaptation | Local tests cover consistent versions, headless output, clean/dirty/unknown/archive cases and incremental refresh; release/archive publication remains future work |
-| 3. CI | Reusable build/test jobs, candidate build qualification and PR conventions | Clean Arch/Fedora build evidence; required aggregate check handles failures/skips; untrusted PRs have no release credentials |
+| 3. CI (implemented; hosted acceptance pending) | Reusable build/test jobs, candidate build qualification and PR conventions | Local clean Arch/Fedora builds and all 11 CTest entries pass; policy tests cover aggregate failures/skips. Verify hosted execution, fork isolation and repository settings as documented in [CI](ci.md) |
 | 4. Packages and desktop | Native recipes, completed platform qualification, install rules, icon/desktop/AppStream | Behavioral and package checks, installation/upgrade/removal, X11/Wayland launch acceptance; promote only qualified matrix entries |
 | 5. Release automation | Release-please and verified draft-to-public pipeline | Test-repository release, retry, conflict, and missing-artifact scenarios pass |
 | 6. First release | Maintainer-reviewed version and full published artifact set | Runbook completed; remote downloads and provenance independently verified |

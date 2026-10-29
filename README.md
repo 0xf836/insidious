@@ -39,14 +39,14 @@ Requirements:
 - Ninja
 - C++20 compiler
 - Qt 6.6 or newer with Core, Gui, Widgets, Concurrent, and Test components
-- libvips/vips-cpp 8.18.3 or newer
+- libvips/vips-cpp 8.18.3 or newer, including its system ImageMagick loader for BMP/DIB
 - libarchive
 - pkg-config
 
 Arch Linux and similar systems:
 
 ```sh
-sudo pacman -S qt6-base libvips libarchive cmake ninja pkgconf git bash
+sudo pacman -S qt6-base libvips imagemagick libarchive cmake ninja pkgconf git bash
 ```
 
 Debian, Ubuntu, and similar systems:

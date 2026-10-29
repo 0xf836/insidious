@@ -15,11 +15,11 @@ This document maps the current codebase for maintainers and coding agents. Stabl
 
 The install target places `insidious` under the configured binary directory, installs the repository documentation tree under the configured documentation directory, and installs the MIT license under the shared licenses directory. `version.txt` is the numeric version source. `cmake/Version.cmake` validates/resolves identity, `BuildMetadata.cmake` wires configure/build-time generation, and `GenerateVersion.cmake` refreshes the build-only header without rewriting identical contents. The C++ header exposes only the displayed version; the full commit remains in CMake and archive metadata. `insidious --version`, `-v`, Qt metadata and About share the generated identity. `WriteSourceMetadata.cmake` prepares the validated archive identity file for later packaging.
 
-The build creates:
+The build creates the following targets (test targets require the default `BUILD_TESTING=ON`):
 
 - `insidious_core`: static library for core image/viewer logic.
 - `insidious`: GUI executable.
-- `insidious_memory_audit`: developer-only peak-memory scenario runner.
+- `insidious_memory_audit`: optional developer-only peak-memory scenario runner (`INSIDIOUS_BUILD_MEMORY_AUDIT=ON`).
 - `insidious_core_tests`: core behavior tests.
 - `insidious_ui_tests`: status-line formatter tests.
 - `insidious_comparison_view_widget_tests`: comparison behavior tests.
@@ -60,6 +60,7 @@ The build creates:
 - `tools/vips_vector_benchmark.py` reproduces the developer-only SIMD comparison in the [dependency audit](dependency-audit.md), recording raw timings and CPU/SIMD metadata; its committed evidence is under `docs/evidence/`.
 - `tests/main_window_async_tests.cpp` uses controlled Qt futures and a private test friend to test current/stale/cancelled loader completions. CMake reuses `UI_SOURCES` for this test target and the app.
 - `tests/fixtures/` contains original stored RAR4/RAR5 fixtures with a stdlib-only regeneration script; tests do not require RAR tooling or Python at runtime.
+- `.github/workflows/` and `tools/ci/` implement reusable CI validation and clean candidate builds; see [CI](ci.md).
 - `packaging/platforms.json` records native candidate decisions and explicitly pending qualification; it does not authorize a release.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. Additional RAR4/RAR5 tests cover original stored fixtures. DIB variants test row order and distinguish file-backed headerless decode from archive rejection.
 

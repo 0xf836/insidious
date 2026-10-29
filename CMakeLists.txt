@@ -16,7 +16,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Concurrent Test)
+include(CTest)
+option(INSIDIOUS_BUILD_MEMORY_AUDIT "Build developer memory-audit tooling" OFF)
+
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
+if(BUILD_TESTING)
+    find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VIPSCPP REQUIRED IMPORTED_TARGET vips-cpp>=8.18.3)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
@@ -119,6 +125,7 @@ install(FILES LICENSE
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME}"
 )
 
+if(INSIDIOUS_BUILD_MEMORY_AUDIT)
 add_executable(insidious_memory_audit
     tools/memory_audit.cpp
 )
@@ -127,7 +134,9 @@ target_link_libraries(insidious_memory_audit
         insidious_core
 )
 
-enable_testing()
+endif()
+
+if(BUILD_TESTING)
 
 add_executable(insidious_core_tests
     tests/core_tests.cpp
@@ -264,3 +273,5 @@ add_test(NAME insidious_headless_version_tests
     COMMAND "${CMAKE_COMMAND}" "-DAPP=$<TARGET_FILE:insidious>"
         "-DHEADER=${VERSION_OUTPUT_DIR}/build_version.h"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/headless_version_tests.cmake")
+
+endif()
