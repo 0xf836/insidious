@@ -12,7 +12,7 @@ struct RenderMemoryEstimate {
     bool overflowed = false;
 };
 
-[[nodiscard]] RenderMemoryEstimate estimateRenderMemory(QSize inputSize, int bands, double scale);
-[[nodiscard]] bool exceedsRenderMemoryBudget(QSize inputSize, int bands, double scale, qint64 maxBytes);
+[[nodiscard]] RenderMemoryEstimate estimateRenderMemory(QSize inputSize, int bands, double scale, int bytesPerSample = 1);
+[[nodiscard]] bool exceedsRenderMemoryBudget(QSize inputSize, int bands, double scale, qint64 maxBytes, int bytesPerSample = 1);
 
 } // namespace insidious::core

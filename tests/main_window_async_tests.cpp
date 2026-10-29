@@ -16,6 +16,7 @@
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <vips/vips8>
 
 namespace insidious::ui {
 
@@ -23,6 +24,8 @@ class MainWindowAsyncTests : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase();
+    void cleanupTestCase();
+    void rotateThenZoomAndPan();
     void aboutUsesApplicationVersionAndSharedAction();
     void wrongModalTypeIsClosed_data();
     void wrongModalTypeIsClosed();
@@ -76,12 +79,60 @@ bool triggerAboutAndCloseModal(QAction *action, bool *timedOut)
 
 void MainWindowAsyncTests::initTestCase()
 {
+    QVERIFY(VIPS_INIT("insidious_ui_rotation_tests") == 0);
+    vips_concurrency_set(2);
     QVERIFY(m_settingsDirectory.isValid());
     QCoreApplication::setOrganizationName(QStringLiteral("InsidiousTests"));
     QCoreApplication::setApplicationName(QStringLiteral("AsyncResults"));
     QCoreApplication::setApplicationVersion(QString::fromLatin1(build::Version));
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsDirectory.path());
+}
+
+void MainWindowAsyncTests::cleanupTestCase()
+{
+    vips_shutdown();
+}
+
+void MainWindowAsyncTests::rotateThenZoomAndPan()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = temp.filePath(QStringLiteral("large.jpg"));
+    QImage fixture(1280, 960, QImage::Format_RGB32);
+    fixture.fill(Qt::blue);
+    QVERIFY(fixture.save(path));
+    MainWindow window;
+    window.m_settings.viewer.regionRenderingEnabled = true;
+    window.resize(800, 600);
+    window.show();
+    window.openPath(path);
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_currentDecoded.ok() && !window.m_imageRenderPending, 5000);
+    window.rotateRight();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QVERIFY(window.m_currentDecoded.ok());
+    QCOMPARE(window.m_controller.rotationDegrees(), 90);
+    window.setActualSize();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QVERIFY(window.m_currentDecoded.ok());
+    QVERIFY(window.m_currentDecoded.regionBased);
+    QVERIFY(window.m_currentDecoded.fullDisplaySize.height() > window.m_currentDecoded.fullDisplaySize.width());
+    window.zoomIn();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QVERIFY(window.m_currentDecoded.ok());
+    QVERIFY(window.m_currentDecoded.effectiveScale > 1.0);
+    const QRect previousRegion = window.m_currentDecoded.sourceRegion;
+    window.m_controller.setPanOffset(QPointF(71, -37));
+    window.loadCurrentImage(false);
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QVERIFY(window.m_currentDecoded.ok());
+    QVERIFY(window.m_currentDecoded.sourceRegion != previousRegion);
+    window.rotateLeft();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QVERIFY(window.m_currentDecoded.ok());
+    QCOMPARE(window.m_controller.rotationDegrees(), 0);
+    QVERIFY(window.m_currentDecoded.fullDisplaySize.width() > window.m_currentDecoded.fullDisplaySize.height());
+    QVERIFY(window.m_imageView->hasImage());
 }
 
 void MainWindowAsyncTests::aboutUsesApplicationVersionAndSharedAction()

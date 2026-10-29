@@ -235,6 +235,14 @@ Mouse input:
 - Right-button drag draws a rectangle in `ImageViewWidget`; `MainWindow::zoomToRect()` converts that widget rectangle into a custom zoom factor and pan offset.
 - Left double click toggles fullscreen. `ImageViewWidget` delays single-click zoom emission by the system double-click interval and cancels it when a double click arrives, so fullscreen toggle does not also trigger temporary zoom.
 
+## Sequential decode and rotated rendering
+
+`VipsImageDecoder` retains the original EXIF/view transform, crop and resize graph. For a non-identity combined transform, a serial strip sink requests the already-cropped/resized native image in increasing source-row order: output columns for transposed images and output rows otherwise, reversing traversal when required. This avoids `VipsJpeg: out of order read` at low thread counts while preserving fractional-scale sampling. Evaluating strips rather than SIMD-sized tiles can round an 8-bit channel by one level; regression references allow that rounding, not a shifted crop or sampling origin.
+
+The final-sized native intermediate preserves sample format, color interpretation and ICC profile. Its bytes are checked with `render_memory_budget` using actual sample depth; oversized work reports `RenderTooLarge` before allocation. A 16-bit intermediate can therefore hit the limit before its 8-bit output would. Ordinary identity transforms use the existing direct path. During transformed ICC evaluation/fallback the source is the replayable intermediate; the archive reader remains alive until source evaluation completes. Scope-exit invalidation marks derived operations stale, and libvips-tracked allocation accounts for intermediate retention under the existing backend cache memory policy. The transformed graph removes the sequential-output hint before resize so its caches match the new axis/order; the loader remains sequential. The returned `QImage` still owns a separate cleanup-managed libvips buffer.
+
+Core regression tests cover all eight EXIF orientations plus absent/invalid metadata, autorotate disabled, four view rotations, fractional scales, fit/region/full-raster modes, file and ZIP JPEG inputs, native 16-bit budget boundaries and valid/invalid ICC for rotated file/archive sources. Pixel references fully materialize only small test fixtures before the original transform/crop/resize graph. The MainWindow test exercises real asynchronous rotate → actual size → zoom → pan → rotate commands with two libvips threads. This offscreen regression does not establish interactive X11/Wayland acceptance.
+
 ## Threading and stale results
 
 - UI widgets must only be touched on the UI thread.

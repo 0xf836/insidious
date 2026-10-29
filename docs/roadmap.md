@@ -14,11 +14,6 @@ This roadmap is a living statement of direction, not a release schedule or compa
 - Reproduce and fix the reported inability to reach high zoom levels.
 - Check zoom limits, region rendering, and render-memory budget handling so supported zoom levels remain usable without bypassing memory safeguards.
 
-### Zoom after rotation
-
-- Reproduce and fix the reported error when zooming after rotating an image.
-- Verify zoom after left and right rotation, including fit, actual-size, and region-rendered views.
-
 ### Quick Jump polish
 
 - Make the fullscreen search surface more compact.
