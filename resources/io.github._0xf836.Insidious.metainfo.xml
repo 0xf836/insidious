@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github._0xf836.Insidious</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Insidious</name>
+  <summary>Browse images, folders and image archives</summary>
+  <description>
+    <p>Insidious is a native Linux image viewer for browsing JPEG, PNG, WebP,
+    BMP and DIB images in folders and ZIP, 7z and RAR archives.</p>
+    <p>It provides fullscreen navigation, configurable rendering, image metadata
+    and temporary comparison views. Thumbnails and decoded images stay in memory;
+    archives are read without extraction to disk.</p>
+  </description>
+  <launchable type="desktop-id">io.github._0xf836.Insidious.desktop</launchable>
+  <provides><binary>insidious</binary></provides>
+  <url type="homepage">https://github.com/0xf836/insidious</url>
+  <url type="help">https://github.com/0xf836/insidious/blob/master/docs/user-guide.md</url>
+  <url type="bugtracker">https://github.com/0xf836/insidious/issues</url>
+  <categories><category>Graphics</category><category>Viewer</category></categories>
+  <content_rating type="oars-1.1"/>
+</component>

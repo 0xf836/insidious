@@ -19,7 +19,7 @@ Opening one image must use its parent folder as browsing context while selecting
 
 ## Application identity
 
-The numeric source version comes from `version.txt`. CLI `--version`/`-v`, Qt application metadata and About share the generated build identity. Version flags work without a display or image-backend initialization. Development/modified/unidentified source builds must not imply a tagged release. About shows the version, MIT license and project link with localizable UI text; opening it performs no network request. The project link and version text must be accessible from the keyboard.
+The numeric source version comes from `version.txt`. CLI `--version`/`-v`, Qt application metadata and About share the generated build identity. Version flags work without a display or image-backend initialization. Development/modified/unidentified source builds must not imply a tagged release. About shows the application logo, version, MIT license and project link with localizable UI text; opening it performs no network request. The project link and version text must be accessible from the keyboard.
 
 ## Viewing and rendering
 
@@ -191,3 +191,10 @@ Normal use must not persist:
 - file log destinations or file logs.
 
 Qt settings may store non-history preferences and interface geometry, dock state, and splitter positions. File dialogs use the non-native Qt implementation to avoid implicit desktop recent-item integration until a separate privacy decision changes that policy.
+
+## Desktop integration
+
+The application provides a menu entry, application icon and Open With associations
+for supported image and archive types. Desktop launch accepts one local path.
+Installation does not change default file associations or add application-owned
+recent-item writes. Settings retain their existing namespace.

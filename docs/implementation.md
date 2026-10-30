@@ -292,3 +292,11 @@ These boundaries are product decisions rather than a list of incomplete implemen
 - Update `requirements.md` and `user-guide.md` when observable behavior changes.
 - Update `roadmap.md` when reprioritizing work or adding or removing a direction. Completed behavior belongs in current documentation or `project-evolution.md`, not in a growing completed backlog.
 - Run `cmake --build build` and `ctest --test-dir build --output-on-failure` after code changes when dependencies are available.
+
+## Desktop and native packaging
+
+`resources/` contains the desktop entry, AppStream metadata and hicolor icons.
+
+`packaging/arch/` and `packaging/rpm/` hold recipe templates. The developer-only
+`tools/packaging/prepare.py` validates source archive identity and renders recipes;
+`check.sh` exercises them in disposable containers. See [native packaging](packaging.md).

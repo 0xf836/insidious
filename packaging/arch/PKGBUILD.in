@@ -1,0 +1,32 @@
+# Maintainer: Insidious contributors
+pkgname=insidious
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Fast, privacy-conscious image viewer for Linux'
+arch=('x86_64')
+url='https://github.com/0xf836/insidious'
+license=('MIT')
+options=('!debug')
+depends=('qt6-base>=6.6' 'libvips>=8.18.3' 'imagemagick' 'libarchive')
+makedepends=('cmake' 'ninja' 'pkgconf')
+checkdepends=('python' 'git' 'zip' 'desktop-file-utils' 'appstream')
+conflicts=('insidious-git')
+source=("${url}/releases/download/v${pkgver}/insidious-${pkgver}.tar.xz")
+sha256sums=('@SHA256@')
+
+build() {
+    cmake -S "${srcdir}/insidious-${pkgver}" -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=/usr \
+        -DBUILD_TESTING=ON -DINSIDIOUS_BUILD_MEMORY_AUDIT=OFF
+    cmake --build build
+}
+
+check() {
+    ctest --test-dir build --output-on-failure
+    desktop-file-validate "${srcdir}/insidious-${pkgver}/resources/io.github._0xf836.Insidious.desktop"
+    appstreamcli validate --no-net "${srcdir}/insidious-${pkgver}/resources/io.github._0xf836.Insidious.metainfo.xml"
+}
+
+package() {
+    DESTDIR="${pkgdir}" cmake --install build
+}
