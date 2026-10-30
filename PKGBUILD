@@ -19,7 +19,7 @@ makedepends=(
     'ninja'
     'pkgconf'
 )
-checkdepends=('zip')
+checkdepends=('zip' 'python' 'desktop-file-utils' 'appstream')
 provides=('insidious')
 conflicts=('insidious')
 source=("insidious::git+${url}.git")

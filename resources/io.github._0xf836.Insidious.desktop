@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Insidious
+GenericName=Image Viewer
+Comment=Browse images, folders and image archives
+Exec=insidious %f
+TryExec=insidious
+Icon=io.github._0xf836.Insidious
+Terminal=false
+Categories=Graphics;Viewer;
+MimeType=image/jpeg;image/png;image/webp;image/bmp;image/x-bmp;image/x-ms-bmp;application/zip;application/x-7z-compressed;application/vnd.rar;application/x-rar;
+StartupNotify=true

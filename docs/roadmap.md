@@ -58,7 +58,7 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 Follow the [release specification](releasing.md) for distribution design and acceptance criteria. Dependency requirements, version identity and build-only [CI](ci.md) are implemented. Native packaging, desktop integration and publication remain:
 
-4. Add native stable Arch, Debian/Ubuntu, and Fedora recipes for qualified targets, plus icons, desktop entries, and AppStream metadata without adding recent-item writes.
+4. Complete native package and interactive X11/Wayland qualification for the [Arch/Fedora recipes and desktop integration](packaging.md). Revisit Debian/Ubuntu recipes when dependency exclusions are resolved.
 5. Automate release PRs and complete draft-to-public GitHub Releases with source archives, packages, checksums, provenance, and recovery checks.
 6. Qualify and publish the first release through the maintainer runbook.
 7. Design Flatpak for systems excluded from native support. Keep AUR publication, hosted apt/RPM repositories, and ARM64 as separate future work.

@@ -1,0 +1,41 @@
+# Check the actual staged install, not only resource declarations.
+file(REMOVE_RECURSE "${STAGE}")
+execute_process(COMMAND "${CMAKE_COMMAND}" -E env "DESTDIR=${STAGE}"
+    "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --prefix /usr
+    RESULT_VARIABLE status OUTPUT_QUIET ERROR_VARIABLE error)
+if(NOT status EQUAL 0)
+    message(FATAL_ERROR "Staged install failed: ${error}")
+endif()
+foreach(path bin/insidious
+    share/applications/io.github._0xf836.Insidious.desktop
+    share/metainfo/io.github._0xf836.Insidious.metainfo.xml
+    share/icons/hicolor/scalable/apps/io.github._0xf836.Insidious.svg
+    share/licenses/insidious/LICENSE)
+    if(NOT EXISTS "${STAGE}/usr/${path}")
+        message(FATAL_ERROR "Missing installed file: ${path}")
+    endif()
+endforeach()
+foreach(size 48 64 128 256)
+    if(NOT EXISTS "${STAGE}/usr/share/icons/hicolor/${size}x${size}/apps/io.github._0xf836.Insidious.png")
+        message(FATAL_ERROR "Missing ${size}px installed icon")
+    endif()
+endforeach()
+file(GLOB_RECURSE installed "${STAGE}/usr/*")
+foreach(path IN LISTS installed)
+    if(path MATCHES "(/bin/.*tests|/bin/.*audit|\\.(so|a)$)")
+        message(FATAL_ERROR "Unexpected developer binary or private library in install")
+    endif()
+endforeach()
+foreach(validator DESKTOP_VALIDATOR APPSTREAM_VALIDATOR)
+    if(DEFINED ${validator} AND EXISTS "${${validator}}")
+        if(validator STREQUAL "DESKTOP_VALIDATOR")
+            set(args "${STAGE}/usr/share/applications/io.github._0xf836.Insidious.desktop")
+        else()
+            set(args validate --no-net "${STAGE}/usr/share/metainfo/io.github._0xf836.Insidious.metainfo.xml")
+        endif()
+        execute_process(COMMAND "${${validator}}" ${args} RESULT_VARIABLE status)
+        if(NOT status EQUAL 0)
+            message(FATAL_ERROR "${validator} rejected installed metadata")
+        endif()
+    endif()
+endforeach()

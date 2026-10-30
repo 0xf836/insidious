@@ -1,0 +1,54 @@
+Name:           insidious
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Fast, privacy-conscious image viewer for Linux
+License:        MIT
+URL:            https://github.com/0xf836/insidious
+Source0:        %{url}/releases/download/v%{version}/insidious-%{version}.tar.xz
+BuildRequires:  gcc-c++
+BuildRequires:  cmake
+BuildRequires:  ninja-build
+BuildRequires:  git-core
+BuildRequires:  zip
+BuildRequires:  python3
+BuildRequires:  pkgconfig(Qt6Widgets) >= 6.6
+BuildRequires:  pkgconfig(Qt6Concurrent) >= 6.6
+BuildRequires:  pkgconfig(Qt6Test) >= 6.6
+BuildRequires:  pkgconfig(vips-cpp) >= 8.18.3
+BuildRequires:  pkgconfig(libarchive)
+BuildRequires:  desktop-file-utils
+BuildRequires:  appstream
+BuildRequires:  vips-magick
+Requires:       qt6-qtbase >= 6.6
+Requires:       vips >= 8.18.3
+Requires:       vips-magick >= 8.18.3
+
+%description
+Native Linux image viewer for browsing images, folders and image archives.
+Thumbnails and decoded images stay in memory. Archives are read without
+extraction to disk.
+
+%prep
+%autosetup
+
+%build
+%cmake -G Ninja -DBUILD_TESTING=ON -DINSIDIOUS_BUILD_MEMORY_AUDIT=OFF
+%cmake_build
+
+%install
+%cmake_install
+# RPM owns the license installation through %%license.
+rm -rf %{buildroot}%{_datadir}/licenses/insidious
+
+%check
+%ctest
+desktop-file-validate resources/io.github._0xf836.Insidious.desktop
+appstreamcli validate --no-net resources/io.github._0xf836.Insidious.metainfo.xml
+
+%files
+%license LICENSE
+%{_bindir}/insidious
+%doc %{_docdir}/insidious/
+%{_datadir}/applications/io.github._0xf836.Insidious.desktop
+%{_datadir}/metainfo/io.github._0xf836.Insidious.metainfo.xml
+%{_datadir}/icons/hicolor/*/apps/io.github._0xf836.Insidious.*

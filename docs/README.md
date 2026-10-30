@@ -7,6 +7,7 @@ The documentation is organized by audience and responsibility. Each topic has on
 - [User guide](user-guide.md) explains how to open sources, browse folders and archives, control the viewer, compare images, use fullscreen, and configure preferences.
 - [Requirements](requirements.md) records the precise behavioral and privacy guarantees behind the user-facing workflow.
 - [Roadmap](roadmap.md) lists future work and known areas of investigation. It is not a release promise.
+- [Native packaging](packaging.md) describes stable Arch/Fedora recipes, source validation and package checks.
 - [Arch Linux package](arch-linux.md) documents the `makepkg` workflow and package boundaries.
 
 ## Product context

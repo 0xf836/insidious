@@ -1,6 +1,6 @@
 # Versioning, Releases, and Linux Distribution
 
-**Status: Dependency requirements, version identity and build-only CI are implemented. Native packaging, desktop integration and release publication are planned.**
+**Status: Dependency requirements, version identity and build-only CI are implemented. Desktop integration and Arch/Fedora recipe templates are implemented; native qualification and release publication remain pending.**
 
 This is the canonical specification for version identity, release publication and Linux distribution. [Continuous integration](ci.md) documents the current build workflows. Implement the remaining delivery stages separately.
 
@@ -14,7 +14,7 @@ The current baseline is:
 - `src/app/main.cpp` exposes generated build identity through `--version`, `-v` and Qt application metadata. About displays the same identity. The early version path does not initialize Qt or libvips and does not require a display.
 - The root `PKGBUILD` builds `insidious-git` from Git and installs through CMake.
 - Validation/build workflows are implemented. Inspect remote tags and GitHub Releases before bootstrapping release automation.
-- Package installation currently includes the binary, documentation, and license; desktop integration is future work.
+- CMake installs the binary, desktop entry, icons, AppStream metadata, documentation and license. [Native packaging](packaging.md) describes Arch/Fedora recipe preparation.
 
 Current behavior remains documented in [Current implementation](implementation.md) and [Arch Linux package](arch-linux.md). The decisions behind this design are recorded in [ADR-020 through ADR-022](decisions.md#adr-020-release-prs-control-versioning-and-publication).
 
@@ -264,7 +264,7 @@ Before implementing Flatpak, resolve file access, adjacent-folder navigation, ar
 | 1. Compatibility (complete, revised scope) | Dependency audit, local regression tests and initial platform matrix | API/fix evidence, retained test results, explicit candidates/exclusions; clean qualification deferred to stages 3/4 |
 | 2. Version identity (complete) | `version.txt`, generated metadata, About, VCS recipe adaptation | Local tests cover consistent versions, headless output, clean/dirty/unknown/archive cases and incremental refresh; release/archive publication remains future work |
 | 3. CI (complete) | Reusable build/test jobs and PR conventions | Arch/Fedora builds, failure/cancellation handling and required-check policy; see [CI](ci.md) |
-| 4. Packages and desktop | Native recipes, completed platform qualification, install rules, icon/desktop/AppStream | Behavioral and package checks, installation/upgrade/removal, X11/Wayland launch acceptance; promote only qualified matrix entries |
+| 4. Packages and desktop (qualification pending) | Native recipes, completed platform qualification, install rules, icon/desktop/AppStream | Behavioral and package checks, installation/upgrade/removal, X11/Wayland launch acceptance; promote only qualified matrix entries |
 | 5. Release automation | Release-please and verified draft-to-public pipeline | Test-repository release, retry, conflict, and missing-artifact scenarios pass |
 | 6. First release | Maintainer-reviewed version and full published artifact set | Runbook completed; remote downloads and provenance independently verified |
 | 7. Flatpak | Separate specification and implementation | Runtime, permissions, navigation, and privacy qualified before publication |
