@@ -5,11 +5,20 @@ CI validates pull requests and builds the Arch and Fedora candidates from [packa
 ## Workflows and policy
 
 - `ci.yml` runs on pull requests (including title edits), pushes to `master`, and manual dispatch. It has no path filters: both candidates build even for documentation changes and future release PRs/commits.
-- `checks.yml` exposes reusable validation and the selected matrix from `packaging/platforms.json`. It validates numeric version syntax, optional release-please manifest agreement, tag agreement when called in tag context, and Conventional Commit PR titles. PR text is read from the event JSON, never interpolated into shell code.
+- `checks.yml` exposes reusable validation and the selected matrix from `packaging/platforms.json`. It validates numeric version syntax, optional release-please manifest agreement and tag agreement when called in tag context.
 - `build.yml` accepts the validated matrix as a reusable-workflow input. Each job runs the pinned official x86_64 image with a read-only source mount, copies a Git-less source export into disposable storage, installs standard distribution packages, builds Debug with tests enabled and developer audit tooling disabled, and runs the full CTest suite. Existing offscreen and HiDPI test properties are preserved. The container export identifies as `-dev+unknown`; official source-archive metadata validation remains covered by the version tests.
-- `CI required` runs even after dependency failures. It accepts only successful validation and builds; failure, cancellation, missing results and unexpected skips fail the check. The matrix rejects duplicate/unknown targets, missing mandatory targets, empty candidate sets and unpinned images. There are no intentional job skips in this stage.
+- `CI required` runs even after dependency failures. It accepts only successful validation and builds; failure, cancellation, missing results and unexpected skips fail the check. The matrix rejects duplicate/unknown targets, missing mandatory targets, empty candidate sets and unpinned images. The advisory title job is excluded from its dependencies and result checks.
 
-The PR title types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore` and `revert`, with optional scope and `!`. For example: `fix(viewer): restore zoom after rotation`. Configure squash merge messages to preserve the reviewed PR title. This stage does not classify release bumps or run release-please.
+`Release note hint` is a separate advisory job for PRs. A title without a
+Conventional Commit prefix produces a notice for maintainers and succeeds;
+contributors do not need to rename their PR. It does not gate builds or merging.
+PR text is read from the event JSON and is never interpolated into shell commands
+or echoed into workflow annotations.
+
+Maintainers choose a Conventional Commit message when squash-merging, such as
+`fix(viewer): restore zoom after rotation`, to classify future release notes.
+Dependabot uses the `ci(deps)` prefix automatically. Release-please and version
+bump classification remain future work.
 
 All workflows grant only `contents: read`, do not persist checkout credentials, do not inherit secrets and do not use `pull_request_target`. Jobs run on disposable GitHub-hosted runners without release credentials. Reassess permissions and credential isolation when adding release automation.
 
@@ -50,7 +59,7 @@ VIPS_CONCURRENCY=2 QT_QPA_PLATFORM=offscreen \
 
 ## Repository policy
 
-Protect `master` with required pull requests and the exact `CI required` check from GitHub Actions. Require the branch to be up to date, enforce protection for administrators, and disable force pushes and branch deletion. Approving reviews are optional. Enable squash merging with the PR title as the commit title (`squash_merge_commit_title=PR_TITLE`). Repository settings are managed separately from workflow files.
+Protect `master` with required pull requests and the exact `CI required` check from GitHub Actions. Require the branch to be up to date, enforce protection for administrators, and disable force pushes and branch deletion. Approving reviews are optional. Enable squash merging with the PR title as the default commit title (`squash_merge_commit_title=PR_TITLE`); maintainers adjust that message before merging when release classification is needed. Do not require `Release note hint` in branch protection. Repository settings are managed separately from workflow files.
 
 Build-only CI does not require a separate live fork PR test. Native package and release readiness remain governed by the [platform matrix](../packaging/README.md) and [release acceptance criteria](releasing.md#delivery-stages-and-acceptance).
 

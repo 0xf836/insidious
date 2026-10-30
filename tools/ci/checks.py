@@ -65,18 +65,22 @@ def aggregate(results):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['validate', 'aggregate'])
+    parser.add_argument('command', choices=['validate', 'aggregate', 'title-hint'])
     args = parser.parse_args()
     if args.command == 'aggregate':
         if not aggregate(json.loads(os.environ['NEEDS_JSON'])):
             raise SystemExit('Required CI job failed, was cancelled, skipped, or missing')
         return
+    if args.command == 'title-hint':
+        if os.environ.get('GITHUB_EVENT_NAME') == 'pull_request':
+            event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+            if not conventional_title(event['pull_request']['title']):
+                print('::notice title=Release note hint::Maintainer: choose a Conventional Commit '
+                      'message when squash-merging for release notes. '
+                      'Contributors do not need to rename this PR.')
+        return
     root = Path(__file__).resolve().parents[2]
     check_version(root)
-    if os.environ.get('GITHUB_EVENT_NAME') == 'pull_request':
-        event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
-        if not conventional_title(event['pull_request']['title']):
-            raise SystemExit('PR title must be a Conventional Commit, e.g. fix: restore image navigation')
     matrix = json.dumps(build_matrix(json.loads((root / 'packaging/platforms.json').read_text())))
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:

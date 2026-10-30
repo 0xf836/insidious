@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -23,6 +25,27 @@ class PolicyTests(unittest.TestCase):
             self.assertTrue(checks.conventional_title(title), title)
         for title in ['Fix zoom', 'fix: ', 'fix:zoom', 'feat(): zoom', 'fix: zoom\nextra', 'fix: zoom\n']:
             self.assertFalse(checks.conventional_title(title), title)
+
+    def test_pr_title_is_advisory_and_never_blocks_validation(self):
+        for title in ['fix: restore zoom', 'Fix zoom please',
+                      '$(touch unexpected)\n::error::untrusted title']:
+            with self.subTest(title=title), tempfile.TemporaryDirectory() as directory:
+                event = Path(directory) / 'event.json'
+                event.write_text(json.dumps({'pull_request': {'title': title}}))
+                env = dict(os.environ, GITHUB_EVENT_NAME='pull_request',
+                           GITHUB_EVENT_PATH=str(event), GITHUB_REF='refs/pull/1/merge')
+                env.pop('GITHUB_OUTPUT', None)
+                for command in ['validate', 'title-hint']:
+                    result = subprocess.run(
+                        [sys.executable, str(ROOT / 'tools/ci/checks.py'), command],
+                        env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    if command == 'validate':
+                        self.assertIn('include', json.loads(result.stdout))
+                    else:
+                        self.assertEqual('::notice' in result.stdout,
+                                         not checks.conventional_title(title))
+                        self.assertNotIn('::error::', result.stdout)
 
     def test_matrix(self):
         rows = checks.build_matrix(self.platforms)['include']
