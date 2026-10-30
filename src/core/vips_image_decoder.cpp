@@ -6,10 +6,12 @@
 #include <QImage>
 #include <QObject>
 #include <QColorSpace>
+#include <QTransform>
 #include <QtGlobal>
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <memory>
 #include <vector>
 #include <vips/vips8>
@@ -31,6 +33,95 @@ vips::VImage applyViewRotation(vips::VImage image, int rotationDegrees)
     default:
         return image;
     }
+}
+
+// Describe pixel-boundary transforms without evaluating any source pixels.
+QTransform orientationTransform(int orientation, QSize size)
+{
+    const int w = size.width();
+    const int h = size.height();
+    switch (orientation) {
+    case 2: return QTransform(-1, 0, 0, 1, w, 0);
+    case 3: return QTransform(-1, 0, 0, -1, w, h);
+    case 4: return QTransform(1, 0, 0, -1, 0, h);
+    case 5: return QTransform(0, 1, 1, 0, 0, 0);
+    case 6: return QTransform(0, 1, -1, 0, h, 0);
+    case 7: return QTransform(0, -1, -1, 0, h, w);
+    case 8: return QTransform(0, -1, 1, 0, 0, w);
+    default: return QTransform();
+    }
+}
+
+QTransform viewRotationTransform(int degrees, QSize size)
+{
+    switch (((degrees % 360) + 360) % 360) {
+    case 90: return orientationTransform(6, size);
+    case 180: return orientationTransform(3, size);
+    case 270: return orientationTransform(8, size);
+    default: return QTransform();
+    }
+}
+
+struct NativeRasterScope {
+    vips::VImage root;
+    ~NativeRasterScope()
+    {
+        if (root.get_image() != nullptr) {
+            // Mark derived operations stale; tracked storage also participates
+            // in the libvips cache memory policy until those ops are evicted.
+            vips_image_invalidate_all(root.get_image());
+        }
+    }
+};
+
+// A regular sink visits output rows top-to-bottom, which rotations can map to
+// backwards source reads. Keep the original sampling graph, but demand output
+// strips in increasing source-row order. Only the final-sized native raster is
+// materialized, and ICC fallback can replay it without consuming the source twice.
+vips::VImage copyInSourceOrder(const vips::VImage &image, const QTransform &rawToDisplay, qint64 bytes, NativeRasterScope *scope)
+{
+    std::unique_ptr<void, decltype(&vips_tracked_free)> memory(vips_tracked_malloc(static_cast<size_t>(bytes)), &vips_tracked_free);
+    if (!memory) {
+        throw vips::VError(QObject::tr("Decoded image memory allocation failed.").toStdString());
+    }
+    std::unique_ptr<VipsRegion, decltype(&g_object_unref)> region(
+        vips_region_new(image.get_image()), &g_object_unref);
+    if (!region) {
+        throw vips::VError();
+    }
+    const bool columns = rawToDisplay.m21() != 0;
+    const bool reversed = columns ? rawToDisplay.m21() < 0 : rawToDisplay.m22() < 0;
+    const int strips = columns ? image.width() : image.height();
+    const size_t pixelBytes = VIPS_IMAGE_SIZEOF_PEL(image.get_image());
+    const size_t lineBytes = VIPS_IMAGE_SIZEOF_LINE(image.get_image());
+    auto *destination = static_cast<unsigned char *>(memory.get());
+    const int step = 64;
+    for (int i = 0; i < strips;) {
+        const int extent = std::min(step, strips - i);
+        const int position = reversed ? strips - i - extent : i;
+        const VipsRect area = columns ? VipsRect { position, 0, extent, image.height() }
+                                      : VipsRect { 0, position, image.width(), extent };
+        if (vips_region_prepare(region.get(), &area)) {
+            throw vips::VError();
+        }
+        for (int y = area.top; y < area.top + area.height; ++y) {
+            std::memcpy(destination + static_cast<size_t>(y) * lineBytes + area.left * pixelBytes,
+                VIPS_REGION_ADDR(region.get(), area.left, y), area.width * pixelBytes);
+        }
+        i += extent;
+    }
+    auto replayable = vips::VImage::new_from_memory(memory.get(), static_cast<size_t>(bytes),
+        image.width(), image.height(), image.bands(), image.format());
+    g_object_set_data_full(G_OBJECT(replayable.get_image()), "insidious-native-raster",
+        memory.release(), vips_tracked_free);
+    scope->root = replayable;
+    replayable = replayable.copy(vips::VImage::option()->set("interpretation", image.interpretation()));
+    size_t profileSize = 0;
+    if (image.get_typeof(VIPS_META_ICC_NAME) != 0) {
+        const void *profile = image.get_blob(VIPS_META_ICC_NAME, &profileSize);
+        vips_image_set_blob_copy(replayable.get_image(), VIPS_META_ICC_NAME, profile, profileSize);
+    }
+    return replayable;
 }
 
 bool hasEmbeddedProfile(const vips::VImage &image)
@@ -336,6 +427,7 @@ DecodedImage VipsImageDecoder::decode(
 {
     DecodedImage result;
     std::unique_ptr<ArchiveEntryStreamReader> archiveStream;
+    NativeRasterScope nativeRaster;
 
     try {
         vips::VImage image;
@@ -363,12 +455,23 @@ DecodedImage VipsImageDecoder::decode(
 
         result.metadataFields = extractExifFields(image);
 
+        const int orientation = request.exifAutorotate ? vips_image_get_orientation(image.get_image()) : 1;
+        const QTransform exifTransform = orientationTransform(orientation, QSize(image.width(), image.height()));
         if (request.exifAutorotate) {
             image = image.autorot();
         }
         result.sourceSize = QSize(image.width(), image.height());
 
+        const QTransform rawToDisplay = exifTransform
+            * viewRotationTransform(request.rotationDegrees, result.sourceSize);
         image = applyViewRotation(image, request.rotationDegrees);
+        if (!rawToDisplay.isIdentity()) {
+            // The transformed output is no longer top-to-bottom sequential.
+            // Keep the loader's access mode, but prevent resize from inserting
+            // scanline caches optimized for the wrong axis/order.
+            image = image.copy();
+            image.remove(VIPS_META_SEQUENTIAL);
+        }
 
         const QSize rotatedSize(image.width(), image.height());
         const double devicePixelRatio = sanitizedDevicePixelRatio(request.devicePixelRatio);
@@ -407,15 +510,23 @@ DecodedImage VipsImageDecoder::decode(
         }
 
         if (useRegionRendering) {
-            image = image.extract_area(
-                sourceRegion.left(),
-                sourceRegion.top(),
-                sourceRegion.width(),
-                sourceRegion.height());
+            image = image.extract_area(sourceRegion.x(), sourceRegion.y(),
+                sourceRegion.width(), sourceRegion.height());
         }
-
         if (std::abs(physicalScale - 1.0) > 0.001) {
-            image = image.resize(physicalScale, vips::VImage::option()->set("kernel", scalingKernel(request.scalingQuality)));
+            image = image.resize(physicalScale,
+                vips::VImage::option()->set("kernel", scalingKernel(request.scalingQuality)));
+        }
+        if (!rawToDisplay.isIdentity()) {
+            // Budget the native sample representation, not only the final RGBA8.
+            const auto native = estimateRenderMemory(QSize(image.width(), image.height()),
+                image.bands(), 1.0, static_cast<int>(vips_format_sizeof(image.format())));
+            if (native.overflowed || native.bytes > request.maxDecodedBytes) {
+                result.errorMessage = QObject::tr("Image is too large to render at the requested scale.");
+                result.errorReason = DecodeErrorReason::RenderTooLarge;
+                return result;
+            }
+            image = copyInSourceOrder(image, rawToDisplay, native.bytes, &nativeRaster);
         }
 
         const vips::VImage imageBeforeColorManagement = image;

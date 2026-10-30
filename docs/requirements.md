@@ -19,7 +19,7 @@ Opening one image must use its parent folder as browsing context while selecting
 
 ## Application identity
 
-The numeric source version comes from `version.txt`. CLI `--version`/`-v`, Qt application metadata and About share the generated build identity. Version flags work without a display or image-backend initialization. Development/modified/unidentified source builds must not imply a tagged release. About shows the version, MIT license and project link with localizable UI text; opening it performs no network request. The project link and version text must be accessible from the keyboard.
+The numeric source version comes from `version.txt`. CLI `--version`/`-v`, Qt application metadata and About share the generated build identity. Version flags work without a display or image-backend initialization. Development/modified/unidentified source builds must not imply a tagged release. About shows the application logo, version, MIT license and project link with localizable UI text; opening it performs no network request. The project link and version text must be accessible from the keyboard.
 
 ## Viewing and rendering
 
@@ -165,6 +165,10 @@ Neighbor prefetch is limited to fit-sized requests, tracked by cache key, and gu
 
 Decoded images and thumbnails use bounded memory-only caches. Render-memory estimates must use the shared core budget logic. A `QImage` returned from decoder-owned memory must own its buffer through a cleanup callback or be a real copy.
 
+## Sequential rendering of transformed images
+
+EXIF orientation and view rotation must remain usable with fit, actual-size and fractional zoom requests at low decoder thread counts. Region rendering must keep forward-only file/archive decoding compatible with transforms without extracting archives or spooling decoded images to disk. A transformed request may hold a final-sized native intermediate alongside its 8-bit output; each raster must pass the shared memory-budget check, including native sample depth for the intermediate. If either exceeds the limit, fail through the existing render-too-large path. This is an allocation bound, not a total-RSS guarantee.
+
 ## Loading and errors
 
 Navigation to an uncached image keeps the previous raster visible. A subtle loading overlay appears only after a short delay so fast decodes do not flash. Zoom-triggered renders also preserve the previous raster and decoded state but do not display a loading label or move the old raster prematurely.
@@ -187,3 +191,10 @@ Normal use must not persist:
 - file log destinations or file logs.
 
 Qt settings may store non-history preferences and interface geometry, dock state, and splitter positions. File dialogs use the non-native Qt implementation to avoid implicit desktop recent-item integration until a separate privacy decision changes that policy.
+
+## Desktop integration
+
+The application provides a menu entry, application icon and Open With associations
+for supported image and archive types. Desktop launch accepts one local path.
+Installation does not change default file associations or add application-owned
+recent-item writes. Settings retain their existing namespace.

@@ -79,7 +79,7 @@ makepkg -s
 sudo pacman -U insidious-git-*.pkg.tar.zst
 ```
 
-The package recipe and its scope are documented in [Arch Linux package](docs/arch-linux.md). It does not install desktop integration yet.
+See [Arch Linux package](docs/arch-linux.md) for the VCS recipe and [native packaging](docs/packaging.md) for stable Arch/Fedora recipe preparation and desktop integration. Native platform qualification remains pending.
 
 ## Essential controls
 

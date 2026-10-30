@@ -33,7 +33,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18.3+, and libarchive. BMP/DIB require the system libvips ImageMagick loader (`imagemagick` on Arch, `vips-magick` on Fedora); keep it in runtime package dependencies and clean CI environments.
 
-- `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, the Qt Test targets, and native install rules for the binary, documentation tree, and license.
+- `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, the Qt Test targets, and native install rules for the binary, desktop resources, documentation tree, and license.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
 - `src/ui/` is the Qt UI layer. Keep direct widget, action, shortcut, drag'n'drop, statusbar, fullscreen, and paint/event handling here.
 - `src/ui/main_window.*` coordinates UI commands, single/multi-path open and drag'n'drop classification, async source scans, async image decode jobs, stale-result generation counters, cache lookup, and neighbor prefetch.
