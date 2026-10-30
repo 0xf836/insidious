@@ -3,6 +3,7 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QIcon>
 
 #include <glib.h>
 #include <vips/vips8>
@@ -75,6 +76,8 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName(QStringLiteral("Insidious"));
     QApplication::setOrganizationName(QStringLiteral("Insidious"));
     QApplication::setApplicationVersion(QString::fromLatin1(insidious::build::Version));
+    QApplication::setDesktopFileName(QStringLiteral("io.github._0xf836.Insidious"));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/insidious.png")));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QApplication::translate("main", "Native Linux image viewer."));

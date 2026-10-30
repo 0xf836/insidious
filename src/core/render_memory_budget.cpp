@@ -20,9 +20,13 @@ RenderMemoryEstimate overflowEstimate(int bytesPerPixel)
 
 } // namespace
 
-RenderMemoryEstimate estimateRenderMemory(QSize inputSize, int bands, double scale)
+RenderMemoryEstimate estimateRenderMemory(QSize inputSize, int bands, double scale, int bytesPerSample)
 {
-    const int bytesPerPixel = std::max(4, bands);
+    if (bytesPerSample <= 0 || bands <= 0
+        || bands > std::numeric_limits<int>::max() / bytesPerSample) {
+        return overflowEstimate(4);
+    }
+    const int bytesPerPixel = std::max(4, bands * bytesPerSample);
     if (inputSize.isEmpty() || bands <= 0 || !std::isfinite(scale) || scale <= 0.0) {
         return overflowEstimate(bytesPerPixel);
     }
@@ -50,13 +54,13 @@ RenderMemoryEstimate estimateRenderMemory(QSize inputSize, int bands, double sca
     return estimate;
 }
 
-bool exceedsRenderMemoryBudget(QSize inputSize, int bands, double scale, qint64 maxBytes)
+bool exceedsRenderMemoryBudget(QSize inputSize, int bands, double scale, qint64 maxBytes, int bytesPerSample)
 {
     if (maxBytes < 0) {
         return true;
     }
 
-    const RenderMemoryEstimate estimate = estimateRenderMemory(inputSize, bands, scale);
+    const RenderMemoryEstimate estimate = estimateRenderMemory(inputSize, bands, scale, bytesPerSample);
     return estimate.overflowed || estimate.bytes > maxBytes;
 }
 

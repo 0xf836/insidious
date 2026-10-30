@@ -101,6 +101,8 @@ set(UI_SOURCES
     src/ui/thumbnail_loader.h
 )
 add_executable(insidious src/app/main.cpp ${UI_SOURCES})
+qt_add_resources(DESKTOP_RESOURCES resources/insidious.qrc)
+target_sources(insidious PRIVATE ${DESKTOP_RESOURCES})
 target_link_libraries(insidious
     PRIVATE
         insidious_core
@@ -111,6 +113,13 @@ target_link_libraries(insidious PRIVATE insidious_version)
 install(TARGETS insidious
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
+install(FILES resources/io.github._0xf836.Insidious.desktop
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
+install(FILES resources/io.github._0xf836.Insidious.metainfo.xml
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
+install(DIRECTORY resources/icons/
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor"
+    FILES_MATCHING PATTERN "*.svg" PATTERN "*.png")
 install(FILES
     README.md
     LICENSE
@@ -138,6 +147,21 @@ endif()
 
 if(BUILD_TESTING)
 
+find_program(DESKTOP_FILE_VALIDATE desktop-file-validate)
+find_program(APPSTREAMCLI appstreamcli)
+add_test(NAME insidious_desktop_install_tests
+    COMMAND "${CMAKE_COMMAND}" "-DBUILD_DIR=${CMAKE_BINARY_DIR}"
+        "-DSTAGE=${CMAKE_BINARY_DIR}/desktop-install-test"
+        "-DDESKTOP_VALIDATOR=${DESKTOP_FILE_VALIDATE}"
+        "-DAPPSTREAM_VALIDATOR=${APPSTREAMCLI}"
+        -P "${CMAKE_SOURCE_DIR}/tests/desktop_install_tests.cmake")
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME insidious_packaging_tests
+        COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+            -s "${CMAKE_SOURCE_DIR}/tests" -p packaging_tests.py -v)
+endif()
+
 add_executable(insidious_core_tests
     tests/core_tests.cpp
 )
@@ -149,6 +173,7 @@ target_link_libraries(insidious_core_tests
 add_test(NAME insidious_core_tests COMMAND insidious_core_tests)
 set_tests_properties(insidious_core_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests"
 )
 
 add_executable(insidious_ui_tests
@@ -258,6 +283,7 @@ add_executable(insidious_main_window_async_tests
     tests/main_window_async_tests.cpp
     ${UI_SOURCES}
 )
+target_sources(insidious_main_window_async_tests PRIVATE ${DESKTOP_RESOURCES})
 target_link_libraries(insidious_main_window_async_tests PRIVATE insidious_core Qt6::Widgets Qt6::Test insidious_version)
 add_test(NAME insidious_main_window_async_tests COMMAND insidious_main_window_async_tests)
 set_tests_properties(insidious_main_window_async_tests PROPERTIES

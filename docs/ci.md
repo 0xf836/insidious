@@ -1,6 +1,6 @@
 # Continuous Integration
 
-Distribution introduces reusable validation and clean candidate build workflows. Native package qualification, desktop acceptance and release publication remain separate gates in the [release specification](releasing.md). No repository branch settings are changed by these files.
+CI validates pull requests and builds the Arch and Fedora candidates from [packaging/platforms.json](../packaging/platforms.json). Native package qualification, desktop acceptance and release publication are separate stages in the [release specification](releasing.md).
 
 ## Workflows and policy
 
@@ -11,13 +11,13 @@ Distribution introduces reusable validation and clean candidate build workflows.
 
 The PR title types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore` and `revert`, with optional scope and `!`. For example: `fix(viewer): restore zoom after rotation`. Configure squash merge messages to preserve the reviewed PR title. This stage does not classify release bumps or run release-please.
 
-All workflows grant only `contents: read`, do not persist checkout credentials, do not inherit secrets and do not use `pull_request_target`. Fork PR code runs on disposable hosted runners without release credentials. The Docker daemon belongs to that runner; this is not a sandbox for running untrusted PRs on a shared self-hosted machine.
+All workflows grant only `contents: read`, do not persist checkout credentials, do not inherit secrets and do not use `pull_request_target`. Jobs run on disposable GitHub-hosted runners without release credentials. Reassess permissions and credential isolation when adding release automation.
 
 Actions are pinned to full SHAs. Dependabot proposes monthly Action updates. Image updates are manual reviewed changes to `ci_image` and `image_digest` in the platform matrix. Container digests freeze the base image, **not** the rolling package repositories: each run upgrades from standard repositories and retains the resolved package inventory. Fedora disables weak dependencies and the optional Cisco OpenH264 repository (H.264 is outside the supported format allowlist); mandatory JPEG/PNG/WebP/BMP and archive support still runs through the regression suite. A digest is not a guarantee of bit-for-bit reproducibility.
 
-## Evidence and local execution
+## Artifacts and local execution
 
-Each target uploads `build-<target>` for 14 days, including the build/package-manager log, complete installed package inventory, OS identity, repository configuration, UTC start time, CTest JUnit results, CTest logs and `ldd` output when those stages are reached. Failed early runs may have only partial evidence. Build logs contain the compiler, CMake and main dependency versions. These are developer CI artifacts, not application file logs or release packages. Keep raw build/test logs, CTest XML, full package inventories and runtime library reports in Actions artifacts or the ignored `.ci-results/` directory for local runs; do not commit them under `docs/`. Keep only the dated result summary, relevant dependency versions and conclusions in documentation.
+Each target uploads `build-<target>` for 14 days, including the build/package-manager log, complete installed package inventory, OS identity, repository configuration, UTC start time, CTest JUnit results, CTest logs and `ldd` output when those stages are reached. Failed early runs may have only partial evidence. Build logs contain the compiler, CMake and main dependency versions. These are developer CI artifacts, not application file logs or release packages. Keep raw build/test logs, CTest XML, full package inventories and runtime library reports in Actions artifacts or the ignored `.ci-results/` directory for local runs; do not commit them under `docs/`. Document lasting dependency requirements and compatibility constraints; keep individual run results in CI artifacts or PR discussions.
 
 Run policy checks locally:
 
@@ -37,38 +37,21 @@ docker run --rm --platform linux/amd64 \
   IMAGE bash /src/tools/ci/build.sh DISTRIBUTION
 ```
 
-Use an empty output directory for each run. Docker-created evidence may be owned by root. Python 3 and Docker are developer/CI tools; they add no application runtime dependencies or installed contents. `BUILD_TESTING=OFF` removes test targets and the Qt Test requirement. `INSIDIOUS_BUILD_MEMORY_AUDIT=ON` explicitly enables the developer audit executable; it defaults to off and is never installed.
+Use an empty output directory for each run. Docker-created output may be owned by root. Python 3 and Docker are developer/CI tools; they add no application runtime dependencies or installed contents. `BUILD_TESTING=OFF` removes test targets and the Qt Test requirement. `INSIDIOUS_BUILD_MEMORY_AUDIT=ON` explicitly enables the developer audit executable; it defaults to off and is never installed.
 
-## Local candidate qualification evidence
+## Rotation regression coverage
 
-The 2026-10-30 local qualification (2026-10-29 UTC) built both candidates with their standard repositories and no dependency overrides. The builds used a modified worktree based on commit `7734e2ad5503289ba7f656e8cca903231a494557`, with the pinned images recorded in the platform matrix. These are local container results, not a hosted Actions run or native package acceptance.
-
-| Candidate | Qt | libvips | libarchive | CTest |
-| --- | --- | --- | --- | --- |
-| Arch rolling | 6.12.0 | 8.18.7 | 3.8.10 | 11/11 passed |
-| Fedora 44 | 6.11.2 | 8.18.3 | 3.8.7 | 11/11 passed |
-
-Both used GCC 16.2.1; Arch CMake was 4.4.5 and Fedora CMake was 4.3.0. Each also passed the five CI policy tests. Repository package sets were resolved at run time; these are dated observations, not repository snapshots. Arch's download cache was resumed and both containers were resumed after a daemon interruption. The final runs completed configure/build/CTest after the dependency correction.
-
-Initial clean builds exposed an undeclared supported-format dependency: both passed compilation but failed 12 core BMP/DIB cases without the libvips ImageMagick loader. Arch requires `imagemagick` in addition to `libvips`; Fedora requires `vips-magick` in addition to `vips-devel`. Installing these standard packages made all 102 core checks pass without decoder changes or test suppression. The root Arch VCS recipe now declares this runtime dependency, and application bootstrap no longer suppresses a missing Magick module warning. [ADR-023](decisions.md#adr-023-supported-formats-require-the-distribution-imagemagick-loader) records the dependency policy. Fedora's [official package description](https://packages.fedoraproject.org/pkgs/vips/vips-magick/) identifies the separate loader module.
-
-Local host validation also passed all 11 CTest entries, actionlint 1.7.7, Bash syntax, policy tests and documentation link checks. A separate consumer configuration built with tests and audit tooling disabled, and an explicit audit-enabled configuration built `insidious_memory_audit`. No native package installation/upgrade/removal or interactive X11/Wayland acceptance was performed.
-
-## Temporary rotation test quarantine
-
-The known [Zoom after rotation](roadmap.md#zoom-after-rotation) bug can fail six JPEG EXIF/view-rotation region cases with `VipsJpeg: out of order read` with one to four libvips threads. These cases temporarily report Qt Test **SKIP** only after that specific decode error occurs with a nonzero combined rotation and one to four libvips threads. Successful decodes still execute all geometry/pixel assertions, other errors remain failures, and other thread counts are not quarantined. The test clears the previous row's libvips error buffer before decoding so an earlier failure cannot trigger a later skip.
-
-A green CI run may therefore include six known core-case skips; it does not establish correct rotated JPEG region rendering. No job or whole test target uses `continue-on-error`. Keep the bug as a separate fix, remove this quarantine in the fix PR, and close it before native release qualification. To reproduce the failure without quarantine:
+`decoderExifRotationAndRegion` is mandatory at every thread count. Transformed rendering uses source-ordered strip evaluation, described in [Current implementation](implementation.md#sequential-decode-and-rotated-rendering). Run the rotation regressions with a low thread count using:
 
 ```sh
-INSIDIOUS_STRICT_ROTATION_TESTS=1 VIPS_CONCURRENCY=2 QT_QPA_PLATFORM=offscreen \
-  build/insidious_core_tests decoderExifRotationAndRegion
+VIPS_CONCURRENCY=2 QT_QPA_PLATFORM=offscreen \
+  build/insidious_core_tests decoderExifRotationAndRegion decoderTransformedSampling
 ```
 
-## Repository setup and remaining acceptance
+## Repository policy
 
-After merging and observing a successful hosted run, configure the repository ruleset to require `CI required` and PRs, and configure squash messages to use the PR title. Verify the exact check name in GitHub before enabling enforcement. These repository settings, hosted execution, cancellation behavior in the service, and fork PR isolation must be verified there; local policy tests and actionlint do not establish hosted acceptance.
+Protect `master` with required pull requests and the exact `CI required` check from GitHub Actions. Require the branch to be up to date, enforce protection for administrators, and disable force pushes and branch deletion. Approving reviews are optional. Enable squash merging with the PR title as the commit title (`squash_merge_commit_title=PR_TITLE`). Repository settings are managed separately from workflow files.
 
-The current stage adds clean build evidence only. Keep `native_qualified`, `release_required`, `native_qualification_complete` and `release_ready` false until the package/behavior gates are satisfied. Package workflows and release inventory checks will extend these reusable jobs in later stages; no package checks are claimed today.
+Build-only CI does not require a separate live fork PR test. Native package and release readiness remain governed by the [platform matrix](../packaging/README.md) and [release acceptance criteria](releasing.md#delivery-stages-and-acceptance).
 
 GitHub semantics used here are described in [reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows) and [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).

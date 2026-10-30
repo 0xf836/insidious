@@ -3,6 +3,8 @@
 #include <QApplication>
 #include <QDialogButtonBox>
 #include <QLabel>
+#include <QHBoxLayout>
+#include <QIcon>
 #include <QVBoxLayout>
 
 namespace insidious::ui {
@@ -12,12 +14,22 @@ AboutDialog::AboutDialog(QWidget *parent)
     setWindowTitle(tr("About Insidious"));
     setObjectName(QStringLiteral("aboutDialog"));
     auto *layout = new QVBoxLayout(this);
+    auto *header = new QHBoxLayout;
+    auto *logo = new QLabel(this);
+    logo->setObjectName(QStringLiteral("aboutLogo"));
+    logo->setFixedSize(64, 64);
+    logo->setPixmap(QIcon(QStringLiteral(":/icons/insidious.png"))
+        .pixmap(QSize(64, 64), devicePixelRatioF()));
+    header->addWidget(logo);
+    auto *heading = new QVBoxLayout;
     auto *version = new QLabel(tr("Insidious %1").arg(QApplication::applicationVersion()), this);
     version->setObjectName(QStringLiteral("aboutVersion"));
     version->setTextFormat(Qt::PlainText);
     version->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-    layout->addWidget(version);
-    layout->addWidget(new QLabel(tr("Native Linux image viewer."), this));
+    heading->addWidget(version);
+    heading->addWidget(new QLabel(tr("Native Linux image viewer."), this));
+    header->addLayout(heading);
+    layout->addLayout(header);
     auto *license = new QLabel(tr("MIT License\nCopyright (c) 2026 Insidious contributors"), this);
     license->setObjectName(QStringLiteral("aboutLicense"));
     layout->addWidget(license);
