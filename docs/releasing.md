@@ -87,7 +87,7 @@ Keep existing Git history intact. Write a curated initial changelog describing t
 
 ## Maintainer workflow and automation
 
-Keep `master` as the integration branch. Ordinary work uses short-lived branches and squash-merged PRs. Validate PR titles as Conventional Commits and configure squash messages to use the PR title. Before merge, verify that the final squash title retains its release classification.
+Keep `master` as the integration branch. Ordinary work uses short-lived branches and squash-merged PRs. PR titles are unrestricted; an advisory CI notice may remind maintainers about release classification. Use the PR title as the default squash message, then have the merging maintainer choose the appropriate Conventional Commit message.
 
 Release-please maintains a release PR containing the version and changelog changes. The maintainer reviews its scope and notes and merges it only after all required checks pass. Do not enable auto-merge for release PRs. This merge is the publication decision; no separate routine Publish click is required.
 
@@ -103,7 +103,7 @@ Use reusable workflows for validation and package builds, shared between PR chec
 
 Required checks:
 
-- Ordinary code PRs: configure/build, CTest, version consistency, and PR-title validation.
+- Ordinary code PRs: configure/build, CTest and version consistency. PR-title hints are advisory and do not block these checks or merging.
 - Changes affecting build files, dependencies, install rules, desktop resources, or packaging: full qualified package matrix.
 - Every release PR and release commit: full qualified package matrix regardless of path filters.
 - Existing offscreen and HiDPI tests retain their CTest environments.

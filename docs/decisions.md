@@ -164,7 +164,7 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 
 **Status:** Planned.
 
-**Decision:** Use SemVer, Conventional Commit squash titles, and release-please with a single `version.txt` application version. A maintainer merges the tested release PR; GitHub Actions then builds from its exact tagged source, verifies all required packages, and publishes a complete immutable GitHub Release from a draft. Keep `master` and one ordinary release channel initially. The [release specification](releasing.md) owns configuration, validation, and recovery details.
+**Decision:** Use SemVer, Conventional Commit squash titles, and release-please with a single `version.txt` application version. PR titles are unrestricted; maintainers choose the release classification in the final squash commit message. A maintainer merges the tested release PR; GitHub Actions then builds from its exact tagged source, verifies all required packages, and publishes a complete immutable GitHub Release from a draft. Keep `master` and one ordinary release channel initially. The [release specification](releasing.md) owns configuration, validation, and recovery details.
 
 **Rationale:** A reviewable release PR keeps release timing under maintainer control while automating repetitive version and changelog work. Draft staging prevents users from seeing incomplete downloads. Immutable tags/assets and explicit retry validation preserve artifact identity.
 
