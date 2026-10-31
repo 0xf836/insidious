@@ -12,6 +12,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 ## Working rules
 
+- Before making any project changes, create a dedicated Git branch for the task, including features, bug fixes, documentation, refactoring, tests, build configuration, and maintenance. Continue on an existing task branch when working on the same task; do not make changes directly on `main` or `master`.
 - Do not implement large features in one step.
 - Before coding, read the relevant files in `docs/` and the current implementation.
 - Use `docs/README.md` to identify the canonical document for product behavior, architecture, implementation, decisions, risks, and future work.
