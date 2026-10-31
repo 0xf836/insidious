@@ -15,7 +15,7 @@ in the [platform matrix](../packaging/platforms.json).
 
 ## Prepare recipes
 
-Obtain a trusted source archive and verify its release checksums/provenance before
+Obtain a trusted source archive and verify its published checksums before
 preparing packages. From the source checkout or extracted source tree:
 
 ```sh
@@ -29,7 +29,12 @@ version agreement and source metadata, then writes `PKGBUILD`, `insidious.spec`,
 a copy of the source archive and `SHA256SUMS`. The Arch recipe includes the actual
 SHA-256 and final public release URL. These checks establish internal consistency,
 not authenticity: source metadata alone cannot prove that an archive is official.
-Source creation and publication belong to the release automation stage.
+Source creation and publication use the [release automation](releasing.md#implemented-automation).
+`--repository OWNER/REPOSITORY` overrides the recipe's public source repository
+for an isolated release trial; production defaults to the project repository.
+Recipe templates are read from that archive, including during recovery with a
+newer tooling checkout; current-branch templates cannot change an older release's
+packaging inputs.
 
 ## Arch
 
@@ -46,6 +51,9 @@ asset. Makepkg still verifies the checksum in the rendered recipe. The stable
 `insidious` package conflicts with the root recipe's `insidious-git`; both use
 shared CMake installation rules. See the [Arch guide](arch-linux.md) for the VCS
 workflow.
+
+The automated qualification runner additionally disables HTTP(S) source download
+agents, so a missing cached source cannot fall back to the public release URL.
 
 ## Fedora
 
@@ -68,8 +76,8 @@ changes user settings or assigns default file associations.
 ## Package checks
 
 Package qualification uses two fresh disposable containers per target. Run these
-checks explicitly for packaging changes and releases; ordinary PR CI retains its
-existing build/test jobs. Do not add another full build or CTest pass on top of
+checks for packaging changes and releases through the reusable package workflow;
+other PRs retain build-only jobs. Do not add another full build or CTest pass on top of
 the native recipe's build and tests.
 
 `tools/packaging/check.sh` installs distribution build dependencies, builds the
@@ -127,7 +135,7 @@ Python 3, native packaging tools, desktop-file-utils, AppStream, Xvfb and Weston
 are developer/validation tools, not application runtime dependencies.
 
 Native qualification uses automated package checks and X11/Wayland startup
-checks, plus upgrade from the preceding package when available. Viewer behavior
+checks. Run additional upgrade checks when installation or migration behavior changes. Viewer behavior
 is covered by the existing regression suite. Manual menu/Open With or interactive
 UI acceptance is not required for platform qualification or releases. Keep
 `native_qualified` false until the applicable automated package gates pass.
