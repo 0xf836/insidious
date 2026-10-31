@@ -23,7 +23,7 @@ The documentation is organized by audience and responsibility. Each topic has on
 - [Architecture decisions](decisions.md) records important choices, their status, and their rationale.
 - [Versioning, releases, and Linux distribution](releasing.md) documents version identity, CI, the planned release workflow, dependency qualification, native packaging and implementation stages; publication remains future work.
 - [Continuous integration](ci.md) describes reusable validation/build workflows, required checks, artifacts, local execution and repository policy.
-- [Platform matrix](../packaging/README.md) explains the machine-readable target inventory, candidates, exclusions and deferred qualification.
+- [Platform matrix](../packaging/README.md) explains the machine-readable target inventory, qualification and exclusions.
 - [Dependency compatibility audit](dependency-audit.md) records the current Qt/libvips minimum rationale, Ubuntu 26.04 experiments, and remaining native-platform qualification limits.
 - [Technical risks](technical-risks.md) tracks unresolved engineering risks and active mitigations.
 - [Total peak memory audit](memory-audit.md) documents the developer-only memory measurement workflow and baseline.

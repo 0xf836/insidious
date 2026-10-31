@@ -67,11 +67,16 @@ changes user settings or assigns default file associations.
 
 ## Package checks
 
-`tools/packaging/check.sh` runs **inside a disposable container only**. It installs
-distribution build dependencies, builds and tests the package, installs it, checks
-runtime library resolution and desktop metadata, exercises X11 and headless Wayland startup with a
-space/Unicode image path, and removes the package while preserving user settings.
-Run it with the pinned target image from the platform matrix:
+Package qualification uses two fresh disposable containers per target. Run these
+checks explicitly for packaging changes and releases; ordinary PR CI retains its
+existing build/test jobs. Do not add another full build or CTest pass on top of
+the native recipe's build and tests.
+
+`tools/packaging/check.sh` installs distribution build dependencies, builds the
+native package and runs CTest once through its recipe. It retains the binary
+package, Fedora source/debug packages, resolved package inventory and build log.
+`build.json` binds the tested binary package's SHA-256 to the source archive's
+version, commit and SHA-256. Use the pinned image from the platform matrix:
 
 ```sh
 mkdir -p .ci-results/package-arch
@@ -82,14 +87,49 @@ docker run --rm --platform linux/amd64 \
   IMAGE bash /src/tools/packaging/check.sh arch
 ```
 
-Use `fedora` and a separate output directory for Fedora. Input includes the prepared
-recipes, source archive and `SHA256SUMS`. Logs, package inventories and built
-packages remain in the explicit output directory. Python 3, native packaging
-tools, desktop-file-utils, AppStream, Xvfb and Weston are developer/build tools, not new
-application runtime dependencies.
+`tools/packaging/runtime.sh` consumes that output in a new container, verifies the
+package digest, and installs the package through the native package manager. It
+installs only validation/display tools beforehand and rejects an environment
+containing a compiler, CMake or Ninja. Runtime dependencies must come from the
+package's requirements. It checks library resolution, installed contents and
+desktop metadata, exercises X11 and headless Wayland startup with a space/Unicode
+image path, and removes the package while preserving pre-existing user settings.
+It does not compile or run CTest.
 
-Automated startup is not interactive desktop qualification. Before promoting a
-native target, check menu/Open With launch on X11 and Wayland, image navigation,
-rendering and archive behavior, and upgrade from the preceding package when
-available. Keep `native_qualified` and release readiness false until those gates
-are satisfied. See [release acceptance](releasing.md#delivery-stages-and-acceptance).
+```sh
+mkdir -p .ci-results/runtime-arch
+docker run --rm --platform linux/amd64 \
+  -v "$PWD/.ci-results/package-arch:/input:ro" \
+  -v "$PWD:/src:ro" \
+  -v "$PWD/.ci-results/runtime-arch:/results" \
+  IMAGE bash /src/tools/packaging/runtime.sh arch --first-package
+```
+
+Run a clean installation for every version using `--clean-install` (the default).
+`--first-package` performs the same clean check and explicitly records that no
+preceding package exists. When a previous package is available, additionally run
+a separate fresh container with its own output directory, mount the previous
+package directory read-only at `/previous`, and pass `/previous/PACKAGE`. The
+runner installs the previous package first, requires an older numeric application
+version, then installs the new package and checks
+settings preservation. Reinstalling the same version does not count as an upgrade.
+
+Use `fedora` and separate output directories for Fedora. Build input includes
+the prepared recipes, source archive and `SHA256SUMS`; runtime input includes
+`build.json` and its binary package. Use empty output directories. A successful
+runtime pass writes `runtime.json` with the source/package identity, check outcomes
+and installation mode/upgrade outcome; failed runs produce logs without a success
+report.
+An upgrade report cannot replace the mandatory clean-install report. These
+reports record local checks, not source authenticity or release publication.
+Keep raw results in the explicit output directories rather than documentation.
+Python 3, native packaging tools, desktop-file-utils, AppStream, Xvfb and Weston
+are developer/validation tools, not application runtime dependencies.
+
+Native qualification uses automated package checks and X11/Wayland startup
+checks, plus upgrade from the preceding package when available. Viewer behavior
+is covered by the existing regression suite. Manual menu/Open With or interactive
+UI acceptance is not required for platform qualification or releases. Keep
+`native_qualified` false until the applicable automated package gates pass.
+Release readiness also requires release automation and publication validation.
+See [release acceptance](releasing.md#delivery-stages-and-acceptance).
