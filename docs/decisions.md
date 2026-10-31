@@ -162,13 +162,18 @@ Configured mouse-button shortcuts take priority over built-in gestures using the
 
 ## ADR-020: Release PRs control versioning and publication
 
-**Status:** Planned.
+**Status:** Implemented and qualified in a hosted test repository; production enablement remains separate.
 
 **Decision:** Use SemVer, Conventional Commit squash titles, and release-please with a single `version.txt` application version. PR titles are unrestricted; maintainers choose the release classification in the final squash commit message. A maintainer merges the tested release PR; GitHub Actions then builds from its exact tagged source, verifies all required packages, and publishes a complete immutable GitHub Release from a draft. Keep `master` and one ordinary release channel initially. The [release specification](releasing.md) owns configuration, validation, and recovery details.
 
-**Rationale:** A reviewable release PR keeps release timing under maintainer control while automating repetitive version and changelog work. Draft staging prevents users from seeing incomplete downloads. Immutable tags/assets and explicit retry validation preserve artifact identity.
-
-Version identity is implemented: `version.txt`, shared build metadata, headless CLI/About and VCS recipe extraction. Version/archive fixtures verify identity boundaries and incremental refresh. Release-please, changelog automation and publication remain planned.
+**Rationale:** A reviewable release PR controls timing while automating version
+and changelog work. Standard GitHub Actions dependencies and `gh` commands are
+sufficient for publication. Before publication, a failed draft may be rebuilt
+and its files replaced in full. Published releases and tags remain immutable;
+corrections require a new version. Exact-byte recovery, custom manifests and
+mandatory provenance are unnecessary for this application's initial channel.
+The [release runbook](releasing.md#release-runbook-and-recovery-contract) owns
+setup and retries. Production repository setup and enablement remain separate.
 
 ## ADR-021: Native distribution uses qualified system dependencies
 
