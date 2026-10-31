@@ -56,10 +56,9 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Distribution
 
-Follow the [release specification](releasing.md) for distribution design and acceptance criteria. Dependency requirements, version identity, [CI](ci.md), desktop integration, [Arch/Fedora package qualification](packaging.md) and release automation are implemented. Hosted publication and publication-job retry are qualified. Production publication remains:
+Follow the [release specification](releasing.md) for distribution design and acceptance criteria. Native Arch/Fedora packages are available through [GitHub Releases](https://github.com/0xf836/insidious/releases). Version identity, [CI](ci.md), desktop integration, [package qualification](packaging.md) and production release automation are implemented.
 
-6. Qualify and publish the first release through the maintainer runbook.
-7. Design Flatpak for systems excluded from native support. Keep AUR publication, hosted apt/RPM repositories, and ARM64 as separate future work.
+- Design Flatpak for systems excluded from native support. Keep AUR publication, hosted apt/RPM repositories, and ARM64 as separate future work.
 
 Revisit native Debian/Ubuntu recipes when dependency exclusions are resolved.
 

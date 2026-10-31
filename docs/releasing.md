@@ -1,6 +1,6 @@
 # Versioning, Releases, and Linux Distribution
 
-**Status: Dependency requirements, version identity, CI, desktop integration, Arch/Fedora package qualification and release automation are implemented. The publication workflow is qualified in a hosted test repository. Production repository setup and the first production release remain pending.**
+**Status: Native Arch/Fedora packages are published through the production release workflow. Version identity, CI, desktop integration, package qualification and immutable GitHub Releases are implemented. Flatpak remains a separate future stage.**
 
 This is the canonical specification for version identity, release publication and Linux distribution. [Continuous integration](ci.md) documents the current build workflows. Implement the remaining delivery stages separately.
 
@@ -10,7 +10,7 @@ Provide a predictable maintainer workflow and complete, clearly labelled downloa
 
 The current baseline is:
 
-- `version.txt` declares version `0.1.0`; CMake reads it before `project()`. The dependency requirements are Qt >= 6.6 and vips-cpp >= 8.18.3. The [dependency audit](dependency-audit.md) records the implemented requirement correction and Ubuntu 26.04 experiments; first production publication remains pending.
+- `version.txt` declares version `0.1.0`; CMake reads it before `project()`. The dependency requirements are Qt >= 6.6 and vips-cpp >= 8.18.3. The [dependency audit](dependency-audit.md) records the implemented requirement correction and Ubuntu 26.04 experiments.
 - `src/app/main.cpp` exposes generated build identity through `--version`, `-v` and Qt application metadata. About displays the same identity. The early version path does not initialize Qt or libvips and does not require a display.
 - The root `PKGBUILD` builds `insidious-git` from Git and installs through CMake.
 - Validation, package and release workflows are implemented. Inspect remote tags and GitHub Releases before bootstrapping a repository; workflow files alone do not configure repository policy or authorize a production release.
@@ -81,7 +81,7 @@ Use one ordinary release channel initially. Version `0.x` communicates pre-1.0 m
 
 ### Initial release
 
-The intended first public version is `v0.1.0`. Before configuration, inspect remote tags and Releases and reconcile any existing publication; never overwrite an existing version. If none exists, bootstrap release-please with a one-time first-release version override and a documented history boundary. Remove the override after the initial release PR so subsequent versions are computed normally.
+The first public version is [v0.1.0](https://github.com/0xf836/insidious/releases/tag/v0.1.0). For a new repository, inspect remote tags and Releases and reconcile any existing publication; never overwrite an existing version. If none exists, bootstrap release-please with a one-time first-release version override and a documented history boundary. Remove the override in the initial release PR so subsequent versions are computed normally.
 
 Keep existing Git history intact. Write a curated initial changelog describing the application as delivered, rather than treating old non-Conventional commit titles as release notes. Verify the bootstrap PR in a test repository before enabling production publication.
 
@@ -177,11 +177,11 @@ Initial architecture: x86_64 (Debian/Ubuntu package architecture name: amd64).
 
 | Target | Package | Qualification status |
 | --- | --- | --- |
-| Arch Linux rolling | `.pkg.tar.zst` | Qualified through clean native package builds, regression tests and fresh-container runtime checks; publication pending |
+| Arch Linux rolling | `.pkg.tar.zst` | Published; qualified through clean native package builds, regression tests and fresh-container runtime checks |
 | Debian 13 | `.deb` | Excluded with current standard libvips 8.16.1: no MKS2021 |
 | Ubuntu 24.04 LTS | Separate `.deb` | Excluded: standard Qt 6.4.2 lacks the required API |
 | Ubuntu 26.04 LTS | Separate `.deb` | Diagnostic build/tests pass with 8.18.0; native support blocked by missing SIMD resize fixes |
-| Fedora 44 | `.rpm` | Qualified through clean native package builds, regression tests and fresh-container runtime checks; publication pending |
+| Fedora 44 | `.rpm` | Published; qualified through clean native package builds, regression tests and fresh-container runtime checks |
 
 The audit records actual installed Ubuntu 26.04 package versions and distinguishes diagnostic tests from qualification. Recheck repository versions and distribution backports before reconsidering exclusions; do not present these candidates as supported installations based only on API availability or passing smoke tests.
 
@@ -258,14 +258,16 @@ The App must be allowed to create release branches/PRs and release tags without
 being permitted to bypass required PR checks when merging. No approving review
 or additional routine publication approval is required.
 
-Bootstrap configuration retains a one-time `release-as: 0.1.0` override and an
-explicit `bootstrap-sha` history boundary. The manifest agrees with `version.txt`.
+For a new repository, bootstrap configuration includes a one-time `release-as: 0.1.0`
+override and an explicit `bootstrap-sha` history boundary. The manifest must agree with `version.txt`.
 After verifying that the version is unused, enable the workflows with repository
 variable `RELEASE_AUTOMATION_ENABLED=true` and dispatch **Release automation** on
 `master`. In the generated first release PR, remove `release-as` and the obsolete
 `bootstrap-sha`, and curate the initial changelog entry and PR release notes around the product overview
 in `CHANGELOG.md`. CI rejects the release PR until the override is removed. Later
-versions are computed normally, without a persistent override.
+versions are computed normally, without a persistent override. The production
+configuration has already removed both bootstrap fields; use the routine release
+workflow for subsequent versions.
 
 ### Routine release
 
@@ -307,11 +309,11 @@ Before implementing Flatpak, resolve file access, adjacent-folder navigation, ar
 | Stage | Deliverable | Exit criteria |
 | --- | --- | --- |
 | 1. Compatibility (complete, revised scope) | Dependency audit, local regression tests and initial platform matrix | API/fix evidence, retained test results, explicit candidates/exclusions; clean qualification deferred to stages 3/4 |
-| 2. Version identity (complete) | `version.txt`, generated metadata, About, VCS recipe adaptation | Local tests cover consistent versions, headless output, clean/dirty/unknown/archive cases and incremental refresh; release/archive publication remains future work |
+| 2. Version identity (complete) | `version.txt`, generated metadata, About, VCS recipe adaptation | Tests cover consistent versions, headless output, clean/dirty/unknown/archive cases and incremental refresh; published source archives carry release identity |
 | 3. CI (complete) | Reusable build/test jobs and PR conventions | Arch/Fedora builds, failure/cancellation handling and required-check policy; see [CI](ci.md) |
 | 4. Packages and desktop (complete) | Native recipes, qualified Arch/Fedora targets, install rules, icon/desktop/AppStream | Automated regression and fresh-container installation/removal, settings/privacy and X11/Wayland startup checks pass; upgrade is not applicable until a preceding package exists |
 | 5. Release automation (complete) | Release-please and draft-to-public package workflow | Hosted source/package builds, publication and publication-job retry pass |
-| 6. First release | Maintainer-reviewed version and full published artifact set | Runbook completed; downloads present and checksums valid |
+| 6. First release (complete) | Maintainer-reviewed version and full published artifact set | Production runbook completed; immutable release downloads present and checksums valid |
 | 7. Flatpak | Separate specification and implementation | Runtime, permissions, navigation, and privacy qualified before publication |
 
 For package acceptance, test fresh installation and removal in clean environments. Run upgrade checks when installation or migration behavior changes. Check runtime library resolution, install paths, desktop validation, settings preservation, and absence of application-created history/cache/log files. Package-manager logs are distinct from application logs.
