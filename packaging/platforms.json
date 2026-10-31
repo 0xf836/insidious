@@ -5,14 +5,11 @@
     "qt": "6.6",
     "vips_cpp": "8.18.3"
   },
-  "scope": "dependency audit, local regression tests and clean candidate CI builds",
+  "scope": "native platform and release qualification",
   "audit_complete": true,
-  "native_qualification_complete": false,
-  "release_ready": false,
-  "qualification_deferred_to": [
-    "ci",
-    "packages-and-desktop"
-  ],
+  "native_qualification_complete": true,
+  "release_ready": true,
+  "qualification_deferred_to": [],
   "platforms": [
     {
       "id": "arch-x86_64",
@@ -20,16 +17,18 @@
       "release": "rolling",
       "architecture": "x86_64",
       "selected_for_future_qualification": true,
-      "status": "candidate",
-      "native_qualified": false,
-      "release_required": false,
+      "status": "qualified",
+      "native_qualified": true,
+      "release_required": true,
       "artifact_kind": "pkg.tar.zst",
       "build_validation": "clean-container-tests-passed",
-      "reason": "Clean official-image build and all 11 CTest entries pass with standard system packages and the ImageMagick loader; package and interactive desktop qualification remain pending.",
+      "reason": "Native package builds, regression tests and fresh-container installation, upgrade, X11/Wayland startup, privacy, settings preservation and removal checks pass with standard system dependencies.",
       "image_digest": "sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413",
       "evidence": [
         "docs/dependency-audit.md",
-        "docs/ci.md"
+        "docs/ci.md",
+        "docs/packaging.md",
+        "docs/releasing.md"
       ],
       "observed_dependencies": {
         "qt": "6.12.0",
@@ -37,7 +36,9 @@
         "libarchive": "3.8.10",
         "magick_package": "imagemagick"
       },
-      "ci_image": "docker.io/library/archlinux@sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413"
+      "ci_image": "docker.io/library/archlinux@sha256:e82623936fa1a69700b48e98b058df6eaab18b737c27473a7234a40fdecb9413",
+      "package_validation": "clean-build-and-runtime-checks-passed",
+      "upgrade_validation": "clean-container-upgrade-passed"
     },
     {
       "id": "fedora44-x86_64",
@@ -45,16 +46,18 @@
       "release": "44",
       "architecture": "x86_64",
       "selected_for_future_qualification": true,
-      "status": "candidate",
-      "native_qualified": false,
-      "release_required": false,
+      "status": "qualified",
+      "native_qualified": true,
+      "release_required": true,
       "artifact_kind": "rpm",
       "build_validation": "clean-container-tests-passed",
-      "reason": "Clean official-image build and all 11 CTest entries pass with standard system packages and the ImageMagick loader; package and interactive desktop qualification remain pending.",
+      "reason": "Native package builds, regression tests and fresh-container installation, upgrade, X11/Wayland startup, privacy, settings preservation and removal checks pass with standard system dependencies.",
       "image_digest": "sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
       "evidence": [
         "docs/dependency-audit.md",
-        "docs/ci.md"
+        "docs/ci.md",
+        "docs/packaging.md",
+        "docs/releasing.md"
       ],
       "selection_basis": "Fedora 44 package listings inspected during the audit; this is not a moving latest-stable selector.",
       "ci_image": "docker.io/library/fedora@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
@@ -63,7 +66,9 @@
         "vips_cpp": "8.18.3",
         "libarchive": "3.8.7",
         "magick_package": "vips-magick"
-      }
+      },
+      "package_validation": "clean-build-and-runtime-checks-passed",
+      "upgrade_validation": "clean-container-upgrade-passed"
     },
     {
       "id": "debian13-x86_64",
@@ -118,5 +123,5 @@
       "diagnostic_constraint_override": "vips-cpp>=8.18.0 in disposable copy only"
     }
   ],
-  "recorded_on": "2026-10-30"
+  "recorded_on": "2026-10-31"
 }

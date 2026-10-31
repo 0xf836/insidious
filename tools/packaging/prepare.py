@@ -8,7 +8,6 @@ import re
 import shutil
 import tarfile
 
-ROOT = Path(__file__).resolve().parents[2]
 VERSION = r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)'
 
 
@@ -48,14 +47,32 @@ def inspect_source(source):
     return version, digest
 
 
-def prepare(source, output):
+def render_recipes(source, repository='0xf836/insidious'):
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
+        raise ValueError('Invalid source repository')
     version, digest = inspect_source(source)
+    recipes = {}
+    # Keep recipes aligned with the source being packaged.
+    with tarfile.open(source, 'r:xz') as archive:
+        for template, name in [('arch/PKGBUILD.in', 'PKGBUILD'),
+                               ('rpm/insidious.spec.in', 'insidious.spec')]:
+            try:
+                member = archive.getmember(f'insidious-{version}/packaging/{template}')
+            except KeyError as error:
+                raise ValueError('Source archive is missing a native recipe template') from error
+            if not member.isfile() or not 0 < member.size <= 65536:
+                raise ValueError('Invalid or oversized native recipe template')
+            content = archive.extractfile(member).read().decode('utf-8')
+            recipes[name] = (content.replace('@VERSION@', version).replace('@SHA256@', digest)
+                            .replace('@REPOSITORY@', repository))
+    return version, digest, recipes
+
+
+def prepare(source, output, repository='0xf836/insidious'):
+    version, digest, recipes = render_recipes(source, repository)
     # Refuse to mix recipes with stale output or overwrite an existing archive.
     output.mkdir(parents=True, exist_ok=False)
-    for template, name in [('arch/PKGBUILD.in', 'PKGBUILD'),
-                           ('rpm/insidious.spec.in', 'insidious.spec')]:
-        content = (ROOT / 'packaging' / template).read_text()
-        content = content.replace('@VERSION@', version).replace('@SHA256@', digest)
+    for name, content in recipes.items():
         (output / name).write_text(content)
     shutil.copyfile(source, output / source.name)
     (output / 'SHA256SUMS').write_text(f'{digest}  {source.name}\n')
@@ -65,9 +82,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--repository', default='0xf836/insidious',
+                        help='Source release repository; override only for isolated release trials')
     args = parser.parse_args()
     try:
-        prepare(args.source, args.output)
+        prepare(args.source, args.output, args.repository)
     except (ValueError, OSError, tarfile.TarError) as error:
         parser.exit(1, f'{error}\n')
 

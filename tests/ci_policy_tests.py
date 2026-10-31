@@ -80,8 +80,39 @@ class PolicyTests(unittest.TestCase):
                 results[job]['result'] = status
                 self.assertFalse(checks.aggregate(results), (job, status))
 
+    def test_package_policy_and_conditional_aggregate(self):
+        self.assertFalse(checks.package_required(['docs/user-guide.md', 'src/ui/image_view_widget.cpp']))
+        self.assertFalse(checks.package_required(['version.txt', '.release-please-manifest.json', 'CHANGELOG.md']))
+        self.assertTrue(checks.docs_only(['docs/user-guide.md', 'README.md']))
+        self.assertFalse(checks.package_required(['packaging/README.md']))
+        self.assertFalse(checks.docs_only(['docs/user-guide.md', 'src/app/main.cpp']))
+        documentation = {name: {'result': status} for name, status in {
+            'validation': 'success', 'builds': 'skipped',
+            'package-source': 'skipped', 'packages': 'skipped'}.items()}
+        self.assertTrue(checks.aggregate(documentation, False, True))
+        self.assertFalse(checks.aggregate(documentation, False, False))
+        for path in ['CMakeLists.txt',
+                     'resources/icon.svg', 'tools/release/artifacts.py',
+                     'packaging/platforms.json', '.github/workflows/release.yml']:
+            self.assertTrue(checks.package_required([path]), path)
+        for required in (False, True):
+            expected = {'validation': {'result': 'success'},
+                        'builds': {'result': 'skipped' if required else 'success'},
+                        'package-source': {'result': 'success' if required else 'skipped'},
+                        'packages': {'result': 'success' if required else 'skipped'}}
+            self.assertTrue(checks.aggregate(expected, required))
+            for name in expected:
+                for status in ('failure', 'cancelled', 'skipped', 'success'):
+                    changed = copy.deepcopy(expected)
+                    changed[name]['result'] = status
+                    self.assertEqual(checks.aggregate(changed, required),
+                                     status == expected[name]['result'])
+            expected.pop('packages')
+            self.assertFalse(checks.aggregate(expected, required))
+
     def test_version(self):
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'GITHUB_REF': 'refs/tags/v0.1.0'}):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {
+                'GITHUB_REF': 'refs/tags/v0.1.0', 'GITHUB_EVENT_NAME': '', 'GITHUB_EVENT_PATH': ''}):
             root = Path(directory)
             (root / 'version.txt').write_text('0.1.0\n')
             checks.check_version(root)
@@ -95,6 +126,22 @@ class PolicyTests(unittest.TestCase):
                 (root / 'version.txt').write_text(invalid)
                 with self.assertRaises(ValueError):
                     checks.check_version(root)
+
+    def test_release_pr_requires_removing_bootstrap_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'version.txt').write_text('0.1.0\n')
+            (root / '.release-please-manifest.json').write_text('{".": "0.1.0"}')
+            event = root / 'event.json'
+            event.write_text(json.dumps({'pull_request': {'head': {'ref': 'release-please--branches--master'}}}))
+            config = root / 'release-please-config.json'
+            config.write_text('{"packages": {".": {"release-as": "0.1.0"}}}')
+            with patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'pull_request',
+                                         'GITHUB_EVENT_PATH': str(event), 'GITHUB_REF': 'refs/pull/1/merge'}):
+                with self.assertRaises(ValueError):
+                    checks.check_version(root)
+                config.write_text('{"packages": {".": {"release-type": "simple"}}}')
+                checks.check_version(root)
 
 
 if __name__ == '__main__':

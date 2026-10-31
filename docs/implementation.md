@@ -13,7 +13,7 @@ This document maps the current codebase for maintainers and coding agents. Stabl
 - Tests: Qt Test.
 - Build: CMake + Ninja.
 
-The install target places `insidious` under the configured binary directory, installs the repository documentation tree under the configured documentation directory, and installs the MIT license under the shared licenses directory. `version.txt` is the numeric version source. `cmake/Version.cmake` validates/resolves identity, `BuildMetadata.cmake` wires configure/build-time generation, and `GenerateVersion.cmake` refreshes the build-only header without rewriting identical contents. The C++ header exposes only the displayed version; the full commit remains in CMake and archive metadata. `insidious --version`, `-v`, Qt metadata and About share the generated identity. `WriteSourceMetadata.cmake` prepares the validated archive identity file for later packaging.
+The install target places `insidious` under the configured binary directory, installs the repository documentation tree under the configured documentation directory, and installs the MIT license under the shared licenses directory. `version.txt` is the numeric version source. `cmake/Version.cmake` validates/resolves identity, `BuildMetadata.cmake` wires configure/build-time generation, and `GenerateVersion.cmake` refreshes the build-only header without rewriting identical contents. The C++ header exposes only the displayed version; the full commit remains in CMake and archive metadata. `insidious --version`, `-v`, Qt metadata and About share the generated identity. `WriteSourceMetadata.cmake` prepares a standalone validated archive identity file.
 
 The build creates the following targets (test targets require the default `BUILD_TESTING=ON`):
 
@@ -60,8 +60,9 @@ The build creates the following targets (test targets require the default `BUILD
 - `tools/vips_vector_benchmark.py` reproduces the developer-only SIMD comparison in the [dependency audit](dependency-audit.md), recording raw timings and CPU/SIMD metadata; its committed evidence is under `docs/evidence/`.
 - `tests/main_window_async_tests.cpp` uses controlled Qt futures and a private test friend to test current/stale/cancelled loader completions. CMake reuses `UI_SOURCES` for this test target and the app.
 - `tests/fixtures/` contains original stored RAR4/RAR5 fixtures with a stdlib-only regeneration script; tests do not require RAR tooling or Python at runtime.
-- `.github/workflows/` and `tools/ci/` implement reusable CI validation and clean candidate builds; see [CI](ci.md).
-- `packaging/platforms.json` records native candidate decisions and explicitly pending qualification; it does not authorize a release.
+- `.github/workflows/` and `tools/ci/` implement reusable CI validation, clean candidate builds and native package qualification; see [CI](ci.md).
+- `tools/release/` exports source archives with version metadata. GitHub workflows build packages and publish drafts through standard `gh` commands. `release-please-config.json` defines version automation; the [release specification](releasing.md#implemented-automation) owns its interfaces and credentials.
+- `packaging/platforms.json` records native target qualification and exclusions; it does not authorize a release.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. Additional RAR4/RAR5 tests cover original stored fixtures. DIB variants test row order and distinguish file-backed headerless decode from archive rejection.
 
 ## Data flow
@@ -241,7 +242,7 @@ Mouse input:
 
 The final-sized native intermediate preserves sample format, color interpretation and ICC profile. Its bytes are checked with `render_memory_budget` using actual sample depth; oversized work reports `RenderTooLarge` before allocation. A 16-bit intermediate can therefore hit the limit before its 8-bit output would. Ordinary identity transforms use the existing direct path. During transformed ICC evaluation/fallback the source is the replayable intermediate; the archive reader remains alive until source evaluation completes. Scope-exit invalidation marks derived operations stale, and libvips-tracked allocation accounts for intermediate retention under the existing backend cache memory policy. The transformed graph removes the sequential-output hint before resize so its caches match the new axis/order; the loader remains sequential. The returned `QImage` still owns a separate cleanup-managed libvips buffer.
 
-Core regression tests cover all eight EXIF orientations plus absent/invalid metadata, autorotate disabled, four view rotations, fractional scales, fit/region/full-raster modes, file and ZIP JPEG inputs, native 16-bit budget boundaries and valid/invalid ICC for rotated file/archive sources. Pixel references fully materialize only small test fixtures before the original transform/crop/resize graph. The MainWindow test exercises real asynchronous rotate → actual size → zoom → pan → rotate commands with two libvips threads. This offscreen regression does not establish interactive X11/Wayland acceptance.
+Core regression tests cover all eight EXIF orientations plus absent/invalid metadata, autorotate disabled, four view rotations, fractional scales, fit/region/full-raster modes, file and ZIP JPEG inputs, native 16-bit budget boundaries and valid/invalid ICC for rotated file/archive sources. Pixel references fully materialize only small test fixtures before the original transform/crop/resize graph. The MainWindow test exercises real asynchronous rotate → actual size → zoom → pan → rotate commands with two libvips threads.
 
 ## Threading and stale results
 
@@ -299,4 +300,6 @@ These boundaries are product decisions rather than a list of incomplete implemen
 
 `packaging/arch/` and `packaging/rpm/` hold recipe templates. The developer-only
 `tools/packaging/prepare.py` validates source archive identity and renders recipes;
-`check.sh` exercises them in disposable containers. See [native packaging](packaging.md).
+`check.sh` builds and tests packages, then `runtime.sh` checks the resulting package
+in a fresh container without build tools. `evidence.py` binds the build/runtime
+reports to source and package digests. See [native packaging](packaging.md).
