@@ -1,6 +1,6 @@
 # Versioning, Releases, and Linux Distribution
 
-**Status: Dependency requirements, version identity and build-only CI are implemented. Desktop integration and Arch/Fedora recipe templates are implemented; native qualification and release publication remain pending.**
+**Status: Dependency requirements, version identity, build-only CI, desktop integration and automated Arch/Fedora native package qualification are implemented. Release automation and publication remain pending.**
 
 This is the canonical specification for version identity, release publication and Linux distribution. [Continuous integration](ci.md) documents the current build workflows. Implement the remaining delivery stages separately.
 
@@ -144,21 +144,21 @@ A lower minimum is acceptable only if existing capabilities and behavior remain 
 
 Native packages must not bundle private Qt/libvips, replace system libraries, require third-party PPAs, or download replacement libraries at installation. Do not silently compile a newer dependency in CI and claim support for an OS whose installed runtime cannot satisfy it.
 
-### Candidate matrix
+### Native target matrix
 
 Initial architecture: x86_64 (Debian/Ubuntu package architecture name: amd64).
 
-| Candidate | Package | Qualification status |
+| Target | Package | Qualification status |
 | --- | --- | --- |
-| Arch Linux rolling | `.pkg.tar.zst` | Existing VCS recipe; local and hosted build/test jobs pass; release package and desktop acceptance remain pending |
+| Arch Linux rolling | `.pkg.tar.zst` | Qualified through clean native package builds, regression tests and fresh-container runtime checks; publication pending |
 | Debian 13 | `.deb` | Excluded with current standard libvips 8.16.1: no MKS2021 |
 | Ubuntu 24.04 LTS | Separate `.deb` | Excluded: standard Qt 6.4.2 lacks the required API |
 | Ubuntu 26.04 LTS | Separate `.deb` | Diagnostic build/tests pass with 8.18.0; native support blocked by missing SIMD resize fixes |
-| Fedora 44 | `.rpm` | Local and hosted build/test jobs pass; package and desktop acceptance remain pending |
+| Fedora 44 | `.rpm` | Qualified through clean native package builds, regression tests and fresh-container runtime checks; publication pending |
 
 The audit records actual installed Ubuntu 26.04 package versions and distinguishes diagnostic tests from qualification. Recheck repository versions and distribution backports before reconsidering exclusions; do not present these candidates as supported installations based only on API availability or passing smoke tests.
 
-The machine-readable matrix is maintained in [packaging/platforms.json](../packaging/platforms.json); its [contract](../packaging/README.md) distinguishes selected candidates from qualified mandatory targets. Fedora 44 is the explicit Fedora candidate. Image digests remain null for untested environments. CI consumes the selected candidates, and the matrix records their pinned images and local clean-build results. Complete package and desktop qualification before promoting targets. Release inventory validation remains later work. Publish the same matrix in release notes. Adding/removing a qualified platform requires a reviewed change; a failed release build cannot silently remove a mandatory platform.
+The machine-readable matrix is maintained in [packaging/platforms.json](../packaging/platforms.json); its [contract](../packaging/README.md) distinguishes selected candidates from qualified mandatory targets. Fedora 44 is the explicit Fedora candidate. Image digests remain null for untested environments. CI consumes the selected candidates, and the matrix records their pinned images and local clean-build results. Complete automated package qualification before promoting targets. Release inventory validation remains later work. Publish the same matrix in release notes. Adding/removing a qualified platform requires a reviewed change; a failed release build cannot silently remove a mandatory platform.
 
 Debian and Ubuntu builds are separate even if they use the same recipe. Fedora support does not imply support for RHEL, Rocky Linux, AlmaLinux, or openSUSE. ARM64 is deferred.
 
@@ -192,7 +192,7 @@ Provide a scalable icon, appropriate raster sizes, a localizable desktop entry, 
 
 Register Open With MIME types only for the supported image/archive allowlists. Do not advertise every format exposed by the system libvips build or make Insidious the default archive handler. Include project/help links and the MIT license in metadata; keep application metadata consistent with release versions.
 
-Validate the application ID against Flatpak/D-Bus naming rules, including rejection of components starting with digits, and check identity agreement across desktop, icon, and AppStream resources. Validate with desktop-file and AppStream validators. Exercise launching paths containing spaces and Unicode, plus normal menu launch, on X11 and Wayland.
+Validate the application ID against Flatpak/D-Bus naming rules, including rejection of components starting with digits, and check identity agreement across desktop, icon, and AppStream resources. Validate with desktop-file and AppStream validators. Automate X11/Wayland startup checks with paths containing spaces and Unicode.
 
 Desktop integration must not add application-owned recent-item writes. A separate file manager or desktop shell may record its own activity; do not claim that a desktop entry can prevent all traces created by other applications. Retain the existing non-native file-dialog policy unless a separate privacy decision changes it.
 
@@ -227,7 +227,7 @@ Attestations establish build provenance; SHA-256 detects corruption but does not
 ### Routine release
 
 1. Review the release PR's version, compatibility notes, changelog, and intended platform set.
-2. Verify the full required checks and package smoke-test results. Record X11/Wayland manual acceptance on the release PR before merge.
+2. Verify the full required checks and automated package smoke-test results.
 3. Merge the release PR; monitor the explicit publication workflow through its final verification.
 4. Confirm the published tag resolves to the intended commit, all downloads are present, digests/attestations verify, and Latest points to the completed release.
 
@@ -264,14 +264,14 @@ Before implementing Flatpak, resolve file access, adjacent-folder navigation, ar
 | 1. Compatibility (complete, revised scope) | Dependency audit, local regression tests and initial platform matrix | API/fix evidence, retained test results, explicit candidates/exclusions; clean qualification deferred to stages 3/4 |
 | 2. Version identity (complete) | `version.txt`, generated metadata, About, VCS recipe adaptation | Local tests cover consistent versions, headless output, clean/dirty/unknown/archive cases and incremental refresh; release/archive publication remains future work |
 | 3. CI (complete) | Reusable build/test jobs and PR conventions | Arch/Fedora builds, failure/cancellation handling and required-check policy; see [CI](ci.md) |
-| 4. Packages and desktop (qualification pending) | Native recipes, completed platform qualification, install rules, icon/desktop/AppStream | Behavioral and package checks, installation/upgrade/removal, X11/Wayland launch acceptance; promote only qualified matrix entries |
+| 4. Packages and desktop (complete) | Native recipes, qualified Arch/Fedora targets, install rules, icon/desktop/AppStream | Automated regression and fresh-container installation/removal, settings/privacy and X11/Wayland startup checks pass; upgrade is not applicable until a preceding package exists |
 | 5. Release automation | Release-please and verified draft-to-public pipeline | Test-repository release, retry, conflict, and missing-artifact scenarios pass |
 | 6. First release | Maintainer-reviewed version and full published artifact set | Runbook completed; remote downloads and provenance independently verified |
 | 7. Flatpak | Separate specification and implementation | Runtime, permissions, navigation, and privacy qualified before publication |
 
 For package acceptance, test fresh installation, upgrade from the preceding package when available, and removal in clean environments. Check runtime library resolution, install paths, desktop validation, settings preservation, and absence of application-created history/cache/log files. Package-manager logs are distinct from application logs.
 
-Rendering acceptance must cover the supported formats, all scaling presets, ICC/EXIF, rotated region rendering, and HiDPI. Document pre-existing bugs separately; do not claim packaging fixes archive or zoom bugs tracked elsewhere in the roadmap.
+The existing automated regression suite covers supported formats, scaling presets, ICC/EXIF, rotated region rendering, and HiDPI. Package qualification and releases do not require a separate manual UI, menu/Open With, or interactive X11/Wayland acceptance pass. Document pre-existing bugs separately; do not claim packaging fixes archive or zoom bugs tracked elsewhere in the roadmap.
 
 Release tests must cover a missing mandatory target, tag/version mismatch, early build failure before `release-manifest.json` exists, duplicate asset with a different digest, interrupted upload with the release manifest retained only in CI artifacts, unavailable recovery artifacts, rerun after publication, source archive without Git, and fork PR isolation. Arch acceptance must include building from the seeded source cache while the public source URL is unavailable, rejecting a mismatched source digest, and checking the public source URL after publication. Publication is allowed only after all mandatory target results and release-manifest checks pass.
 

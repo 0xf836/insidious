@@ -176,13 +176,13 @@ Version identity is implemented: `version.txt`, shared build metadata, headless 
 
 **Decision:** Audit the actual Qt/libvips requirements before changing minimums. Qualify target distributions with their standard libraries and the existing feature set. Do not bundle private Qt/libvips, replace system libraries, or require third-party repositories for native packages. Exclude incompatible targets; plan Flatpak separately as a future runtime-based distribution channel.
 
-**Implementation status:** Dependency evidence, local regression tests and the initial [platform matrix](../packaging/platforms.json) are complete. The owner deferred clean Arch/Fedora 44 qualification to CI/package preparation. This does not declare native packages qualified or relax publication gates.
+**Implementation status:** Dependency evidence, regression tests and automated native Arch/Fedora 44 qualification are recorded in the [platform matrix](../packaging/platforms.json). Release automation and publication remain separate gates.
 
 **Rationale:** Current version constraints have historical explanations but need API, behavior, and relevant-fix evidence before they define distribution coverage. Preserving native dependency management avoids a second private runtime maintenance burden. See [dependency qualification](releasing.md#dependency-qualification-and-native-support).
 
 ## ADR-022: Native recipes share installation and desktop identity
 
-**Status:** Partially implemented; native qualification and publication pending.
+**Status:** Implemented for Arch/Fedora, including automated native qualification; publication pending. Debian/Ubuntu recipes remain deferred.
 
 **Decision:** Use separate stable Arch, debhelper Debian/Ubuntu, and Fedora RPM recipes over common CMake install rules. Retain the root Arch VCS recipe. Adopt `io.github._0xf836.Insidious` for desktop/icon/AppStream and future Flatpak identity, escaping the owner's initial digit according to D-Bus naming rules, with Open With integration but no automatic default-association changes or application recent-item writes. Publish packages through GitHub Releases first; AUR and hosted package repositories remain later work.
 

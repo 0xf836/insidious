@@ -12,3 +12,11 @@ reject_matches() {
         fi
     fi
 }
+
+# Preserve copy failures and require the source package alongside binary RPMs.
+copy_rpms() {
+    local sources
+    find "$1/RPMS" "$1/SRPMS" -name '*.rpm' -exec cp -t "$2" -- {} + || return 1
+    sources=("$2"/*.src.rpm)
+    [[ "${#sources[@]}" == 1 && -f "${sources[0]}" ]]
+}

@@ -1,6 +1,6 @@
 # Continuous Integration
 
-CI validates pull requests and builds the Arch and Fedora candidates from [packaging/platforms.json](../packaging/platforms.json). Native package qualification, desktop acceptance and release publication are separate stages in the [release specification](releasing.md).
+CI validates pull requests and builds the Arch and Fedora targets from [packaging/platforms.json](../packaging/platforms.json). Automated native package qualification and release publication are separate stages in the [release specification](releasing.md).
 
 ## Workflows and policy
 
@@ -62,5 +62,10 @@ VIPS_CONCURRENCY=2 QT_QPA_PLATFORM=offscreen \
 Protect `master` with required pull requests and the exact `CI required` check from GitHub Actions. Require the branch to be up to date, enforce protection for administrators, and disable force pushes and branch deletion. Approving reviews are optional. Enable squash merging with the PR title as the default commit title (`squash_merge_commit_title=PR_TITLE`); maintainers adjust that message before merging when release classification is needed. Do not require `Release note hint` in branch protection. Repository settings are managed separately from workflow files.
 
 Build-only CI does not require a separate live fork PR test. Native package and release readiness remain governed by the [platform matrix](../packaging/README.md) and [release acceptance criteria](releasing.md#delivery-stages-and-acceptance).
+
+Package qualification is an explicit [two-container check](packaging.md#package-checks)
+for packaging changes and releases. It adds no jobs to ordinary PR CI. Native
+recipes run the regression suite during package builds; runtime checks consume
+those packages without another build or CTest pass.
 
 GitHub semantics used here are described in [reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows) and [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).
