@@ -79,7 +79,7 @@ makepkg -s
 sudo pacman -U insidious-git-*.pkg.tar.zst
 ```
 
-See [Arch Linux package](docs/arch-linux.md) for the VCS recipe and [native packaging](docs/packaging.md) for stable Arch/Fedora recipe preparation and desktop integration. Release publication remains pending.
+Download stable Arch Linux x86_64 and Fedora 44 x86_64 packages from [GitHub Releases](https://github.com/0xf836/insidious/releases). See [Arch Linux package](docs/arch-linux.md) for the VCS recipe and [native packaging](docs/packaging.md) for stable recipe preparation and desktop integration.
 
 ## Essential controls
 
