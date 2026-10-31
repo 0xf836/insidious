@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.0](https://github.com/0xf836/insidious/compare/v0.1.0...v0.1.0) (2026-10-31)
+
+
+### Build and Packaging
+
+* **release:** automate native release publication ([d135722](https://github.com/0xf836/insidious/commit/d13572231c517447d8543b662fc8c914d84ffa82))
+* **release:** automate native release publication ([7578bea](https://github.com/0xf836/insidious/commit/7578beaa2e9203bc0fc7d0fa02fb7521b83bcaed))
+
+## Changelog
+
 Release PRs maintain versioned entries above the initial product overview below.
 The maintainer reviews release notes before merging each release PR.
 
