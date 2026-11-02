@@ -50,10 +50,7 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Animation playback
 
-- Build one playback controller for GIF, animated WebP, and animated JPEG XL: frame timing, finite/infinite looping, bounded asynchronous frame preparation, cancellation on source switches, and zoom/pan/rotation continuity.
-- Keep format-specific decoding and compositing behind the frame source; do not implement a separate UI player per format or eagerly materialize every frame.
-- Verify efficient sequential access, loop restart, frame composition, timing metadata, and memory behavior for each loader, including archive sources.
-- Investigate timed AVIF/HEIF sequences separately: multiple still images in a container are not an animation, and libvips HEIF page access does not expose the same timing interface. Evaluate the available libheif sequence API before extending the shared player.
+- Investigate APNG and timed AVIF/HEIF sequences separately; evaluate codec APIs and system dependencies before extending the shared player. Multiple still items in a container must not become animation automatically.
 - Keep thumbnails and comparison views on a representative still frame unless animated presentation is explicitly added to those workflows.
 
 ### Input customization

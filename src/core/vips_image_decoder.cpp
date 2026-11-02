@@ -1,4 +1,5 @@
 #include "core/vips_image_decoder.h"
+#include "core/vips_raster_renderer.h"
 
 #include "core/archive_entry_stream.h"
 #include "core/render_memory_budget.h"
@@ -431,7 +432,6 @@ DecodedImage VipsImageDecoder::decode(
 {
     DecodedImage result;
     std::unique_ptr<ArchiveEntryStreamReader> archiveStream;
-    NativeRasterScope nativeRaster;
 
     try {
         vips::VImage image;
@@ -458,7 +458,33 @@ DecodedImage VipsImageDecoder::decode(
                 vips::VImage::option()->set("access", "sequential")->set("revalidate", TRUE));
         }
 
+        result = renderVipsImage(image, request);
+        if (!result.ok()) {
+            result.errorMessage = archiveDecodeErrorMessage(archiveStream.get(), result.errorMessage.toUtf8().constData());
+        }
+        return result;
+    } catch (const vips::VError &error) {
+        result.errorMessage = archiveDecodeErrorMessage(archiveStream.get(), error.what());
+        result.errorReason = DecodeErrorReason::Other;
+    } catch (const std::exception &error) {
+        result.errorMessage = QString::fromUtf8(error.what());
+        result.errorReason = DecodeErrorReason::Other;
+    }
+
+    return result;
+}
+
+DecodedImage renderVipsImage(vips::VImage image, const DecodeRequest &request)
+{
+    DecodedImage result;
+    NativeRasterScope nativeRaster;
+    try {
         result.metadataFields = extractExifFields(image);
+        if (image.get_typeof("delay") != 0) {
+            const auto delays = image.get_array_int("delay");
+            result.animated = delays.size() > 1
+                && std::all_of(delays.begin(), delays.end(), [](int delay) { return delay >= 0; });
+        }
 
         const int orientation = request.exifAutorotate ? vips_image_get_orientation(image.get_image()) : 1;
         const QTransform exifTransform = orientationTransform(orientation, QSize(image.width(), image.height()));
@@ -606,13 +632,12 @@ DecodedImage VipsImageDecoder::decode(
         result.devicePixelRatio = devicePixelRatio;
         result.regionBased = useRegionRendering;
     } catch (const vips::VError &error) {
-        result.errorMessage = archiveDecodeErrorMessage(archiveStream.get(), error.what());
+        result.errorMessage = QString::fromUtf8(error.what());
         result.errorReason = DecodeErrorReason::Other;
     } catch (const std::exception &error) {
         result.errorMessage = QString::fromUtf8(error.what());
         result.errorReason = DecodeErrorReason::Other;
     }
-
     return result;
 }
 

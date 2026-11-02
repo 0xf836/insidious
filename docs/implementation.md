@@ -65,6 +65,10 @@ The build creates the following targets (test targets require the default `BUILD
 - `packaging/platforms.json` records native target qualification and exclusions; it does not authorize a release.
 - `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. Additional RAR4/RAR5 tests cover original stored fixtures. DIB variants test row order and distinguish file-backed headerless decode from archive rejection. TIFF tests cover first-page selection, orientation, strip/tile storage, BigTIFF, uncompressed/LZW/Deflate data, and the shared high-bit-depth/ICC/region matrix. GIF tests verify first-frame selection for static/animated inputs, transparency, rotation, and filesystem/ZIP/7z reads. AVIF/JPEG XL/JPEG 2000/HEIC tests exercise grayscale/RGB with and without alpha, native high-bit-depth samples, embedded sRGB profiles where retained by the fixture encoder, color management on/off, fit/full/rotated-region rendering, memory-budget rejection, filesystem/ZIP/7z reads, and single-image selection from multi-image inputs. MainWindow tests cover opening, copying original bytes after rotation, and navigation past a truncated entry.
 
+- `src/core/animation_decode_session.*` owns bounded encoded bytes, lazy libvips sequences, current/previous native frames, timing metadata, loop restart, and shared-renderer calls. `vips_raster_renderer.h` is the internal rendering entry point shared with still-image decode.
+- `src/ui/animation_player.*` owns the presentation timer and one serialized worker; MainWindow owns the player and routes its frames to the viewer without rescanning metadata or starting neighbor prefetch on every frame. View requests coalesce and stale source/view results are rejected.
+- `tests/animation_tests.cpp` covers file/ZIP/7z sequences, independent partial-frame GIF/WebP pixel fixtures, pause/suspension, finite loops, view changes at loop boundaries, stale sources, limits, and repeated-loop pixel retention. MainWindow tests cover real playback and original-byte copy.
+
 ## Data flow
 
 Opening one image:
@@ -77,7 +81,7 @@ Opening one image:
 6. `VipsImageDecoder::decode()` returns a display raster as `DecodedImage`.
 7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries only for fit-sized decode requests. Same-entry render reloads are coalesced so only the newest pending request is kept while the active render finishes; switching to another entry starts a new foreground decode immediately. Prefetch jobs are tracked by cache key, coalesced while in flight, and use `MemoryImageCache` generation guards so results decoded before a cache clear cannot repopulate a new source cache.
 
-AVIF and HEIC/HEIF use the HEIF loader's default primary-image selection without setting `page` or `n`, since setting either changes that default to page zero. GIF and JPEG XL use their loaders' default first-frame selection; TIFF uses its loader's default first-page selection. These defaults are covered by multi-image fixtures, including an AVIF whose primary image is not the first item. These formats use the shared decoder for viewer, thumbnails, and comparison; no separate backend or archive extraction path is introduced.
+AVIF and HEIC/HEIF use the HEIF loader's default primary-image selection without setting `page` or `n`, since setting either changes that default to page zero. Still-image GIF and JPEG XL decoding uses the default first-frame selection; TIFF uses its loader's default first-page selection. These defaults are covered by multi-image fixtures, including an AVIF whose primary image is not the first item. These formats use the shared decoder for viewer, thumbnails, and comparison; no separate backend or archive extraction path is introduced.
 
 Raw JPEG 2000 codestreams use `image/x-jp2-codestream` for clipboard bytes and desktop associations, matching the system MIME database.
 
@@ -280,7 +284,7 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 - Archive password persistence.
 - Recursive "include all descendants" folder collections.
 - RAW.
-- Animation playback, frame/page selection, and HDR tone mapping.
+- APNG/timed AVIF/HEIF playback, manual frame/page selection, and HDR tone mapping.
 - Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.
 - Advanced thumbnail controls.
 - Advanced comparison modes beyond the current row, grid, carousel, two-image hover switch, and alignment-preset set.

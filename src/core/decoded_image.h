@@ -74,6 +74,7 @@ enum class ColorProfileState {
 
 struct DecodedImage {
     QImage image;
+    bool animated = false;
     QSize sourceSize;
     QSize displaySize;
     QSize fullDisplaySize;

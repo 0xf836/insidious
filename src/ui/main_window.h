@@ -7,6 +7,7 @@
 #include "core/app_settings.h"
 #include "core/viewer_controller.h"
 #include "ui/collection_tree_model.h"
+#include "ui/animation_player.h"
 #include "ui/comparison_view_widget.h"
 #include "ui/image_info_panel.h"
 #include "ui/image_list_model.h"
@@ -357,6 +358,8 @@ private:
     QAction *m_firstAction = nullptr;
     QAction *m_lastAction = nullptr;
     QAction *m_quickJumpAction = nullptr;
+    AnimationPlayer *m_animationPlayer = nullptr;
+    QAction *m_animationAction = nullptr;
     QAction *m_copyOriginalImageAction = nullptr;
     QAction *m_preferencesAction = nullptr;
     QToolButton *m_appMenuButton = nullptr;

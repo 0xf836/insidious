@@ -30,6 +30,9 @@ pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 include(cmake/BuildMetadata.cmake)
 
 set(CORE_SOURCES
+    src/core/animation_decode_session.cpp
+    src/core/animation_decode_session.h
+    src/core/vips_raster_renderer.h
     src/core/app_settings.cpp
     src/core/app_settings.h
     src/core/archive_entry_stream.cpp
@@ -73,6 +76,8 @@ target_link_libraries(insidious_core
 )
 
 set(UI_SOURCES
+    src/ui/animation_player.cpp
+    src/ui/animation_player.h
     src/ui/about_dialog.cpp
     src/ui/about_dialog.h
     src/ui/collection_tree_model.cpp
@@ -164,6 +169,11 @@ if(Python3_Interpreter_FOUND)
         COMMAND "${Python3_EXECUTABLE}" -m unittest discover
             -s "${CMAKE_SOURCE_DIR}/tests" -p release_tests.py -v)
 endif()
+
+add_executable(insidious_animation_tests tests/animation_tests.cpp src/ui/animation_player.cpp src/ui/animation_player.h)
+target_link_libraries(insidious_animation_tests PRIVATE insidious_core Qt6::Test)
+add_test(NAME insidious_animation_tests COMMAND insidious_animation_tests)
+set_tests_properties(insidious_animation_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 add_executable(insidious_core_tests
     tests/core_tests.cpp

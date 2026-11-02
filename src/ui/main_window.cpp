@@ -641,6 +641,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , m_cache(std::make_shared<core::MemoryImageCache>())
 {
+    m_animationPlayer = new AnimationPlayer(this);
     setWindowTitle(tr("Insidious"));
     setAcceptDrops(true);
 
@@ -726,6 +727,38 @@ MainWindow::MainWindow(QWidget *parent)
         updateStatus(tr("Loading image..."));
     });
 
+    connect(m_animationPlayer, &AnimationPlayer::frameReady, this, [this](const core::DecodedImage &frame) {
+        if (!m_controller.currentEntry() || !m_animationPlayer->owns(*m_controller.currentEntry())) { return; }
+        const bool viewChanged = m_imageRenderPending;
+        m_currentDecoded = frame;
+        m_imageRenderPending = false;
+        m_imageView->setImage(frame.image, frame.fullDisplaySize, frame.displayRegionOffset);
+        m_imageView->setPanOffset(m_controller.panOffset());
+        if (viewChanged) {
+            m_pendingZoomRenderFallback.reset();
+            m_imageView->setImageInteractionEnabled(true);
+            updateStatus();
+            updateActionState();
+            updateInteractionState();
+        }
+    });
+    connect(m_animationPlayer, &AnimationPlayer::failed, this, [this](const QString &message) {
+        if (m_pendingZoomRenderFallback) {
+            restoreViewRenderState(m_pendingZoomRenderFallback->state, message);
+            m_pendingZoomRenderFallback.reset();
+        } else {
+            m_animationPlayer->stop();
+            m_imageRenderPending = false;
+            m_imageView->setImageInteractionEnabled(true);
+            m_imageView->setOverlayMessage(message);
+            updateActionState();
+            updateInteractionState();
+        }
+    });
+    connect(m_animationPlayer, &AnimationPlayer::stateChanged, this, [this] {
+        m_animationAction->setEnabled(m_animationPlayer->available() && !compareTabActive());
+        m_animationAction->setText(m_animationPlayer->playing() ? tr("Pause Animation") : tr("Play Animation"));
+    });
     resize(1100, 760);
     restoreLayoutSettings();
     updateStatus();
@@ -735,6 +768,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::openPath(const QString &path)
 {
+    m_animationPlayer->stop();
     const QFileInfo info(path);
     if (info.isDir()) {
         openFolder(info.absoluteFilePath());
@@ -747,6 +781,7 @@ void MainWindow::openPath(const QString &path)
 
 void MainWindow::openPaths(const QStringList &paths)
 {
+    m_animationPlayer->stop();
     if (paths.size() == 1) {
         openPath(paths.first());
         return;
@@ -814,6 +849,9 @@ bool MainWindow::event(QEvent *event)
     }
 
     const bool handled = QMainWindow::event(event);
+    if (m_animationPlayer && (event->type() == QEvent::Show || event->type() == QEvent::Hide || event->type() == QEvent::WindowStateChange)) {
+        m_animationPlayer->setSuspended(!isVisible() || isMinimized() || compareTabActive());
+    }
     if (event->type() == QEvent::WindowStateChange && m_fullscreenUiActive && !isFullScreen()) {
         QTimer::singleShot(0, this, [this]() {
             if (m_fullscreenUiActive && !isFullScreen()) {
@@ -867,6 +905,7 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    m_animationPlayer->stop();
     saveSettings();
     QMainWindow::closeEvent(event);
 }
@@ -936,6 +975,9 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     }
 
     const core::ImageEntry *entry = m_controller.currentEntry();
+    if (entry == nullptr || m_animationPlayer->sourceKey() != entry->identityKey()) {
+        m_animationPlayer->stop();
+    }
     if (entry == nullptr) {
         m_imageRenderPending = false;
         clearPendingDecodeRequest();
@@ -960,6 +1002,19 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     }
 
     const core::DecodeRequest request = currentDecodeRequest();
+    if (m_animationPlayer->sourceKey() == entry->identityKey() && !m_animationPlayer->owns(*entry)) {
+        m_animationPlayer->setView(request);
+    }
+    if (m_animationPlayer->owns(*entry)) {
+        if (zoomFallback) { m_pendingZoomRenderFallback = PendingZoomRenderFallback { m_decodeGeneration, *zoomFallback }; }
+        m_imageRenderPending = true;
+        const bool keepHoldZoomInteraction = zoomFallback.has_value() && m_activeHoldZoom.has_value();
+        if (!keepHoldZoomInteraction) { m_imageView->setImageInteractionEnabled(false); }
+        updateActionState();
+        updateInteractionState();
+        m_animationPlayer->setView(request);
+        return;
+    }
     const QString cacheKey = currentCacheKey(request);
     const quint64 generation = ++m_decodeGeneration;
     const bool cacheable = !request.regionRendering;
@@ -1652,6 +1707,12 @@ void MainWindow::setupActions()
     viewMenu->addAction(m_rotateLeftAction);
     addToolbarButton(m_mainToolBar, m_rotateLeftAction, QStringLiteral("↶"), false);
 
+    m_animationAction = new QAction(tr("Pause Animation"), this);
+    m_animationAction->setEnabled(false);
+    connect(m_animationAction, &QAction::triggered, m_animationPlayer, &AnimationPlayer::toggle);
+    viewMenu->addAction(m_animationAction);
+    addToolbarButton(m_mainToolBar, m_animationAction, tr("Play/Pause"), false);
+
     m_rotateRightAction = new QAction(tr("Rotate Right"), this);
     connect(m_rotateRightAction, &QAction::triggered, this, &MainWindow::rotateRight);
     viewMenu->addAction(m_rotateRightAction);
@@ -1714,6 +1775,7 @@ void MainWindow::setupConnections()
         scheduleRegionReload();
     });
     connect(m_centralTabs, &QTabWidget::currentChanged, this, [this]() {
+        m_animationPlayer->setSuspended(!isVisible() || isMinimized() || compareTabActive());
         if (m_centralTabs->currentWidget() == m_comparisonView && !m_comparisonStatusMessage.isEmpty()) {
             updateStatus(m_comparisonStatusMessage);
         } else {
@@ -1852,6 +1914,11 @@ void MainWindow::setupConnections()
         m_pendingZoomRenderFallback.reset();
         if (!job.decoded.regionBased) {
             m_cache->insert(job.cacheKey, job.decoded);
+        }
+        if (m_animationPlayer->owns(job.entry)) {
+            m_imageRenderPending = true;
+            m_animationPlayer->setView(currentDecodeRequest());
+            return;
         }
         displayDecodedImage(job.decoded);
         prefetchNeighbors(currentDecodeRequest());
@@ -2266,6 +2333,7 @@ void MainWindow::setupFullscreenOverlayPanels()
     addToolbarButton(m_fullscreenTopPanel, m_fitAction, tr("Fit"), true);
     addToolbarButton(m_fullscreenTopPanel, m_actualSizeAction, QStringLiteral("1:1"), true);
     addToolbarButton(m_fullscreenTopPanel, m_rotateLeftAction, QStringLiteral("↶"), true);
+    addToolbarButton(m_fullscreenTopPanel, m_animationAction, tr("Play/Pause"), true);
     addToolbarButton(m_fullscreenTopPanel, m_rotateRightAction, QStringLiteral("↷"), true);
     m_fullscreenAppMenuButton = addAppMenuButton(m_fullscreenTopPanel, true);
     m_fullscreenTopPanel->hide();
@@ -2420,6 +2488,8 @@ QAction *MainWindow::actionForShortcutCommand(core::ShortcutCommand command) con
         return m_lastAction;
     case core::ShortcutCommand::QuickJump:
         return m_quickJumpAction;
+    case core::ShortcutCommand::ToggleAnimationPlayback:
+        return m_animationAction;
     case core::ShortcutCommand::CopyOriginalImage:
         return m_copyOriginalImageAction;
     case core::ShortcutCommand::Preferences:
@@ -2969,6 +3039,14 @@ void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
     updateStatus();
     updateActionState();
     updateInteractionState();
+    if (const auto *entry = m_controller.currentEntry()) {
+        m_animationPlayer->setSuspended(!isVisible() || isMinimized() || compareTabActive());
+        if (decoded.animated && core::AnimationDecodeSession::candidate(*entry)) {
+            m_animationPlayer->open(*entry, currentDecodeRequest(), archivePasswordForEntry(*entry));
+        } else {
+            m_animationPlayer->stop();
+        }
+    }
 }
 
 MainWindow::ViewRenderState MainWindow::captureViewRenderState() const
@@ -3027,6 +3105,7 @@ bool MainWindow::handleZoomRenderError(const DecodeJobResult &job)
 
 void MainWindow::showError(const QString &message)
 {
+    m_animationPlayer->stop();
     cancelDelayedLoadingOverlay();
     ++m_decodeGeneration;
     m_imageRenderPending = false;
@@ -3102,6 +3181,7 @@ void MainWindow::updateActionState()
     m_firstAction->setEnabled(!compareActive && hasPreviousInFolder);
     m_lastAction->setEnabled(!compareActive && hasNextInFolder);
     m_quickJumpAction->setEnabled(!compareActive && hasImage);
+    m_animationAction->setEnabled(!compareActive && m_animationPlayer->available());
     m_copyOriginalImageAction->setEnabled(!compareActive && hasImage && !m_copyOriginalImageWatcher.isRunning());
     m_zoomInAction->setEnabled(!compareActive && canChangeView);
     m_zoomOutAction->setEnabled(!compareActive && canChangeView);
@@ -3401,6 +3481,9 @@ void MainWindow::handleHoldZoomEnded()
         m_pendingZoomRenderFallback.reset();
     }
     restoreViewRenderState(returnState, QString());
+    if (m_controller.currentEntry() && m_animationPlayer->owns(*m_controller.currentEntry())) {
+        loadCurrentImage(false, returnState);
+    }
 }
 
 void MainWindow::zoomByMultiplier(double multiplier, QPointF anchorPosition)
@@ -3451,6 +3534,7 @@ core::WheelAction MainWindow::wheelActionForModifiers(Qt::KeyboardModifiers modi
 
 void MainWindow::clearSourceTree()
 {
+    m_animationPlayer->stop();
     clearComparisonSession();
     clearComparisonSelection();
     resetThumbnailWork(true);
@@ -3471,8 +3555,10 @@ void MainWindow::activateFolder(
     bool loadCurrent,
     const QString &selectedIdentityKey)
 {
+    if (folderRelativePath != m_activeFolderPath) { m_animationPlayer->stop(); }
     core::CollectionFolderNode *folder = folderNodeForPath(folderRelativePath);
     if (folder == nullptr) {
+        m_animationPlayer->stop();
         m_activeFolderPath.clear();
         m_controller.clearCollection();
         refreshFileList();
@@ -3486,6 +3572,7 @@ void MainWindow::activateFolder(
     syncFolderTreeSelection();
 
     if (!folder->loaded && folder->canLoadChildren) {
+        m_animationPlayer->stop();
         m_currentDecoded = {};
         m_controller.clearCollection();
         refreshFileList();
@@ -3510,6 +3597,9 @@ void MainWindow::activateFolder(
 
     m_temporaryZoomReturnMode.reset();
     m_controller.setCollection(std::move(sortedImages), sortedSelectedIndex);
+    if (!m_controller.currentEntry() || m_animationPlayer->sourceKey() != m_controller.currentEntry()->identityKey()) {
+        m_animationPlayer->stop();
+    }
     if (m_baseZoomMode == core::ZoomMode::ActualSize) {
         m_controller.setActualSize();
     } else {
