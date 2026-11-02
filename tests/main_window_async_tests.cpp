@@ -17,6 +17,7 @@
 #include <QPromise>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QThreadPool>
 #include <QtTest>
 #include <vips/vips8>
 
@@ -95,6 +96,7 @@ void MainWindowAsyncTests::initTestCase()
 
 void MainWindowAsyncTests::cleanupTestCase()
 {
+    QThreadPool::globalInstance()->waitForDone();
     vips_shutdown();
 }
 
@@ -147,6 +149,7 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate_data()
     QTest::newRow("jp2") << QStringLiteral("jp2");
     QTest::newRow("heic") << QStringLiteral("heic");
     QTest::newRow("heif") << QStringLiteral("heif");
+    QTest::newRow("gif") << QStringLiteral("gif");
 }
 
 void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
@@ -156,7 +159,10 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
     QVERIFY(temp.isValid());
     const QString path = temp.filePath(QStringLiteral("a.") + extension);
     try {
-        auto *options = vips::VImage::option()->set("lossless", TRUE);
+        auto *options = vips::VImage::option();
+        if (extension != QStringLiteral("gif")) {
+            options->set("lossless", TRUE);
+        }
         if (extension != QStringLiteral("jp2")) {
             options->set("effort", 1);
         }
@@ -172,7 +178,7 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
     const QByteArray bytes = original.readAll();
     QFile broken(temp.filePath(QStringLiteral("b.") + extension));
     QVERIFY(broken.open(QIODevice::WriteOnly));
-    broken.write(bytes.left(bytes.size() / 2));
+    broken.write(bytes.left(extension == QStringLiteral("gif") ? 6 : bytes.size() / 2));
     broken.close();
     QVERIFY(QFile::copy(path, temp.filePath(QStringLiteral("c.") + extension)));
     MainWindow window;

@@ -37,7 +37,7 @@ These are integrated product capabilities rather than experiments around a minim
 
 ## What remains intentionally bounded
 
-The application still keeps explicit boundaries. Animation playback, frame/page selection, HDR tone mapping, GIF, TIFF, RAW, persistent history, persistent thumbnail or comparison state, archive password persistence, display-profile matching, advanced metadata backends, and broad shortcut profiles are not part of the current product.
+The application still keeps explicit boundaries. Animation playback, frame/page selection, HDR tone mapping, TIFF, RAW, persistent history, persistent thumbnail or comparison state, archive password persistence, display-profile matching, advanced metadata backends, and broad shortcut profiles are not part of the current product.
 
 These boundaries do not imply an unfinished core. They protect performance, privacy, dependency discipline, and predictable behavior while future work is evaluated independently. Current priorities and research directions are tracked in the [roadmap](roadmap.md).
 

@@ -76,6 +76,8 @@ private slots:
     void dibVariants();
     void decoderSupportedFormats_data();
     void decoderSupportedFormats();
+    void decoderGifFirstFrame_data();
+    void decoderGifFirstFrame();
     void decoderModernFormats_data();
     void decoderModernFormats();
     void decoderModernFormatFrames_data();
@@ -255,7 +257,10 @@ void CoreTests::supportedExtensionsUseExplicitAllowlist()
     QCOMPARE(imageMimeTypeFromPath(QStringLiteral("three.webp")), QStringLiteral("image/webp"));
     QCOMPARE(imageMimeTypeFromPath(QStringLiteral("four.dib")), QStringLiteral("image/bmp"));
 
-    QVERIFY(!isSupportedImageExtension(QStringLiteral("gif")));
+    QVERIFY(isSupportedImageExtension(QStringLiteral(".GIF")));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.GIF")), QStringLiteral("image/gif"));
+    QVERIFY(supportedImageNameFilters().first().contains(QStringLiteral("*.gif")));
+    QVERIFY(supportedOpenNameFilters().first().contains(QStringLiteral("*.gif")));
     QVERIFY(!isSupportedImageExtension(QStringLiteral("tiff")));
     QVERIFY(isSupportedImageExtension(QStringLiteral(".AVIF")));
     QVERIFY(isSupportedImageExtension(QStringLiteral("JXL")));
@@ -267,7 +272,7 @@ void CoreTests::supportedExtensionsUseExplicitAllowlist()
         QVERIFY(filter.contains(QStringLiteral("*.avif")));
         QVERIFY(filter.contains(QStringLiteral("*.jxl")));
     }
-    for (const QString &suffix : { QStringLiteral("jp2"), QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif") }) {
+    for (const QString &suffix : { QStringLiteral("jp2"), QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif"), QStringLiteral("gif") }) {
         QVERIFY(isSupportedImageExtension(suffix.toUpper()));
         QVERIFY(supportedOpenNameFilters().first().contains(QStringLiteral("*.") + suffix));
     }
@@ -1084,7 +1089,7 @@ void CoreTests::decoderSupportedFormats_data()
     QTest::addColumn<int>("archiveType");
     for (const QString &extension : { QStringLiteral("jpg"), QStringLiteral("png"), QStringLiteral("webp"),
              QStringLiteral("bmp"), QStringLiteral("dib"), QStringLiteral("avif"), QStringLiteral("jxl"), QStringLiteral("jp2"),
-             QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif") }) {
+             QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif"), QStringLiteral("gif") }) {
         for (int archiveType = 0; archiveType < 3; ++archiveType) {
             const QByteArray name = extension.toLatin1() + '-' + QByteArray::number(archiveType);
             QTest::newRow(name.constData()) << extension << archiveType;
@@ -1155,6 +1160,89 @@ void CoreTests::decoderSupportedFormats()
     QVERIFY(std::abs(pixel.red() - 40) <= 5);
     QVERIFY(std::abs(pixel.green() - 120) <= 5);
     QVERIFY(std::abs(pixel.blue() - 200) <= 5);
+}
+
+void CoreTests::decoderGifFirstFrame_data()
+{
+    QTest::addColumn<int>("archiveType");
+    QTest::addColumn<bool>("animated");
+    QTest::addColumn<bool>("transparent");
+    for (int archiveType = 0; archiveType < 3; ++archiveType) {
+        for (bool animated : { false, true }) {
+            for (bool transparent : { false, true }) {
+                const QByteArray name = QByteArray::number(archiveType) + '-'
+                    + QByteArray::number(animated) + '-' + QByteArray::number(transparent);
+                QTest::newRow(name.constData()) << archiveType << animated << transparent;
+            }
+        }
+    }
+}
+
+void CoreTests::decoderGifFirstFrame()
+{
+    QFETCH(int, archiveType);
+    QFETCH(bool, animated);
+    QFETCH(bool, transparent);
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString pngPath = temp.filePath(QStringLiteral("source.png"));
+    const QString gifPath = temp.filePath(QStringLiteral("sample.gif"));
+    QImage expected(64, 40, QImage::Format_RGBA8888);
+    expected.fill(Qt::red);
+    if (transparent) {
+        for (int y = 0; y < expected.height(); ++y) {
+            for (int x = 0; x < expected.width() / 2; ++x) {
+                expected.setPixelColor(x, y, Qt::transparent);
+            }
+        }
+    }
+    QVERIFY(expected.save(pngPath));
+    try {
+        auto frames = vips::VImage::new_from_file(pngPath.toUtf8().constData());
+        if (animated) {
+            frames = frames.join(frames.new_from_image({ 0, 0, 255, 255 }), VIPS_DIRECTION_VERTICAL);
+            frames.set(VIPS_META_PAGE_HEIGHT, 40);
+            frames.set("delay", std::vector<int> { 80, 120 });
+            frames.set("loop", 0);
+        }
+        frames.write_to_file(gifPath.toUtf8().constData(), vips::VImage::option()->set("dither", 0.0));
+        const auto all = vips::VImage::new_from_file(gifPath.toUtf8().constData(), vips::VImage::option()->set("n", -1));
+        QCOMPARE(all.height(), animated ? 80 : 40);
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
+    ImageEntry entry = imageEntryFromFileInfo(QFileInfo(gifPath));
+    if (archiveType != 0) {
+        QFile file(gifPath);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QString archivePath = temp.filePath(archiveType == 1 ? QStringLiteral("images.zip") : QStringLiteral("images.7z"));
+        QVERIFY(writeZipArchive(archivePath, { { QStringLiteral("sample.gif"), file.readAll() } }, archiveType == 2));
+        const auto scan = scanArchive(archivePath);
+        QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+        QCOMPARE(scan.entries.size(), 1);
+        entry = scan.entries.first();
+    }
+    for (int rotation : { 0, 90 }) {
+        DecodeRequest request;
+        request.viewportSize = rotation == 0 ? QSize(32, 20) : QSize(20, 32);
+        request.rotationDegrees = rotation;
+        const auto decoded = VipsImageDecoder().decode(entry, request);
+        QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+        QCOMPARE(decoded.sourceSize, QSize(64, 40));
+        QCOMPARE(decoded.image.size(), request.viewportSize);
+        const QImage reference = expected.transformed(QTransform().rotate(rotation))
+                                     .scaled(request.viewportSize);
+        for (int y : { decoded.image.height() / 4, decoded.image.height() * 3 / 4 }) {
+            for (int x : { decoded.image.width() / 4, decoded.image.width() * 3 / 4 }) {
+                const QColor actual = decoded.image.pixelColor(x, y);
+                const QColor wanted = reference.pixelColor(x, y);
+                QCOMPARE(actual.alpha(), wanted.alpha());
+                if (wanted.alpha() != 0) {
+                    QCOMPARE(actual, wanted);
+                }
+            }
+        }
+    }
 }
 
 void CoreTests::decoderModernFormats_data()
