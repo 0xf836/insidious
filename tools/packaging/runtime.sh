@@ -20,6 +20,8 @@ case "$distribution" in
     fedora)
         [[ "$ID" == fedora && "$VERSION_ID" == 44 ]]
         dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False upgrade --refresh
+        # RPM Fusion supplies the system libheif HEVC plugins.
+        dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm
         dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install python3 desktop-file-utils appstream xorg-x11-server-Xvfb xorg-x11-xauth weston
         ;;
     *) exit 2 ;;

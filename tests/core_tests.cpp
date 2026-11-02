@@ -19,6 +19,7 @@
 #include <QColorSpace>
 #include <QFileInfo>
 #include <QImage>
+#include <QMimeDatabase>
 #include <QProcess>
 #include <QSettings>
 #include <QStandardPaths>
@@ -266,8 +267,14 @@ void CoreTests::supportedExtensionsUseExplicitAllowlist()
         QVERIFY(filter.contains(QStringLiteral("*.avif")));
         QVERIFY(filter.contains(QStringLiteral("*.jxl")));
     }
-    QVERIFY(!isSupportedImageExtension(QStringLiteral("heic")));
-    QVERIFY(!isSupportedImageExtension(QStringLiteral("heif")));
+    for (const QString &suffix : { QStringLiteral("jp2"), QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif") }) {
+        QVERIFY(isSupportedImageExtension(suffix.toUpper()));
+        QVERIFY(supportedOpenNameFilters().first().contains(QStringLiteral("*.") + suffix));
+    }
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.jp2")), QStringLiteral("image/jp2"));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.j2k")), QStringLiteral("image/x-jp2-codestream"));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.HEIC")), QStringLiteral("image/heic"));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.heif")), QStringLiteral("image/heif"));
     QVERIFY(!isSupportedImageExtension(QStringLiteral("raw")));
 }
 
@@ -1076,7 +1083,8 @@ void CoreTests::decoderSupportedFormats_data()
     QTest::addColumn<QString>("extension");
     QTest::addColumn<int>("archiveType");
     for (const QString &extension : { QStringLiteral("jpg"), QStringLiteral("png"), QStringLiteral("webp"),
-             QStringLiteral("bmp"), QStringLiteral("dib"), QStringLiteral("avif"), QStringLiteral("jxl") }) {
+             QStringLiteral("bmp"), QStringLiteral("dib"), QStringLiteral("avif"), QStringLiteral("jxl"), QStringLiteral("jp2"),
+             QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif") }) {
         for (int archiveType = 0; archiveType < 3; ++archiveType) {
             const QByteArray name = extension.toLatin1() + '-' + QByteArray::number(archiveType);
             QTest::newRow(name.constData()) << extension << archiveType;
@@ -1105,6 +1113,26 @@ void CoreTests::decoderSupportedFormats()
         } catch (const vips::VError &error) {
             QFAIL(error.what());
         }
+    }
+    if (extension == QStringLiteral("j2k")) {
+        // libvips saves a JP2 container even with .j2k; extract its codestream.
+        QFile file(imagePath);
+        QVERIFY(file.open(QIODevice::ReadWrite));
+        const QByteArray container = file.readAll();
+        const qsizetype marker = container.indexOf("jp2c");
+        QVERIFY(marker >= 4 && marker + 4 <= container.size());
+        const quint32 size = qFromBigEndian<quint32>(container.constData() + marker - 4);
+        QVERIFY(size >= 8 && marker - 4 + size <= container.size());
+        const QByteArray raw = container.mid(marker + 4, size - 8);
+        QVERIFY(raw.startsWith(QByteArray::fromHex("ff4fff51")));
+        const QString systemMime = QMimeDatabase().mimeTypeForData(raw).name();
+        QCOMPARE(imageMimeTypeFromPath(imagePath), systemMime);
+        QFile desktop(QFINDTESTDATA("../resources/io.github._0xf836.Insidious.desktop"));
+        QVERIFY(desktop.open(QIODevice::ReadOnly));
+        QVERIFY(desktop.readAll().contains(systemMime.toUtf8() + ';'));
+        QVERIFY(file.resize(0));
+        QVERIFY(file.seek(0));
+        QCOMPARE(file.write(raw), raw.size());
     }
     ImageEntry entry = imageEntryFromFileInfo(QFileInfo(imagePath));
     if (archiveType != 0) {
@@ -1136,7 +1164,7 @@ void CoreTests::decoderModernFormats_data()
     QTest::addColumn<int>("bands");
     QTest::addColumn<bool>("highBitDepth");
     QTest::addColumn<bool>("colorManagement");
-    for (const QString &extension : { QStringLiteral("avif"), QStringLiteral("jxl") }) {
+    for (const QString &extension : { QStringLiteral("avif"), QStringLiteral("jxl"), QStringLiteral("jp2"), QStringLiteral("heic") }) {
         for (int archiveType = 0; archiveType < 3; ++archiveType) {
             for (int bands : { 1, 2, 3, 4 }) {
                 for (bool highBitDepth : { false, true }) {
@@ -1196,16 +1224,18 @@ void CoreTests::decoderModernFormats()
             const QByteArray profile = QColorSpace(QColorSpace::SRgb).iccProfile();
             vips_image_set_blob_copy(image.get_image(), VIPS_META_ICC_NAME, profile.constData(), profile.size());
         }
-        auto *options = vips::VImage::option()->set("lossless", TRUE)
-                            ->set("bitdepth", highBitDepth ? (extension == QStringLiteral("avif") ? 12 : 16) : 8)
-                            ->set("effort", 1);
-        if (extension == QStringLiteral("avif")) {
+        auto *options = vips::VImage::option()->set("lossless", TRUE);
+        if (extension != QStringLiteral("jp2")) {
+            options->set("bitdepth", highBitDepth ? (extension == QStringLiteral("jxl") ? 16 : 12) : 8)
+                ->set("effort", 1);
+        }
+        if (extension == QStringLiteral("avif") || extension == QStringLiteral("heic")) {
             options->set("subsample_mode", VIPS_FOREIGN_SUBSAMPLE_OFF);
         }
         image.write_to_file(path.toUtf8().constData(), options);
         const auto stored = vips::VImage::new_from_file(path.toUtf8().constData());
         QCOMPARE(stored.format(), highBitDepth ? VIPS_FORMAT_USHORT : VIPS_FORMAT_UCHAR);
-        if (!gray) {
+        if (!gray && extension != QStringLiteral("jp2")) {
             QVERIFY(stored.get_typeof(VIPS_META_ICC_NAME) != 0);
         }
     } catch (const vips::VError &error) {
@@ -1261,7 +1291,7 @@ void CoreTests::decoderModernFormatFrames_data()
 {
     QTest::addColumn<QString>("extension");
     QTest::addColumn<bool>("archive");
-    for (const QString &extension : { QStringLiteral("avif"), QStringLiteral("jxl") }) {
+    for (const QString &extension : { QStringLiteral("avif"), QStringLiteral("jxl"), QStringLiteral("heic") }) {
         QTest::newRow(qPrintable(extension + QStringLiteral("-file"))) << extension << false;
         QTest::newRow(qPrintable(extension + QStringLiteral("-zip"))) << extension << true;
     }
@@ -1289,8 +1319,8 @@ void CoreTests::decoderModernFormatFrames()
     } catch (const vips::VError &error) {
         QFAIL(error.what());
     }
-    if (extension == QStringLiteral("avif")) {
-        // The generated fixture has two av01 items. Select the second as
+    if (extension != QStringLiteral("jxl")) {
+        // The generated HEIF fixture has two image items. Select the second as
         // primary to catch accidentally forcing page=0 or n=1 in the loader.
         QFile file(path);
         QVERIFY(file.open(QIODevice::ReadWrite));
@@ -1299,7 +1329,7 @@ void CoreTests::decoderModernFormatFrames()
         for (qsizetype pos = bytes.indexOf("infe"); pos >= 0; pos = bytes.indexOf("infe", pos + 4)) {
             QVERIFY(pos + 16 <= bytes.size());
             QCOMPARE(static_cast<unsigned char>(bytes[pos + 4]), 2);
-            if (bytes.mid(pos + 12, 4) == "av01") {
+            if (bytes.mid(pos + 12, 4) == (extension == QStringLiteral("avif") ? "av01" : "hvc1")) {
                 imageIds.append(qFromBigEndian<quint16>(bytes.constData() + pos + 8));
             }
         }
@@ -1328,7 +1358,7 @@ void CoreTests::decoderModernFormatFrames()
     QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
     QCOMPARE(decoded.sourceSize, QSize(32, 24));
     const QColor pixel = decoded.image.pixelColor(16, 12);
-    const QColor wanted = extension == QStringLiteral("avif") ? QColor(180, 60, 30) : QColor(40, 120, 200);
+    const QColor wanted = extension != QStringLiteral("jxl") ? QColor(180, 60, 30) : QColor(40, 120, 200);
     QVERIFY(std::abs(pixel.red() - wanted.red()) <= 4);
     QVERIFY(std::abs(pixel.green() - wanted.green()) <= 4);
     QVERIFY(std::abs(pixel.blue() - wanted.blue()) <= 4);

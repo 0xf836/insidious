@@ -11,7 +11,7 @@ source /etc/os-release
 case "${1:?Expected arch or fedora}" in
     arch)
         [[ "$ID" == arch ]]
-        pacman -Syu --noconfirm --needed base-devel cmake ninja git qt6-base libvips imagemagick libheif libjxl libarchive zip python desktop-file-utils appstream
+        pacman -Syu --noconfirm --needed base-devel cmake ninja git qt6-base libvips imagemagick libheif libde265 libjxl libarchive zip python desktop-file-utils appstream
         pacman -Q > /results/packages.txt
         cp /etc/pacman.conf /etc/pacman.d/mirrorlist /results/
         ;;
@@ -19,7 +19,9 @@ case "${1:?Expected arch or fedora}" in
         [[ "$ID" == fedora && "$VERSION_ID" == 44 ]]
         # H.264 is outside the viewer allowlist; avoid the optional Cisco repository.
         dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False upgrade --refresh
-        dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install gcc-c++ cmake ninja-build git qt6-qtbase-devel vips-devel vips-magick vips-heif vips-jxl libarchive-devel zip python3 desktop-file-utils appstream
+        # RPM Fusion supplies the system libheif HEVC plugins.
+        dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm
+        dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install gcc-c++ cmake ninja-build git qt6-qtbase-devel vips-devel vips-magick vips-heif libheif-freeworld vips-jxl libarchive-devel zip python3 desktop-file-utils appstream
         rpm -qa | sort > /results/packages.txt
         cp -a /etc/yum.repos.d /results/
         ;;

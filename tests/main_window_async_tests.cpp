@@ -144,6 +144,9 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate_data()
     QTest::addColumn<QString>("extension");
     QTest::newRow("avif") << QStringLiteral("avif");
     QTest::newRow("jxl") << QStringLiteral("jxl");
+    QTest::newRow("jp2") << QStringLiteral("jp2");
+    QTest::newRow("heic") << QStringLiteral("heic");
+    QTest::newRow("heif") << QStringLiteral("heif");
 }
 
 void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
@@ -153,10 +156,14 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
     QVERIFY(temp.isValid());
     const QString path = temp.filePath(QStringLiteral("a.") + extension);
     try {
+        auto *options = vips::VImage::option()->set("lossless", TRUE);
+        if (extension != QStringLiteral("jp2")) {
+            options->set("effort", 1);
+        }
         vips::VImage::black(80, 60, vips::VImage::option()->set("bands", 3))
             .new_from_image({ 40, 120, 200 })
             .copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB))
-            .write_to_file(path.toUtf8().constData(), vips::VImage::option()->set("lossless", TRUE)->set("effort", 1));
+            .write_to_file(path.toUtf8().constData(), options);
     } catch (const vips::VError &error) {
         QFAIL(error.what());
     }

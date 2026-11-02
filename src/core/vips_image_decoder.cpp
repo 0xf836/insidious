@@ -454,7 +454,8 @@ DecodedImage VipsImageDecoder::decode(
             const QByteArray path = entry.absolutePath.toUtf8();
             image = vips::VImage::new_from_file(
                 path.constData(),
-                vips::VImage::option()->set("access", "sequential"));
+                // Stateful loaders such as OpenJPEG cannot replay consumed decoders.
+                vips::VImage::option()->set("access", "sequential")->set("revalidate", TRUE));
         }
 
         result.metadataFields = extractExifFields(image);

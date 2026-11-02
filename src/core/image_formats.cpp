@@ -17,6 +17,10 @@ const QSet<QString> &supportedExtensions()
         QStringLiteral("dib"),
         QStringLiteral("avif"),
         QStringLiteral("jxl"),
+        QStringLiteral("jp2"),
+        QStringLiteral("j2k"),
+        QStringLiteral("heic"),
+        QStringLiteral("heif"),
     };
     return extensions;
 }
@@ -94,19 +98,33 @@ QString imageMimeTypeFromPath(const QString &path)
     if (suffix == QLatin1String("jxl")) {
         return QStringLiteral("image/jxl");
     }
+    if (suffix == QLatin1String("jp2")) {
+        return QStringLiteral("image/jp2");
+    }
+    if (suffix == QLatin1String("j2k")) {
+        return QStringLiteral("image/x-jp2-codestream");
+    }
+    if (suffix == QLatin1String("heic")) {
+        return QStringLiteral("image/heic");
+    }
+    if (suffix == QLatin1String("heif")) {
+        return QStringLiteral("image/heif");
+    }
     return QStringLiteral("application/octet-stream");
 }
 
 QStringList supportedImageNameFilters()
 {
     return {
-        QStringLiteral("Images (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl)"),
+        QStringLiteral("Images (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl *.jp2 *.j2k *.heic *.heif)"),
         QStringLiteral("JPEG (*.jpg *.jpeg)"),
         QStringLiteral("PNG (*.png)"),
         QStringLiteral("WebP (*.webp)"),
         QStringLiteral("BMP (*.bmp *.dib)"),
         QStringLiteral("AVIF (*.avif)"),
         QStringLiteral("JPEG XL (*.jxl)"),
+        QStringLiteral("JPEG 2000 (*.jp2 *.j2k)"),
+        QStringLiteral("HEIC/HEIF (*.heic *.heif)"),
         QStringLiteral("All files (*)"),
     };
 }
@@ -114,8 +132,8 @@ QStringList supportedImageNameFilters()
 QStringList supportedOpenNameFilters()
 {
     return {
-        QStringLiteral("Images and archives (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl *.zip *.7z *.rar)"),
-        QStringLiteral("Images (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl)"),
+        QStringLiteral("Images and archives (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl *.jp2 *.j2k *.heic *.heif *.zip *.7z *.rar)"),
+        QStringLiteral("Images (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl *.jp2 *.j2k *.heic *.heif)"),
         QStringLiteral("Archives (*.zip *.7z *.rar)"),
         QStringLiteral("JPEG (*.jpg *.jpeg)"),
         QStringLiteral("PNG (*.png)"),
@@ -123,6 +141,8 @@ QStringList supportedOpenNameFilters()
         QStringLiteral("BMP (*.bmp *.dib)"),
         QStringLiteral("AVIF (*.avif)"),
         QStringLiteral("JPEG XL (*.jxl)"),
+        QStringLiteral("JPEG 2000 (*.jp2 *.j2k)"),
+        QStringLiteral("HEIC/HEIF (*.heic *.heif)"),
         QStringLiteral("All files (*)"),
     };
 }

@@ -44,7 +44,7 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Formats
 
-- Expand the supported format allowlist to include JPEG 2000, HEIC, GIF, and other libvips-supported formats that fit the existing viewer and decoder architecture without major rework.
+- Expand the supported format allowlist to include GIF, and other libvips-supported formats that fit the existing viewer and decoder architecture without major rework.
 - Inventory additional candidates, including TIFF, and verify loader availability, target-distribution codec dependencies, rendering correctness, and memory behavior before enabling each format.
 - Define still-frame or page selection behavior for animated and multi-page inputs before enabling them; full animation playback is a separate scope decision.
 - Treat RAW as a separate research effort because it requires preview policy, color processing, and heavier dependencies.

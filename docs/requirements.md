@@ -97,7 +97,9 @@ The explicit image allowlist is:
 - WebP (`.webp`);
 - BMP and DIB (`.bmp`, `.dib`);
 - AVIF (`.avif`);
-- JPEG XL (`.jxl`).
+- JPEG XL (`.jxl`);
+- JPEG 2000 (`.jp2` containers, `.j2k` raw codestreams);
+- HEIC/HEIF (`.heic`, `.heif`).
 
 Bitmap-file headers and top-down/bottom-up rows are covered by regression tests. Headerless DIB depends on the file-backed system loader and is currently unsupported through archive streaming; failed entries must report an error while preserving navigation.
 
@@ -107,11 +109,11 @@ The explicit archive allowlist is:
 - 7z (`.7z`);
 - RAR (`.rar`).
 
-AVIF displays the container's primary image; JPEG XL displays the first frame. Each file remains one collection entry. Animation playback, frame/page selection, and HDR tone mapping are not supported.
+AVIF and HEIC/HEIF display the container's primary image; JPEG XL displays the first frame. Each file remains one collection entry. Animation playback, frame/page selection, and HDR tone mapping are not supported.
 
-High-bit-depth SDR images are converted to the existing 8-bit RGB/RGBA display pipeline. AVIF requires the system libvips HEIF loader with an AV1 decoder; JPEG XL requires its JXL loader. Unavailable codecs and unsupported input variants must report a decode error while preserving navigation.
+High-bit-depth SDR images are converted to the existing 8-bit RGB/RGBA display pipeline. AVIF requires the system libvips HEIF loader with an AV1 decoder; JPEG XL requires its JXL loader; JPEG 2000 requires OpenJPEG. HEIC/HEIF requires the HEIF loader plus an available HEVC decoder, which is not guaranteed by the presence of AVIF support. Embedded ICC profiles are supported; HEIF NCLX-only color descriptions follow the existing unprofiled sRGB assumption. Unavailable codecs and unsupported input variants must report a decode error while preserving navigation.
 
-GIF, TIFF, JPEG 2000, HEIC/HEIF, and RAW are not currently supported. A format must not become user-visible solely because the system libvips build exposes a decoder for it.
+GIF, TIFF, and RAW are not currently supported. A format must not become user-visible solely because the system libvips build exposes a decoder for it.
 
 ## Archives
 

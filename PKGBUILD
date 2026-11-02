@@ -12,6 +12,7 @@ depends=(
     'libvips>=8.18.3'
     'imagemagick'
     'libheif'
+    'libde265'
     'libjxl'
     'libarchive'
 )

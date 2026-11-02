@@ -2,14 +2,14 @@
 
 The repository provides a VCS package recipe for current development builds. It produces `insidious-git`, which tracks the `master` branch of the public repository and installs the native binary, desktop entry, icons, AppStream metadata, full documentation tree, and MIT license through CMake.
 
-The recipe declares Qt >= 6.6 and libvips >= 8.18.3, matching CMake. It also requires `imagemagick`: libvips uses that system loader for the supported BMP/DIB inputs; the optional dependency in the libvips package is mandatory for this viewer. AVIF and JPEG XL additionally require `libheif` (with an AV1 decoder) and `libjxl`, which supply dependencies for the corresponding libvips modules. The [dependency audit](dependency-audit.md) explains these minimums; an older cached package set is not sufficient merely because the package names match.
+The recipe declares Qt >= 6.6 and libvips >= 8.18.3, matching CMake. It also requires `imagemagick`: libvips uses that system loader for the supported BMP/DIB inputs; the optional dependency in the libvips package is mandatory for this viewer. AVIF and JPEG XL additionally require `libheif` (with an AV1 decoder) and `libjxl`, which supply dependencies for the corresponding libvips modules. HEIC/HEIF explicitly requires `libde265` for HEVC decoding through libheif. The [dependency audit](dependency-audit.md) explains these minimums; an older cached package set is not sufficient merely because the package names match.
 
 ## Build and install
 
 Install the required Arch build and runtime dependencies:
 
 ```sh
-sudo pacman -S --needed base-devel cmake git ninja pkgconf qt6-base libvips imagemagick libheif libjxl libarchive zip python desktop-file-utils appstream
+sudo pacman -S --needed base-devel cmake git ninja pkgconf qt6-base libvips imagemagick libheif libde265 libjxl libarchive zip python desktop-file-utils appstream
 ```
 
 Clone the repository and build the package from its root:

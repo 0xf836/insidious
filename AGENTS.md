@@ -32,7 +32,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 ## Current implementation quick map
 
-The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18.3+, and libarchive. BMP/DIB, AVIF, and JPEG XL require system libvips codec modules; keep their dependencies aligned across native recipes and clean CI environments. See `docs/decisions.md#adr-008-libvips-builds-display-rasters` for the codec requirements.
+The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18.3+, and libarchive. BMP/DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF require system libvips codec modules; keep their dependencies aligned across native recipes and clean CI environments. See `docs/decisions.md#adr-008-libvips-builds-display-rasters` for the codec requirements.
 
 - `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, the Qt Test targets, and native install rules for the binary, desktop resources, documentation tree, and license.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
@@ -95,7 +95,7 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets the requi
 
 The product is a focused image viewer for regular filesystem images, folders, archives, navigation, fullscreen, metadata, configurable rendering, configurable core viewer shortcuts, lazy memory-only thumbnails, memory-only comparison, and privacy-safe settings. It is not an editor, persistent catalogue, general archive manager, or RAW development pipeline.
 
-The supported image allowlist is JPEG, PNG, WebP, BMP, DIB, AVIF, and JPEG XL. The supported archive allowlist is ZIP, 7z, and RAR. GIF, TIFF, JPEG 2000, HEIC/HEIF, RAW, archive password persistence, persistent image or comparison state, display-profile matching, advanced metadata backends, and broad shortcut profiles remain outside the current product unless explicitly requested and documented.
+The supported image allowlist is JPEG, PNG, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF. The supported archive allowlist is ZIP, 7z, and RAR. GIF, TIFF, RAW, archive password persistence, persistent image or comparison state, display-profile matching, advanced metadata backends, and broad shortcut profiles remain outside the current product unless explicitly requested and documented.
 
 Use `docs/requirements.md` for current behavior and `docs/roadmap.md` for future direction. Completed work belongs in the current documentation or `docs/project-evolution.md`, not in a growing completed backlog.
 
