@@ -44,7 +44,7 @@ The build creates the following targets (test targets require the default `BUILD
 - `src/ui/status_line_formatter.*` formats the compact statusbar/fullscreen bottom text and the separate pinned fullscreen info line from current entry, decode metadata, zoom state, and collection index. The status line renders each field as a muted label plus value with vertical separators, keeps file and EXIF dates distinguishable as `modified:` and `taken:`, normalizes dates to `YYYY.M.D HH:MM:SS`, and shows zoom as a percentage. The pinned fullscreen line uses the separate `name (resolution | filesize) [index/count] zoom` field set.
 - `src/core/image_entry.*` defines the collection entry metadata used by viewer state and cache keys, including filesystem and archive-backed entries.
 - `src/core/image_entry_validation.*` validates that a filesystem image or owning archive is still loadable before decode.
-- `src/core/image_formats.*` contains the explicit image extension allowlist: JPEG, PNG, WebP, BMP, DIB, plus archive extension detection for ZIP, 7z, and RAR.
+- `src/core/image_formats.*` contains the explicit image extension allowlist: JPEG, PNG, WebP, BMP, DIB, AVIF, JPEG XL, plus archive extension detection for ZIP, 7z, and RAR.
 - `src/core/natural_sort.*` contains case-folded natural ordering for folder entries.
 - `src/core/folder_collection_source.*` provides a flat non-recursive scan helper and the source-tree flow: root folder scan plus lazy per-folder loading. `CollectionFolderNode` also carries optional filesystem lazy-load metadata and a flag for temporary file-list sources that initially preserve input order.
 - `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and still provides bounded full-entry reads for features that require original bytes.
@@ -55,7 +55,7 @@ The build creates the following targets (test targets require the default `BUILD
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, region-render metadata, metadata fields, and machine-readable decode error reasons.
 - `src/core/memory_image_cache.*` is an in-memory LRU-ish decoded image cache bounded by decoded bytes.
 - `src/core/render_memory_budget.*` estimates the memory required for an output raster and exposes the shared render-budget guard. For `fit` this is the full display-sized raster; for non-fit zoom/actual-size this is the decoded visible region plus overscan when region rendering is enabled, or the full scaled raster when it is disabled.
-- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert embedded ICC profiles to sRGB when color management is enabled, normalize to 8-bit RGB/RGBA, and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
+- `src/core/vips_image_decoder.*` uses libvips to decode filesystem images from paths and archive images from sequential archive streams, read a curated set of useful string EXIF metadata, optionally apply EXIF autorotate, scale, convert embedded ICC profiles to sRGB when color management is enabled, normalize to 8-bit RGB/RGBA (including scaling GREY16 gray/alpha samples before channel expansion), and return a `QImage` that owns the libvips memory buffer through a cleanup callback.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
 - `tools/vips_vector_benchmark.py` reproduces the developer-only SIMD comparison in the [dependency audit](dependency-audit.md), recording raw timings and CPU/SIMD metadata; its committed evidence is under `docs/evidence/`.
 - `tests/main_window_async_tests.cpp` uses controlled Qt futures and a private test friend to test current/stale/cancelled loader completions. CMake reuses `UI_SOURCES` for this test target and the app.
@@ -63,7 +63,7 @@ The build creates the following targets (test targets require the default `BUILD
 - `.github/workflows/` and `tools/ci/` implement reusable CI validation, clean candidate builds and native package qualification; see [CI](ci.md).
 - `tools/release/` exports source archives with version metadata. GitHub workflows build packages and publish drafts through standard `gh` commands. `release-please-config.json` defines version automation; the [release specification](releasing.md#implemented-automation) owns its interfaces and credentials.
 - `packaging/platforms.json` records native target qualification and exclusions; it does not authorize a release.
-- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. Additional RAR4/RAR5 tests cover original stored fixtures. DIB variants test row order and distinguish file-backed headerless decode from archive rejection.
+- `tests/core_tests.cpp` covers natural sort, extension filtering, folder/archive/multi-source scanning, source-tree grouping, viewer navigation, settings read/write validation, cache eviction, supported-extension decode from files/ZIP/7z, all four resize presets in both directions, valid/invalid ICC, EXIF autorotation with rotated HiDPI regions, and broken file/archive errors. Additional RAR4/RAR5 tests cover original stored fixtures. DIB variants test row order and distinguish file-backed headerless decode from archive rejection. AVIF/JPEG XL tests exercise grayscale/RGB with and without alpha, native high-bit-depth samples, embedded sRGB profiles, color management on/off, fit/full/rotated-region rendering, memory-budget rejection, filesystem/ZIP/7z reads, and single-image selection from multi-image inputs. MainWindow tests cover opening, copying original bytes after rotation, and navigation past a truncated entry.
 
 ## Data flow
 
@@ -76,6 +76,8 @@ Opening one image:
 5. `MainWindow::loadCurrentImage()` checks `MemoryImageCache`; on a miss it starts a `QtConcurrent` decode job. Same-entry re-render requests may be stored as the newest pending decode while another render for that entry is active.
 6. `VipsImageDecoder::decode()` returns a display raster as `DecodedImage`.
 7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries only for fit-sized decode requests. Same-entry render reloads are coalesced so only the newest pending request is kept while the active render finishes; switching to another entry starts a new foreground decode immediately. Prefetch jobs are tracked by cache key, coalesced while in flight, and use `MemoryImageCache` generation guards so results decoded before a cache clear cannot repopulate a new source cache.
+
+AVIF uses the HEIF loader's default primary-image selection without setting `page` or `n`, since setting either changes that default to page zero. JPEG XL uses the JXL loader's default first-frame selection. These defaults are covered by multi-image fixtures, including an AVIF whose primary image is not the first item. Both formats use the shared decoder for viewer, thumbnails, and comparison; no separate backend or archive extraction path is introduced.
 
 Transient loading display:
 
@@ -273,8 +275,8 @@ File dialogs currently use `QFileDialog::DontUseNativeDialog` to avoid implicit 
 
 - Archive password persistence.
 - Recursive "include all descendants" folder collections.
-- GIF animation.
-- TIFF, AVIF, JPEG XL, RAW.
+- GIF, TIFF, JPEG 2000, HEIC/HEIF, RAW.
+- Animation playback, frame/page selection, and HDR tone mapping.
 - Advanced metadata backends and metadata UI beyond libvips-provided EXIF strings.
 - Advanced thumbnail controls.
 - Advanced comparison modes beyond the current row, grid, carousel, two-image hover switch, and alignment-preset set.

@@ -7,7 +7,7 @@
   <summary>Browse images, folders and image archives</summary>
   <description>
     <p>Insidious is a native Linux image viewer for browsing JPEG, PNG, WebP,
-    BMP and DIB images in folders and ZIP, 7z and RAR archives.</p>
+    BMP, DIB, AVIF and JPEG XL images in folders and ZIP, 7z and RAR archives.</p>
     <p>It provides fullscreen navigation, configurable rendering, image metadata
     and temporary comparison views. Thumbnails and decoded images stay in memory;
     archives are read without extraction to disk.</p>

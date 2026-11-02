@@ -15,7 +15,7 @@ source /etc/os-release
 case "${1:?Expected arch or fedora}" in
     arch)
         [[ "$ID" == arch ]]
-        pacman -Syu --noconfirm --needed base-devel cmake ninja pkgconf git zip python qt6-base libvips imagemagick libarchive desktop-file-utils appstream
+        pacman -Syu --noconfirm --needed base-devel cmake ninja pkgconf git zip python qt6-base libvips imagemagick libheif libjxl libarchive desktop-file-utils appstream
         id builder >/dev/null 2>&1 || useradd --create-home builder
         cp /input/PKGBUILD /work/
         cp /input/insidious-*.tar.xz /work/
@@ -33,7 +33,7 @@ case "${1:?Expected arch or fedora}" in
     fedora)
         [[ "$ID" == fedora && "$VERSION_ID" == 44 ]]
         dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False upgrade --refresh
-        dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install gcc-c++ cmake ninja-build git-core zip python3 qt6-qtbase-devel vips-devel vips-magick libarchive-devel desktop-file-utils appstream rpm-build
+        dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install gcc-c++ cmake ninja-build git-core zip python3 qt6-qtbase-devel vips-devel vips-magick vips-heif vips-jxl libarchive-devel desktop-file-utils appstream rpm-build
         mkdir -p /work/rpmbuild/{SOURCES,SPECS}
         cp /input/insidious-*.tar.xz /work/rpmbuild/SOURCES/
         cp /input/insidious.spec /work/rpmbuild/SPECS/

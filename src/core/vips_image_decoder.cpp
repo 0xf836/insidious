@@ -131,6 +131,10 @@ bool hasEmbeddedProfile(const vips::VImage &image)
 
 vips::VImage normalizeBands(vips::VImage image)
 {
+    if (image.interpretation() == VIPS_INTERPRETATION_GREY16) {
+        // Scale both gray and alpha samples before expanding to RGB(A).
+        image = image.colourspace(VIPS_INTERPRETATION_B_W);
+    }
     if (image.bands() == 1) {
         return vips::VImage::bandjoin(std::vector<vips::VImage> { image, image, image });
     }

@@ -95,7 +95,9 @@ The explicit image allowlist is:
 - JPEG (`.jpg`, `.jpeg`);
 - PNG (`.png`);
 - WebP (`.webp`);
-- BMP and DIB (`.bmp`, `.dib`).
+- BMP and DIB (`.bmp`, `.dib`);
+- AVIF (`.avif`);
+- JPEG XL (`.jxl`).
 
 Bitmap-file headers and top-down/bottom-up rows are covered by regression tests. Headerless DIB depends on the file-backed system loader and is currently unsupported through archive streaming; failed entries must report an error while preserving navigation.
 
@@ -105,7 +107,11 @@ The explicit archive allowlist is:
 - 7z (`.7z`);
 - RAR (`.rar`).
 
-GIF, TIFF, AVIF, JPEG XL, and RAW are not currently supported. A format must not become user-visible solely because the system libvips build exposes a decoder for it.
+AVIF displays the container's primary image; JPEG XL displays the first frame. Each file remains one collection entry. Animation playback, frame/page selection, and HDR tone mapping are not supported.
+
+High-bit-depth SDR images are converted to the existing 8-bit RGB/RGBA display pipeline. AVIF requires the system libvips HEIF loader with an AV1 decoder; JPEG XL requires its JXL loader. Unavailable codecs and unsupported input variants must report a decode error while preserving navigation.
+
+GIF, TIFF, JPEG 2000, HEIC/HEIF, and RAW are not currently supported. A format must not become user-visible solely because the system libvips build exposes a decoder for it.
 
 ## Archives
 

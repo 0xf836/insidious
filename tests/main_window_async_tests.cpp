@@ -3,6 +3,8 @@
 #include "build_version.h"
 
 #include <QAction>
+#include <QClipboard>
+#include <QMimeData>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QMessageBox>
@@ -26,6 +28,8 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void rotateThenZoomAndPan();
+    void modernFormatsOpenCopyAndNavigate_data();
+    void modernFormatsOpenCopyAndNavigate();
     void aboutUsesApplicationVersionAndSharedAction();
     void wrongModalTypeIsClosed_data();
     void wrongModalTypeIsClosed();
@@ -133,6 +137,63 @@ void MainWindowAsyncTests::rotateThenZoomAndPan()
     QCOMPARE(window.m_controller.rotationDegrees(), 0);
     QVERIFY(window.m_currentDecoded.fullDisplaySize.width() > window.m_currentDecoded.fullDisplaySize.height());
     QVERIFY(window.m_imageView->hasImage());
+}
+
+void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate_data()
+{
+    QTest::addColumn<QString>("extension");
+    QTest::newRow("avif") << QStringLiteral("avif");
+    QTest::newRow("jxl") << QStringLiteral("jxl");
+}
+
+void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
+{
+    QFETCH(QString, extension);
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = temp.filePath(QStringLiteral("a.") + extension);
+    try {
+        vips::VImage::black(80, 60, vips::VImage::option()->set("bands", 3))
+            .new_from_image({ 40, 120, 200 })
+            .copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB))
+            .write_to_file(path.toUtf8().constData(), vips::VImage::option()->set("lossless", TRUE)->set("effort", 1));
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
+    QFile original(path);
+    QVERIFY(original.open(QIODevice::ReadOnly));
+    const QByteArray bytes = original.readAll();
+    QFile broken(temp.filePath(QStringLiteral("b.") + extension));
+    QVERIFY(broken.open(QIODevice::WriteOnly));
+    broken.write(bytes.left(bytes.size() / 2));
+    broken.close();
+    QVERIFY(QFile::copy(path, temp.filePath(QStringLiteral("c.") + extension)));
+    MainWindow window;
+    window.resize(800, 600);
+    window.show();
+    window.openPath(path);
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_currentDecoded.ok() && !window.m_imageRenderPending
+            && window.m_controller.count() == 3, 5000);
+    window.rotateRight();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QVERIFY(window.m_currentDecoded.ok());
+    QCOMPARE(window.m_controller.rotationDegrees(), 90);
+    QApplication::clipboard()->clear();
+    window.copyOriginalImageToClipboard();
+    const QString mimeType = QStringLiteral("image/") + extension;
+    QTRY_VERIFY_WITH_TIMEOUT(QApplication::clipboard()->mimeData() != nullptr
+            && QApplication::clipboard()->mimeData()->hasFormat(mimeType), 5000);
+    QCOMPARE(QApplication::clipboard()->mimeData()->data(mimeType), bytes);
+    window.showNextImage();
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_controller.currentIndex() == 1 && !window.m_imageRenderPending, 5000);
+    QVERIFY(!window.m_currentDecoded.ok());
+    QVERIFY(window.m_nextAction->isEnabled());
+    QVERIFY(window.m_previousAction->isEnabled());
+    window.showNextImage();
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_controller.currentIndex() == 2 && window.m_currentDecoded.ok()
+            && !window.m_imageRenderPending, 5000);
+    QVERIFY(window.m_imageView->hasImage());
+    QApplication::clipboard()->clear();
 }
 
 void MainWindowAsyncTests::aboutUsesApplicationVersionAndSharedAction()

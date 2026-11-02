@@ -7,7 +7,7 @@ arch=('x86_64')
 url='https://github.com/@REPOSITORY@'
 license=('MIT')
 options=('!debug')
-depends=('qt6-base>=6.6' 'libvips>=8.18.3' 'imagemagick' 'libarchive')
+depends=('qt6-base>=6.6' 'libvips>=8.18.3' 'imagemagick' 'libheif' 'libjxl' 'libarchive')
 makedepends=('cmake' 'ninja' 'pkgconf')
 checkdepends=('python' 'git' 'zip' 'desktop-file-utils' 'appstream')
 conflicts=('insidious-git')

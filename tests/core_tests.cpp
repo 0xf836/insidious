@@ -24,6 +24,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <QtEndian>
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -41,7 +42,7 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void naturalSortOrdersNumbers();
-    void supportedExtensionsAreMvpOnly();
+    void supportedExtensionsUseExplicitAllowlist();
     void archiveExtensionsAreSupportedSeparately();
     void entryLoadValidationReportsMissingAndDirectory();
     void folderScanIsNonRecursiveAndSorted();
@@ -74,6 +75,10 @@ private slots:
     void dibVariants();
     void decoderSupportedFormats_data();
     void decoderSupportedFormats();
+    void decoderModernFormats_data();
+    void decoderModernFormats();
+    void decoderModernFormatFrames_data();
+    void decoderModernFormatFrames();
     void decoderExifRotationAndRegion_data();
     void decoderExifRotationAndRegion();
     void decoderTransformedSampling_data();
@@ -236,7 +241,7 @@ void CoreTests::naturalSortOrdersNumbers()
     QCOMPARE(names.at(4), QStringLiteral("image-10.png"));
 }
 
-void CoreTests::supportedExtensionsAreMvpOnly()
+void CoreTests::supportedExtensionsUseExplicitAllowlist()
 {
     QVERIFY(isSupportedImageExtension(QStringLiteral("jpg")));
     QVERIFY(isSupportedImageExtension(QStringLiteral(".JPEG")));
@@ -251,8 +256,18 @@ void CoreTests::supportedExtensionsAreMvpOnly()
 
     QVERIFY(!isSupportedImageExtension(QStringLiteral("gif")));
     QVERIFY(!isSupportedImageExtension(QStringLiteral("tiff")));
-    QVERIFY(!isSupportedImageExtension(QStringLiteral("avif")));
-    QVERIFY(!isSupportedImageExtension(QStringLiteral("jxl")));
+    QVERIFY(isSupportedImageExtension(QStringLiteral(".AVIF")));
+    QVERIFY(isSupportedImageExtension(QStringLiteral("JXL")));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("five.AVIF")), QStringLiteral("image/avif"));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("six.jxl")), QStringLiteral("image/jxl"));
+    QCOMPARE(formatHintFromSuffix(QStringLiteral(".AVIF")), QStringLiteral("AVIF"));
+    QCOMPARE(formatHintFromSuffix(QStringLiteral("jxl")), QStringLiteral("JXL"));
+    for (const QString &filter : { supportedImageNameFilters().first(), supportedOpenNameFilters().first() }) {
+        QVERIFY(filter.contains(QStringLiteral("*.avif")));
+        QVERIFY(filter.contains(QStringLiteral("*.jxl")));
+    }
+    QVERIFY(!isSupportedImageExtension(QStringLiteral("heic")));
+    QVERIFY(!isSupportedImageExtension(QStringLiteral("heif")));
     QVERIFY(!isSupportedImageExtension(QStringLiteral("raw")));
 }
 
@@ -1061,7 +1076,7 @@ void CoreTests::decoderSupportedFormats_data()
     QTest::addColumn<QString>("extension");
     QTest::addColumn<int>("archiveType");
     for (const QString &extension : { QStringLiteral("jpg"), QStringLiteral("png"), QStringLiteral("webp"),
-             QStringLiteral("bmp"), QStringLiteral("dib") }) {
+             QStringLiteral("bmp"), QStringLiteral("dib"), QStringLiteral("avif"), QStringLiteral("jxl") }) {
         for (int archiveType = 0; archiveType < 3; ++archiveType) {
             const QByteArray name = extension.toLatin1() + '-' + QByteArray::number(archiveType);
             QTest::newRow(name.constData()) << extension << archiveType;
@@ -1112,6 +1127,211 @@ void CoreTests::decoderSupportedFormats()
     QVERIFY(std::abs(pixel.red() - 40) <= 5);
     QVERIFY(std::abs(pixel.green() - 120) <= 5);
     QVERIFY(std::abs(pixel.blue() - 200) <= 5);
+}
+
+void CoreTests::decoderModernFormats_data()
+{
+    QTest::addColumn<QString>("extension");
+    QTest::addColumn<int>("archiveType");
+    QTest::addColumn<int>("bands");
+    QTest::addColumn<bool>("highBitDepth");
+    QTest::addColumn<bool>("colorManagement");
+    for (const QString &extension : { QStringLiteral("avif"), QStringLiteral("jxl") }) {
+        for (int archiveType = 0; archiveType < 3; ++archiveType) {
+            for (int bands : { 1, 2, 3, 4 }) {
+                for (bool highBitDepth : { false, true }) {
+                    for (bool colorManagement : { false, true }) {
+                        const QByteArray name = extension.toLatin1() + '-' + QByteArray::number(archiveType)
+                            + '-' + QByteArray::number(bands) + '-' + QByteArray::number(highBitDepth)
+                            + '-' + QByteArray::number(colorManagement);
+                        QTest::newRow(name.constData()) << extension << archiveType << bands << highBitDepth << colorManagement;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void CoreTests::decoderModernFormats()
+{
+    QFETCH(QString, extension);
+    QFETCH(int, archiveType);
+    QFETCH(int, bands);
+    QFETCH(bool, highBitDepth);
+    QFETCH(bool, colorManagement);
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QDir root(tempDir.path());
+    const QString path = root.filePath(QStringLiteral("sample.") + extension);
+    const bool gray = bands <= 2;
+    const bool alpha = bands == 2 || bands == 4;
+    QImage expected(80, 60, QImage::Format_RGBA8888);
+    std::vector<quint16> samples(80 * 60 * bands);
+    for (int y = 0; y < 60; ++y) {
+        for (int x = 0; x < 80; ++x) {
+            const int red = x < 40 ? 40 : 180;
+            const int green = gray ? red : (y < 30 ? 60 : 160);
+            const int blue = gray ? red : 100;
+            const int opacity = alpha ? (x < 40 ? 96 : 192) : 255;
+            expected.setPixelColor(x, y, QColor(red, green, blue, opacity));
+            const int offset = (y * 80 + x) * bands;
+            samples[offset] = red * 257;
+            if (!gray) {
+                samples[offset + 1] = green * 257;
+                samples[offset + 2] = blue * 257;
+            }
+            if (alpha) {
+                samples[offset + bands - 1] = opacity * 257;
+            }
+        }
+    }
+    try {
+        auto image = vips::VImage::new_from_memory(samples.data(), samples.size() * sizeof(quint16),
+            80, 60, bands, VIPS_FORMAT_USHORT).copy(vips::VImage::option()->set("interpretation",
+                gray ? VIPS_INTERPRETATION_GREY16 : VIPS_INTERPRETATION_RGB16));
+        if (!highBitDepth) {
+            image = image.colourspace(gray ? VIPS_INTERPRETATION_B_W : VIPS_INTERPRETATION_sRGB);
+        }
+        if (!gray) {
+            const QByteArray profile = QColorSpace(QColorSpace::SRgb).iccProfile();
+            vips_image_set_blob_copy(image.get_image(), VIPS_META_ICC_NAME, profile.constData(), profile.size());
+        }
+        auto *options = vips::VImage::option()->set("lossless", TRUE)
+                            ->set("bitdepth", highBitDepth ? (extension == QStringLiteral("avif") ? 12 : 16) : 8)
+                            ->set("effort", 1);
+        if (extension == QStringLiteral("avif")) {
+            options->set("subsample_mode", VIPS_FOREIGN_SUBSAMPLE_OFF);
+        }
+        image.write_to_file(path.toUtf8().constData(), options);
+        const auto stored = vips::VImage::new_from_file(path.toUtf8().constData());
+        QCOMPARE(stored.format(), highBitDepth ? VIPS_FORMAT_USHORT : VIPS_FORMAT_UCHAR);
+        if (!gray) {
+            QVERIFY(stored.get_typeof(VIPS_META_ICC_NAME) != 0);
+        }
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
+    ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    if (archiveType != 0) {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QString archivePath = root.filePath(archiveType == 1 ? QStringLiteral("sample.zip") : QStringLiteral("sample.7z"));
+        QVERIFY(writeZipArchive(archivePath, { { QFileInfo(path).fileName(), file.readAll() } }, archiveType == 2));
+        const auto scan = scanArchive(archivePath);
+        QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+        QCOMPARE(scan.entries.size(), 1);
+        entry = scan.entries.first();
+    } else {
+        const auto scan = scanFolder(root.path());
+        QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+        QCOMPARE(scan.entries.size(), 1);
+    }
+    for (int mode = 0; mode < 3; ++mode) {
+        DecodeRequest request;
+        request.colorManagementEnabled = colorManagement;
+        request.viewportSize = mode == 2 ? QSize(16, 12) : QSize(40, 30);
+        request.fitToWindow = mode == 0;
+        request.regionRendering = mode == 2;
+        request.rotationDegrees = mode == 2 ? 90 : 0;
+        request.panOffset = QPointF(-6, -8);
+        const auto decoded = VipsImageDecoder().decode(entry, request);
+        QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+        QCOMPARE(decoded.sourceSize, QSize(80, 60));
+        QCOMPARE(decoded.regionBased, mode == 2);
+        QImage reference = mode == 2 ? expected.transformed(QTransform().rotate(90)) : expected;
+        reference = reference.copy(decoded.sourceRegion).scaled(decoded.image.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        for (int y : { reference.height() / 4, reference.height() * 3 / 4 }) {
+            for (int x : { reference.width() / 4, reference.width() * 3 / 4 }) {
+                const QColor actual = decoded.image.pixelColor(x, y);
+                const QColor wanted = reference.pixelColor(x, y);
+                QVERIFY2(std::abs(actual.red() - wanted.red()) <= 4, qPrintable(QStringLiteral("mode %1 red: %2 != %3").arg(mode).arg(actual.red()).arg(wanted.red())));
+                QVERIFY(std::abs(actual.green() - wanted.green()) <= 4);
+                QVERIFY(std::abs(actual.blue() - wanted.blue()) <= 4);
+                QVERIFY2(std::abs(actual.alpha() - wanted.alpha()) <= 2, qPrintable(QStringLiteral("mode %1 alpha: %2 != %3").arg(mode).arg(actual.alpha()).arg(wanted.alpha())));
+            }
+        }
+        request.maxDecodedBytes = 1;
+        const auto tooLarge = VipsImageDecoder().decode(entry, request);
+        QVERIFY(!tooLarge.ok());
+        QCOMPARE(tooLarge.errorReason, DecodeErrorReason::RenderTooLarge);
+    }
+}
+
+void CoreTests::decoderModernFormatFrames_data()
+{
+    QTest::addColumn<QString>("extension");
+    QTest::addColumn<bool>("archive");
+    for (const QString &extension : { QStringLiteral("avif"), QStringLiteral("jxl") }) {
+        QTest::newRow(qPrintable(extension + QStringLiteral("-file"))) << extension << false;
+        QTest::newRow(qPrintable(extension + QStringLiteral("-zip"))) << extension << true;
+    }
+}
+
+void CoreTests::decoderModernFormatFrames()
+{
+    QFETCH(QString, extension);
+    QFETCH(bool, archive);
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QDir root(tempDir.path());
+    const QString path = root.filePath(QStringLiteral("frames.") + extension);
+    try {
+        auto first = vips::VImage::black(32, 24, vips::VImage::option()->set("bands", 3))
+                         .new_from_image({ 40, 120, 200 }).copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB));
+        auto second = first.new_from_image({ 180, 60, 30 });
+        auto frames = first.join(second, VIPS_DIRECTION_VERTICAL);
+        frames.set(VIPS_META_PAGE_HEIGHT, 24);
+        frames.set("delay", std::vector<int> { 100, 100 });
+        frames.write_to_file(path.toUtf8().constData(), vips::VImage::option()->set("lossless", TRUE)->set("effort", 1));
+        const auto all = vips::VImage::new_from_file(path.toUtf8().constData(), vips::VImage::option()->set("n", -1));
+        QCOMPARE(all.height(), 48);
+        QCOMPARE(all.get_int(VIPS_META_N_PAGES), 2);
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
+    if (extension == QStringLiteral("avif")) {
+        // The generated fixture has two av01 items. Select the second as
+        // primary to catch accidentally forcing page=0 or n=1 in the loader.
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadWrite));
+        QByteArray bytes = file.readAll();
+        QList<quint16> imageIds;
+        for (qsizetype pos = bytes.indexOf("infe"); pos >= 0; pos = bytes.indexOf("infe", pos + 4)) {
+            QVERIFY(pos + 16 <= bytes.size());
+            QCOMPARE(static_cast<unsigned char>(bytes[pos + 4]), 2);
+            if (bytes.mid(pos + 12, 4) == "av01") {
+                imageIds.append(qFromBigEndian<quint16>(bytes.constData() + pos + 8));
+            }
+        }
+        QCOMPARE(imageIds.size(), 2);
+        const qsizetype primary = bytes.indexOf("pitm");
+        QVERIFY(primary >= 0 && primary + 10 <= bytes.size());
+        QCOMPARE(static_cast<unsigned char>(bytes[primary + 4]), 0);
+        qToBigEndian<quint16>(imageIds.last(), bytes.data() + primary + 8);
+        QVERIFY(file.seek(0));
+        QCOMPARE(file.write(bytes), bytes.size());
+    }
+    ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    if (archive) {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QString archivePath = root.filePath(QStringLiteral("frames.zip"));
+        QVERIFY(writeZipArchive(archivePath, { { QFileInfo(path).fileName(), file.readAll() } }));
+        const auto scan = scanArchive(archivePath);
+        QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+        QCOMPARE(scan.entries.size(), 1);
+        entry = scan.entries.first();
+    }
+    DecodeRequest request;
+    request.viewportSize = QSize(32, 24);
+    const auto decoded = VipsImageDecoder().decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.sourceSize, QSize(32, 24));
+    const QColor pixel = decoded.image.pixelColor(16, 12);
+    const QColor wanted = extension == QStringLiteral("avif") ? QColor(180, 60, 30) : QColor(40, 120, 200);
+    QVERIFY(std::abs(pixel.red() - wanted.red()) <= 4);
+    QVERIFY(std::abs(pixel.green() - wanted.green()) <= 4);
+    QVERIFY(std::abs(pixel.blue() - wanted.blue()) <= 4);
 }
 
 void CoreTests::decoderExifRotationAndRegion_data()

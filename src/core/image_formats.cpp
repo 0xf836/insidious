@@ -15,6 +15,8 @@ const QSet<QString> &supportedExtensions()
         QStringLiteral("webp"),
         QStringLiteral("bmp"),
         QStringLiteral("dib"),
+        QStringLiteral("avif"),
+        QStringLiteral("jxl"),
     };
     return extensions;
 }
@@ -86,17 +88,25 @@ QString imageMimeTypeFromPath(const QString &path)
     if (suffix == QLatin1String("bmp") || suffix == QLatin1String("dib")) {
         return QStringLiteral("image/bmp");
     }
+    if (suffix == QLatin1String("avif")) {
+        return QStringLiteral("image/avif");
+    }
+    if (suffix == QLatin1String("jxl")) {
+        return QStringLiteral("image/jxl");
+    }
     return QStringLiteral("application/octet-stream");
 }
 
 QStringList supportedImageNameFilters()
 {
     return {
-        QStringLiteral("Images (*.jpg *.jpeg *.png *.webp *.bmp *.dib)"),
+        QStringLiteral("Images (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl)"),
         QStringLiteral("JPEG (*.jpg *.jpeg)"),
         QStringLiteral("PNG (*.png)"),
         QStringLiteral("WebP (*.webp)"),
         QStringLiteral("BMP (*.bmp *.dib)"),
+        QStringLiteral("AVIF (*.avif)"),
+        QStringLiteral("JPEG XL (*.jxl)"),
         QStringLiteral("All files (*)"),
     };
 }
@@ -104,13 +114,15 @@ QStringList supportedImageNameFilters()
 QStringList supportedOpenNameFilters()
 {
     return {
-        QStringLiteral("Images and archives (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.zip *.7z *.rar)"),
-        QStringLiteral("Images (*.jpg *.jpeg *.png *.webp *.bmp *.dib)"),
+        QStringLiteral("Images and archives (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl *.zip *.7z *.rar)"),
+        QStringLiteral("Images (*.jpg *.jpeg *.png *.webp *.bmp *.dib *.avif *.jxl)"),
         QStringLiteral("Archives (*.zip *.7z *.rar)"),
         QStringLiteral("JPEG (*.jpg *.jpeg)"),
         QStringLiteral("PNG (*.png)"),
         QStringLiteral("WebP (*.webp)"),
         QStringLiteral("BMP (*.bmp *.dib)"),
+        QStringLiteral("AVIF (*.avif)"),
+        QStringLiteral("JPEG XL (*.jxl)"),
         QStringLiteral("All files (*)"),
     };
 }

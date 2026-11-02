@@ -69,7 +69,7 @@ rpmbuild -ba --define "_topdir $PWD/rpm-build" rpm-build/SPECS/insidious.spec
 ```
 
 RPM generates shared-library requirements; explicit Qt/libvips minimums and the
-`vips-magick` runtime dependency retain the application requirements. `-ba`
+`vips-magick`, `vips-heif`, and `vips-jxl` runtime dependencies retain the application's BMP/DIB, AVIF, and JPEG XL requirements, including dynamically loaded modules. `-ba`
 produces binary and source RPMs. No package maintainer script fetches libraries,
 changes user settings or assigns default file associations.
 

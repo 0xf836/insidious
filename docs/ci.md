@@ -30,7 +30,7 @@ jobs receive no App key or release write token. Only release-please, the
 read-draft preparation job and publication have their required additional
 credentials; see [release automation](releasing.md#implemented-automation).
 
-Actions are pinned to full SHAs. Dependabot proposes monthly Action updates. Image updates are manual reviewed changes to `ci_image` and `image_digest` in the platform matrix. Container digests freeze the base image, **not** the rolling package repositories: each run upgrades from standard repositories and retains the resolved package inventory. Fedora disables weak dependencies and the optional Cisco OpenH264 repository (H.264 is outside the supported format allowlist); mandatory JPEG/PNG/WebP/BMP and archive support still runs through the regression suite. A digest is not a guarantee of bit-for-bit reproducibility.
+Actions are pinned to full SHAs. Dependabot proposes monthly Action updates. Image updates are manual reviewed changes to `ci_image` and `image_digest` in the platform matrix. Container digests freeze the base image, **not** the rolling package repositories: each run upgrades from standard repositories and retains the resolved package inventory. Fedora disables weak dependencies and the optional Cisco OpenH264 repository (H.264 is outside the supported format allowlist); mandatory JPEG/PNG/WebP/BMP/AVIF/JPEG XL and archive support still runs through the regression suite. A digest is not a guarantee of bit-for-bit reproducibility.
 
 ## Artifacts and local execution
 

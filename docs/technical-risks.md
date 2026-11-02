@@ -24,7 +24,9 @@ Current mitigation: scans run off the UI thread, stale results are rejected, loa
 
 Actual decode behavior depends on the libvips build and its optional loaders. Embedded ICC conversion also depends on usable lcms2 support and valid source profiles.
 
-Current mitigation: an explicit format allowlist prevents accidental feature exposure; profile failures fall back without failing the entry; the build requires libvips/vips-cpp 8.18.3 or newer. The [dependency audit](dependency-audit.md) records missing SIMD resize bounds fixes in Ubuntu 26.04's 8.18.0 package and the performance cost of disabling SIMD. Target-distribution coverage must be checked before adding formats or packaging.
+Current mitigation: an explicit format allowlist prevents accidental feature exposure; profile failures fall back without failing the entry; the build requires libvips/vips-cpp 8.18.3 or newer. The [dependency audit](dependency-audit.md) records missing SIMD resize bounds fixes in Ubuntu 26.04's 8.18.0 package and the performance cost of disabling SIMD.
+
+AVIF requires the HEIF module with an AV1 decoder, and JPEG XL requires the JXL module. Codec dependencies are declared explicitly in native recipes. Codec libraries can allocate full source frames even for fit/region output; the shared render budget is not a bound on those allocations or total process memory. Target-distribution coverage must be checked when expanding formats or packaging.
 
 ## Fullscreen behavior across window managers
 
@@ -40,6 +42,6 @@ Current mitigation: configured mouse shortcuts take priority over built-in gestu
 
 ## Advanced formats
 
-AVIF and JPEG XL depend on codec availability and memory behavior across target systems. TIFF has a wide variety of layouts and sizes. RAW is a family of formats requiring preview policy, color processing, and significant dependency decisions.
+TIFF has a wide variety of layouts and sizes. RAW is a family of formats requiring preview policy, color processing, and significant dependency decisions.
 
 Current mitigation: these formats remain outside the explicit allowlist and are treated as separate research items rather than opportunistic decoder additions.

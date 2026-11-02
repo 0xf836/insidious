@@ -25,7 +25,7 @@ Application settings are stored through Qt and contain interface preferences onl
 
 | Kind | Formats |
 | --- | --- |
-| Images | JPEG, PNG, WebP, BMP, DIB |
+| Images | JPEG, PNG, WebP, BMP, DIB, AVIF, JPEG XL |
 | Archives | ZIP, 7z, RAR |
 
 Support is intentionally based on an explicit allowlist. Availability of a codec in the system libvips installation does not automatically enable an additional format in Insidious.
@@ -39,14 +39,14 @@ Requirements:
 - Ninja
 - C++20 compiler
 - Qt 6.6 or newer with Core, Gui, Widgets, Concurrent, and Test components
-- libvips/vips-cpp 8.18.3 or newer, including its system ImageMagick loader for BMP/DIB
+- libvips/vips-cpp 8.18.3 or newer, including its system ImageMagick loader for BMP/DIB, libheif with an AV1 decoder for AVIF, and libjxl for JPEG XL
 - libarchive
 - pkg-config
 
 Arch Linux and similar systems:
 
 ```sh
-sudo pacman -S qt6-base libvips imagemagick libarchive cmake ninja pkgconf git bash
+sudo pacman -S qt6-base libvips imagemagick libheif libjxl libarchive cmake ninja pkgconf git bash
 ```
 
 Debian, Ubuntu, and similar systems:
