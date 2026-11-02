@@ -165,7 +165,7 @@ Upstream introduced MKS2021 in 8.17.0, not 8.18.3. The retained 8.18.3 floor ins
 
 For each candidate distribution, record OS release, architecture, repository snapshot/date, compiler, CMake, Qt, libvips, libarchive, relevant codec packages, and test outcomes. Inspect API introduction versions, relevant upstream fixes, and distribution backports. Version-number comparison alone cannot establish either compatibility or vulnerability exposure.
 
-Build and test with the distribution's standard repositories, plus RPM Fusion Free for Fedora's libheif HEVC plugins. Check all four scaling presets, ICC conversion and fallback, EXIF orientation, HiDPI, rotated region rendering, archive streaming, cancellation/stale work, and ownership of returned image buffers. Check supported JPEG, PNG, GIF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF inputs and ZIP, 7z, and RAR sources using redistributable fixtures.
+Build and test with the distribution's standard repositories, plus RPM Fusion Free for Fedora's libheif HEVC plugins. Check all four scaling presets, ICC conversion and fallback, EXIF orientation, HiDPI, rotated region rendering, archive streaming, cancellation/stale work, and ownership of returned image buffers. Check supported JPEG, PNG, GIF, TIFF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF inputs and ZIP, 7z, and RAR sources using redistributable fixtures.
 
 A lower minimum is acceptable only if existing capabilities and behavior remain intact. Do not remove a preset, silently substitute a kernel, or disable a feature to make an older system pass. Document any small API-equivalent compatibility adaptation and test both paths. If compatibility would require substantial rework, exclude that target from native support.
 

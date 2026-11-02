@@ -25,7 +25,7 @@ Application settings are stored through Qt and contain interface preferences onl
 
 | Kind | Formats |
 | --- | --- |
-| Images | JPEG, PNG, GIF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, HEIC/HEIF |
+| Images | JPEG, PNG, GIF, TIFF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, HEIC/HEIF |
 | Archives | ZIP, 7z, RAR |
 
 Support is intentionally based on an explicit allowlist. Availability of a codec in the system libvips installation does not automatically enable an additional format in Insidious.

@@ -42,6 +42,6 @@ Current mitigation: configured mouse shortcuts take priority over built-in gestu
 
 ## Advanced formats
 
-TIFF has a wide variety of layouts and sizes. RAW is a family of formats requiring preview policy, color processing, and significant dependency decisions.
+TIFF has a wide variety of layouts and sizes; first-page support does not promise every compression or scientific sample representation. The render budget does not bound source codec allocations. RAW is a family of formats requiring preview policy, color processing, and significant dependency decisions.
 
-Current mitigation: these formats remain outside the explicit allowlist and are treated as separate research items rather than opportunistic decoder additions.
+Current mitigation: TIFF displays only its first page through the shared decoder and reports unsupported variants without losing navigation. RAW remains outside the explicit allowlist and requires separate research.

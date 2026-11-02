@@ -13,9 +13,9 @@ Opening a single image also scans its parent folder and selects that image, so p
 
 Several images become one temporary flat collection. Several folders or several archives appear under a synthetic root in the order selected. A mixed set such as an image plus an archive is rejected as one operation; Insidious never opens only the supported part of a drop.
 
-Supported images are JPEG, PNG, GIF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF. Supported archives are ZIP, 7z, and RAR. Headerless DIB may depend on the file-backed system loader and cannot currently be decoded from an archive; use a BMP-file container for that path.
+Supported images are JPEG, PNG, GIF, TIFF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF. Supported archives are ZIP, 7z, and RAR. Headerless DIB may depend on the file-backed system loader and cannot currently be decoded from an archive; use a BMP-file container for that path.
 
-AVIF and HEIC/HEIF show the primary image; GIF and JPEG XL show the first frame; animation playback and frame selection are not available. These formats use the existing SDR display pipeline and require the corresponding system libvips codecs. See [supported formats](requirements.md#supported-formats) for details.
+AVIF and HEIC/HEIF show the primary image; GIF and JPEG XL show the first frame; TIFF shows the first page; animation playback and frame selection are not available. These formats use the existing SDR display pipeline and require the corresponding system libvips codecs. See [supported formats](requirements.md#supported-formats) for details.
 
 ## Main window
 

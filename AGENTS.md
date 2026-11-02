@@ -95,7 +95,7 @@ For headless runs, use `QT_QPA_PLATFORM=offscreen`. CTest already sets the requi
 
 The product is a focused image viewer for regular filesystem images, folders, archives, navigation, fullscreen, metadata, configurable rendering, configurable core viewer shortcuts, lazy memory-only thumbnails, memory-only comparison, and privacy-safe settings. It is not an editor, persistent catalogue, general archive manager, or RAW development pipeline.
 
-The supported image allowlist is JPEG, PNG, GIF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF. The supported archive allowlist is ZIP, 7z, and RAR. TIFF, RAW, archive password persistence, persistent image or comparison state, display-profile matching, advanced metadata backends, and broad shortcut profiles remain outside the current product unless explicitly requested and documented.
+The supported image allowlist is JPEG, PNG, GIF, TIFF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF. The supported archive allowlist is ZIP, 7z, and RAR. RAW, archive password persistence, persistent image or comparison state, display-profile matching, advanced metadata backends, and broad shortcut profiles remain outside the current product unless explicitly requested and documented.
 
 Use `docs/requirements.md` for current behavior and `docs/roadmap.md` for future direction. Completed work belongs in the current documentation or `docs/project-evolution.md`, not in a growing completed backlog.
 

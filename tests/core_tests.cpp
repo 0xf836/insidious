@@ -76,6 +76,8 @@ private slots:
     void dibVariants();
     void decoderSupportedFormats_data();
     void decoderSupportedFormats();
+    void decoderTiffLayouts_data();
+    void decoderTiffLayouts();
     void decoderGifFirstFrame_data();
     void decoderGifFirstFrame();
     void decoderModernFormats_data();
@@ -261,7 +263,9 @@ void CoreTests::supportedExtensionsUseExplicitAllowlist()
     QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.GIF")), QStringLiteral("image/gif"));
     QVERIFY(supportedImageNameFilters().first().contains(QStringLiteral("*.gif")));
     QVERIFY(supportedOpenNameFilters().first().contains(QStringLiteral("*.gif")));
-    QVERIFY(!isSupportedImageExtension(QStringLiteral("tiff")));
+    QVERIFY(isSupportedImageExtension(QStringLiteral(".TIFF")));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.TIF")), QStringLiteral("image/tiff"));
+    QCOMPARE(imageMimeTypeFromPath(QStringLiteral("one.TIFF")), QStringLiteral("image/tiff"));
     QVERIFY(isSupportedImageExtension(QStringLiteral(".AVIF")));
     QVERIFY(isSupportedImageExtension(QStringLiteral("JXL")));
     QCOMPARE(imageMimeTypeFromPath(QStringLiteral("five.AVIF")), QStringLiteral("image/avif"));
@@ -272,7 +276,7 @@ void CoreTests::supportedExtensionsUseExplicitAllowlist()
         QVERIFY(filter.contains(QStringLiteral("*.avif")));
         QVERIFY(filter.contains(QStringLiteral("*.jxl")));
     }
-    for (const QString &suffix : { QStringLiteral("jp2"), QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif"), QStringLiteral("gif") }) {
+    for (const QString &suffix : { QStringLiteral("jp2"), QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif"), QStringLiteral("gif"), QStringLiteral("tif"), QStringLiteral("tiff") }) {
         QVERIFY(isSupportedImageExtension(suffix.toUpper()));
         QVERIFY(supportedOpenNameFilters().first().contains(QStringLiteral("*.") + suffix));
     }
@@ -1089,7 +1093,7 @@ void CoreTests::decoderSupportedFormats_data()
     QTest::addColumn<int>("archiveType");
     for (const QString &extension : { QStringLiteral("jpg"), QStringLiteral("png"), QStringLiteral("webp"),
              QStringLiteral("bmp"), QStringLiteral("dib"), QStringLiteral("avif"), QStringLiteral("jxl"), QStringLiteral("jp2"),
-             QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif"), QStringLiteral("gif") }) {
+             QStringLiteral("j2k"), QStringLiteral("heic"), QStringLiteral("heif"), QStringLiteral("gif"), QStringLiteral("tif"), QStringLiteral("tiff") }) {
         for (int archiveType = 0; archiveType < 3; ++archiveType) {
             const QByteArray name = extension.toLatin1() + '-' + QByteArray::number(archiveType);
             QTest::newRow(name.constData()) << extension << archiveType;
@@ -1160,6 +1164,79 @@ void CoreTests::decoderSupportedFormats()
     QVERIFY(std::abs(pixel.red() - 40) <= 5);
     QVERIFY(std::abs(pixel.green() - 120) <= 5);
     QVERIFY(std::abs(pixel.blue() - 200) <= 5);
+}
+
+void CoreTests::decoderTiffLayouts_data()
+{
+    QTest::addColumn<int>("archiveType");
+    QTest::addColumn<bool>("tiled");
+    QTest::addColumn<bool>("bigTiff");
+    QTest::addColumn<int>("compression");
+    for (int archiveType = 0; archiveType < 3; ++archiveType) {
+        for (bool tiled : { false, true }) {
+            for (bool bigTiff : { false, true }) {
+                for (int compression : { VIPS_FOREIGN_TIFF_COMPRESSION_NONE, VIPS_FOREIGN_TIFF_COMPRESSION_LZW,
+                         VIPS_FOREIGN_TIFF_COMPRESSION_DEFLATE }) {
+                    const QByteArray name = QByteArray::number(archiveType) + '-' + QByteArray::number(tiled)
+                        + '-' + QByteArray::number(bigTiff) + '-' + QByteArray::number(compression);
+                    QTest::newRow(name.constData()) << archiveType << tiled << bigTiff << compression;
+                }
+            }
+        }
+    }
+}
+
+void CoreTests::decoderTiffLayouts()
+{
+    QFETCH(int, archiveType);
+    QFETCH(bool, tiled);
+    QFETCH(bool, bigTiff);
+    QFETCH(int, compression);
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = temp.filePath(QStringLiteral("pages.tiff"));
+    try {
+        auto first = vips::VImage::black(80, 60, vips::VImage::option()->set("bands", 3))
+                         .new_from_image({ 40, 120, 200 })
+                         .copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB));
+        auto pages = first.join(first.new_from_image({ 180, 60, 30 }), VIPS_DIRECTION_VERTICAL);
+        pages.set(VIPS_META_PAGE_HEIGHT, 60);
+        pages.set(VIPS_META_ORIENTATION, 6);
+        pages.write_to_file(path.toUtf8().constData(), vips::VImage::option()->set("tile", tiled)
+            ->set("tile_width", 32)->set("tile_height", 32)->set("bigtiff", bigTiff)
+            ->set("compression", compression));
+        const auto all = vips::VImage::new_from_file(path.toUtf8().constData(), vips::VImage::option()->set("n", -1));
+        QCOMPARE(all.height(), 120);
+        QCOMPARE(all.get_int(VIPS_META_N_PAGES), 2);
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    if (bigTiff) {
+        QVERIFY(bytes.startsWith(QByteArray::fromHex("49492b00")) || bytes.startsWith(QByteArray::fromHex("4d4d002b")));
+    } else {
+        QCOMPARE(QMimeDatabase().mimeTypeForData(bytes).name(), QStringLiteral("image/tiff"));
+    }
+    ImageEntry entry = imageEntryFromFileInfo(QFileInfo(path));
+    if (archiveType != 0) {
+        const QString archivePath = temp.filePath(archiveType == 1 ? QStringLiteral("pages.zip") : QStringLiteral("pages.7z"));
+        QVERIFY(writeZipArchive(archivePath, { { QStringLiteral("pages.tiff"), bytes } }, archiveType == 2));
+        const auto scan = scanArchive(archivePath);
+        QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+        QCOMPARE(scan.entries.size(), 1);
+        entry = scan.entries.first();
+    }
+    for (bool autorotate : { false, true }) {
+        DecodeRequest request;
+        request.exifAutorotate = autorotate;
+        request.viewportSize = autorotate ? QSize(30, 40) : QSize(40, 30);
+        const auto decoded = VipsImageDecoder().decode(entry, request);
+        QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+        QCOMPARE(decoded.image.size(), request.viewportSize);
+        QCOMPARE(decoded.image.pixelColor(10, 10), QColor(40, 120, 200));
+    }
 }
 
 void CoreTests::decoderGifFirstFrame_data()
@@ -1252,7 +1329,7 @@ void CoreTests::decoderModernFormats_data()
     QTest::addColumn<int>("bands");
     QTest::addColumn<bool>("highBitDepth");
     QTest::addColumn<bool>("colorManagement");
-    for (const QString &extension : { QStringLiteral("avif"), QStringLiteral("jxl"), QStringLiteral("jp2"), QStringLiteral("heic") }) {
+    for (const QString &extension : { QStringLiteral("avif"), QStringLiteral("jxl"), QStringLiteral("jp2"), QStringLiteral("heic"), QStringLiteral("tiff") }) {
         for (int archiveType = 0; archiveType < 3; ++archiveType) {
             for (int bands : { 1, 2, 3, 4 }) {
                 for (bool highBitDepth : { false, true }) {
@@ -1312,8 +1389,11 @@ void CoreTests::decoderModernFormats()
             const QByteArray profile = QColorSpace(QColorSpace::SRgb).iccProfile();
             vips_image_set_blob_copy(image.get_image(), VIPS_META_ICC_NAME, profile.constData(), profile.size());
         }
-        auto *options = vips::VImage::option()->set("lossless", TRUE);
-        if (extension != QStringLiteral("jp2")) {
+        auto *options = vips::VImage::option();
+        if (extension != QStringLiteral("tiff")) {
+            options->set("lossless", TRUE);
+        }
+        if (extension != QStringLiteral("jp2") && extension != QStringLiteral("tiff")) {
             options->set("bitdepth", highBitDepth ? (extension == QStringLiteral("jxl") ? 16 : 12) : 8)
                 ->set("effort", 1);
         }

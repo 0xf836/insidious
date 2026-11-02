@@ -6,7 +6,7 @@
   <name>Insidious</name>
   <summary>Browse images, folders and image archives</summary>
   <description>
-    <p>Insidious is a native Linux image viewer for browsing JPEG, PNG, GIF, WebP,
+    <p>Insidious is a native Linux image viewer for browsing JPEG, PNG, GIF, TIFF, WebP,
     BMP, DIB, AVIF, JPEG XL, JPEG 2000 and HEIC/HEIF images in folders and ZIP, 7z and RAR archives.</p>
     <p>It provides fullscreen navigation, configurable rendering, image metadata
     and temporary comparison views. Thumbnails and decoded images stay in memory;

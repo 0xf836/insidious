@@ -44,7 +44,7 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Formats
 
-- Inventory additional candidates, including TIFF, and verify loader availability, target-distribution codec dependencies, rendering correctness, and memory behavior before enabling each format.
+- Inventory additional candidates and verify loader availability, target-distribution codec dependencies, rendering correctness, and memory behavior before enabling each format.
 - Define page selection behavior before enabling additional multi-page formats.
 - Treat RAW as a separate research effort because it requires preview policy, color processing, and heavier dependencies.
 

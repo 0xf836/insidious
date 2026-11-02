@@ -150,6 +150,8 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate_data()
     QTest::newRow("heic") << QStringLiteral("heic");
     QTest::newRow("heif") << QStringLiteral("heif");
     QTest::newRow("gif") << QStringLiteral("gif");
+    QTest::newRow("tif") << QStringLiteral("tif");
+    QTest::newRow("tiff") << QStringLiteral("tiff");
 }
 
 void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
@@ -160,10 +162,10 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
     const QString path = temp.filePath(QStringLiteral("a.") + extension);
     try {
         auto *options = vips::VImage::option();
-        if (extension != QStringLiteral("gif")) {
+        if (extension != QStringLiteral("gif") && extension != QStringLiteral("tif") && extension != QStringLiteral("tiff")) {
             options->set("lossless", TRUE);
         }
-        if (extension != QStringLiteral("jp2")) {
+        if (extension != QStringLiteral("jp2") && extension != QStringLiteral("tif") && extension != QStringLiteral("tiff")) {
             options->set("effort", 1);
         }
         vips::VImage::black(80, 60, vips::VImage::option()->set("bands", 3))
@@ -178,7 +180,7 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
     const QByteArray bytes = original.readAll();
     QFile broken(temp.filePath(QStringLiteral("b.") + extension));
     QVERIFY(broken.open(QIODevice::WriteOnly));
-    broken.write(bytes.left(extension == QStringLiteral("gif") ? 6 : bytes.size() / 2));
+    broken.write(bytes.left((extension == QStringLiteral("gif") || extension == QStringLiteral("tif") || extension == QStringLiteral("tiff")) ? 6 : bytes.size() / 2));
     broken.close();
     QVERIFY(QFile::copy(path, temp.filePath(QStringLiteral("c.") + extension)));
     MainWindow window;
@@ -193,7 +195,8 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
     QCOMPARE(window.m_controller.rotationDegrees(), 90);
     QApplication::clipboard()->clear();
     window.copyOriginalImageToClipboard();
-    const QString mimeType = QStringLiteral("image/") + extension;
+    const QString mimeType = extension == QStringLiteral("tif") ? QStringLiteral("image/tiff")
+                                                               : QStringLiteral("image/") + extension;
     QTRY_VERIFY_WITH_TIMEOUT(QApplication::clipboard()->mimeData() != nullptr
             && QApplication::clipboard()->mimeData()->hasFormat(mimeType), 5000);
     QCOMPARE(QApplication::clipboard()->mimeData()->data(mimeType), bytes);
