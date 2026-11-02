@@ -19,9 +19,15 @@ BuildRequires:  pkgconfig(libarchive)
 BuildRequires:  desktop-file-utils
 BuildRequires:  appstream
 BuildRequires:  vips-magick
+BuildRequires:  vips-heif
+BuildRequires:  libheif-freeworld
+BuildRequires:  vips-jxl
 Requires:       qt6-qtbase >= 6.6
 Requires:       vips >= 8.18.3
 Requires:       vips-magick >= 8.18.3
+Requires:       vips-heif >= 8.18.3
+Requires:       libheif-freeworld
+Requires:       vips-jxl >= 8.18.3
 
 %description
 Native Linux image viewer for browsing images, folders and image archives.

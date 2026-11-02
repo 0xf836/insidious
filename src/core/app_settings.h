@@ -52,6 +52,7 @@ enum class ShortcutCommand {
     LastImage,
     QuickJump,
     CopyOriginalImage,
+    ToggleAnimationPlayback,
     Preferences,
     ZoomIn,
     ZoomOut,

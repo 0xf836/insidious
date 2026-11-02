@@ -44,10 +44,14 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ### Formats
 
-- Expand the supported format allowlist to include AVIF, JPEG 2000, JPEG XL, HEIC, GIF, and other libvips-supported formats that fit the existing viewer and decoder architecture without major rework.
-- Inventory additional candidates, including TIFF, and verify loader availability, target-distribution codec dependencies, rendering correctness, and memory behavior before enabling each format.
-- Define still-frame or page selection behavior for animated and multi-page inputs before enabling them; full animation playback is a separate scope decision.
+- Inventory additional candidates and verify loader availability, target-distribution codec dependencies, rendering correctness, and memory behavior before enabling each format.
+- Define page selection behavior before enabling additional multi-page formats.
 - Treat RAW as a separate research effort because it requires preview policy, color processing, and heavier dependencies.
+
+### Animation playback
+
+- Investigate APNG and timed AVIF/HEIF sequences separately; evaluate codec APIs and system dependencies before extending the shared player. Multiple still items in a container must not become animation automatically.
+- Keep thumbnails and comparison views on a representative still frame unless animated presentation is explicitly added to those workflows.
 
 ### Input customization
 

@@ -8,5 +8,5 @@ TryExec=insidious
 Icon=io.github._0xf836.Insidious
 Terminal=false
 Categories=Graphics;Viewer;
-MimeType=image/jpeg;image/png;image/webp;image/bmp;image/x-bmp;image/x-ms-bmp;application/zip;application/x-7z-compressed;application/vnd.rar;application/x-rar;
+MimeType=image/jpeg;image/png;image/gif;image/tiff;image/webp;image/avif;image/jxl;image/jp2;image/x-jp2-codestream;image/heic;image/heif;image/bmp;image/x-bmp;image/x-ms-bmp;application/zip;application/x-7z-compressed;application/vnd.rar;application/x-rar;
 StartupNotify=true

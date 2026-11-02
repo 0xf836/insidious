@@ -25,10 +25,12 @@ Application settings are stored through Qt and contain interface preferences onl
 
 | Kind | Formats |
 | --- | --- |
-| Images | JPEG, PNG, WebP, BMP, DIB |
+| Images | JPEG, PNG, GIF, TIFF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, HEIC/HEIF |
 | Archives | ZIP, 7z, RAR |
 
 Support is intentionally based on an explicit allowlist. Availability of a codec in the system libvips installation does not automatically enable an additional format in Insidious.
+
+Fedora HEIC/HEIF support requires `libheif-freeworld` from RPM Fusion Free; see [native packaging](docs/packaging.md#fedora).
 
 ## Build from source
 
@@ -39,14 +41,14 @@ Requirements:
 - Ninja
 - C++20 compiler
 - Qt 6.6 or newer with Core, Gui, Widgets, Concurrent, and Test components
-- libvips/vips-cpp 8.18.3 or newer, including its system ImageMagick loader for BMP/DIB
+- libvips/vips-cpp 8.18.3 or newer, including its system ImageMagick loader for BMP/DIB, libheif with an AV1 decoder for AVIF, libjxl for JPEG XL, OpenJPEG for JPEG 2000, and a libheif HEVC decoder for HEIC/HEIF
 - libarchive
 - pkg-config
 
 Arch Linux and similar systems:
 
 ```sh
-sudo pacman -S qt6-base libvips imagemagick libarchive cmake ninja pkgconf git bash
+sudo pacman -S qt6-base libvips imagemagick libheif libde265 libjxl libarchive cmake ninja pkgconf git bash
 ```
 
 Debian, Ubuntu, and similar systems:

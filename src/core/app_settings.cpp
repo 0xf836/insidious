@@ -203,6 +203,19 @@ AppSettings AppSettings::read(QSettings &settings)
     }
     settings.endGroup();
 
+    // Preserve an existing custom Space binding when adding playback shortcuts.
+    auto &playback = result.shortcuts.bindings[shortcutCommandId(ShortcutCommand::ToggleAnimationPlayback)];
+    if (!playback.customized) {
+        for (ShortcutCommand command : shortcutCommands()) {
+            if (command == ShortcutCommand::ToggleAnimationPlayback) { continue; }
+            const auto binding = result.shortcuts.bindings.value(shortcutCommandId(command));
+            if (binding.customized && binding.sequences.contains(QStringLiteral("Space"))) {
+                playback = ShortcutBinding { true, {} };
+                break;
+            }
+        }
+    }
+
     settings.beginGroup(QStringLiteral("interface"));
     result.interface.theme = uiThemeFromSettingsString(
         settings.value(QStringLiteral("theme"), uiThemeToSettingsString(defaults.interface.theme)).toString(),
@@ -468,6 +481,7 @@ QVector<ShortcutCommand> shortcutCommands()
         ShortcutCommand::LastImage,
         ShortcutCommand::QuickJump,
         ShortcutCommand::CopyOriginalImage,
+        ShortcutCommand::ToggleAnimationPlayback,
         ShortcutCommand::Preferences,
         ShortcutCommand::ZoomIn,
         ShortcutCommand::ZoomOut,
@@ -501,6 +515,8 @@ QString shortcutCommandId(ShortcutCommand command)
         return QStringLiteral("lastImage");
     case ShortcutCommand::QuickJump:
         return QStringLiteral("quickJump");
+    case ShortcutCommand::ToggleAnimationPlayback:
+        return QStringLiteral("toggle-animation-playback");
     case ShortcutCommand::CopyOriginalImage:
         return QStringLiteral("copyOriginalImage");
     case ShortcutCommand::Preferences:
@@ -552,6 +568,8 @@ QStringList defaultShortcutSequences(ShortcutCommand command)
         return { keySequenceToSettingsString(QKeySequence(Qt::Key_End)) };
     case ShortcutCommand::QuickJump:
         return { keySequenceToSettingsString(QKeySequence::Find) };
+    case ShortcutCommand::ToggleAnimationPlayback:
+        return { keySequenceToSettingsString(QKeySequence(Qt::Key_Space)) };
     case ShortcutCommand::CopyOriginalImage:
         return { keySequenceToSettingsString(QKeySequence::Copy) };
     case ShortcutCommand::Preferences:

@@ -11,6 +11,9 @@ depends=(
     'qt6-base>=6.6'
     'libvips>=8.18.3'
     'imagemagick'
+    'libheif'
+    'libde265'
+    'libjxl'
     'libarchive'
 )
 makedepends=(

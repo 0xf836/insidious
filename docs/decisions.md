@@ -64,6 +64,8 @@ Decision status is one of **Accepted**, **Planned**, **Historical**, or **Supers
 
 **Decision:** Image decoding, scaling, orientation, region extraction, and optional ICC conversion use libvips/vips-cpp. Unsupported or unavailable codecs produce a decode error rather than switching to a second backend.
 
+BMP/DIB require the system ImageMagick module. AVIF requires libheif with an AV1 decoder, JPEG XL requires libjxl, and JPEG 2000 requires OpenJPEG. HEIC/HEIF uses the same HEIF loader as AVIF but needs a HEVC decoder. Codec availability is a runtime condition: missing HEVC support reports a decode error rather than fetching a codec or adding a second backend. Native recipes and clean CI environments must install these optional libvips capabilities explicitly: `imagemagick`, `libheif`, and `libjxl` on Arch; `vips-magick`, `vips-heif`, and `vips-jxl` on Fedora. OpenJPEG and libtiff (for TIFF) are supplied by the standard libvips dependency chain. HEVC decoding is an explicit runtime dependency: `libde265` on Arch and `libheif-freeworld` from RPM Fusion Free on Fedora. The Fedora plugin package also supplies HEVC encoding for synthetic regression fixtures. This is a narrow exception to the standard-repository policy; keep Qt, libvips, and the base libheif from the distribution, without private libraries or automatic repository setup in the application/package maintainer scripts. They extend the existing backend rather than introducing another decoder.
+
 **Rationale:** libvips is demand-driven, supports streaming and parallel processing, and fits the application’s performance and memory goals. One backend keeps color, orientation, and memory behavior consistent.
 
 The minimum remains libvips/vips-cpp 8.18.3. MKS2021 itself appeared in 8.17, but Ubuntu 26.04's unpatched 8.18.0 package lacks relevant SIMD resize bounds fixes. A diagnostic build passes functional tests; disabling SIMD as a workaround materially slows resizing and was not adopted. See the [dependency audit](dependency-audit.md) for evidence and limits.
@@ -179,7 +181,7 @@ setup and retries. Production repository setup and enablement remain separate.
 
 **Status:** Planned.
 
-**Decision:** Audit the actual Qt/libvips requirements before changing minimums. Qualify target distributions with their standard libraries and the existing feature set. Do not bundle private Qt/libvips, replace system libraries, or require third-party repositories for native packages. Exclude incompatible targets; plan Flatpak separately as a future runtime-based distribution channel.
+**Decision:** Audit the actual Qt/libvips requirements before changing minimums. Qualify target distributions with their standard libraries and the existing feature set. Do not bundle private Qt/libvips, replace system libraries, or require third-party repositories for native packages except RPM Fusion Free for the Fedora HEVC plugins described in ADR-008. Exclude incompatible targets; plan Flatpak separately as a future runtime-based distribution channel.
 
 **Implementation status:** Dependency evidence, regression tests and automated native Arch/Fedora 44 qualification are recorded in the [platform matrix](../packaging/platforms.json). Release automation and publication remain separate gates.
 

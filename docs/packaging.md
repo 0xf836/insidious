@@ -57,7 +57,15 @@ agents, so a missing cached source cannot fall back to the public release URL.
 
 ## Fedora
 
-Use a clean Fedora 44 environment with the spec's build requirements installed:
+Use a clean Fedora 44 environment with RPM Fusion Free enabled and the spec's build requirements installed. `libheif-freeworld` supplies the HEVC plugins required for HEIC/HEIF; installing only `libde265` does not supply the libheif plugin. The repository must be enabled before installing the RPM too; package maintainer scripts do not configure repositories. `libheif-freeworld` must match a libheif version available from Fedora; repository version skew can temporarily prevent dependency resolution or make the package manager select an older compatible libheif, including a downgrade of an installed version. Review the proposed transaction before installation. Let the package manager resolve compatible system packages rather than bundling or replacing libraries.
+
+Enable it explicitly with:
+
+```sh
+sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm
+```
+
+Build the package:
 
 ```sh
 cd .ci-results/native
@@ -69,7 +77,7 @@ rpmbuild -ba --define "_topdir $PWD/rpm-build" rpm-build/SPECS/insidious.spec
 ```
 
 RPM generates shared-library requirements; explicit Qt/libvips minimums and the
-`vips-magick` runtime dependency retain the application requirements. `-ba`
+`vips-magick`, `vips-heif`, and `vips-jxl` runtime dependencies retain the application's BMP/DIB, AVIF, and JPEG XL requirements, including dynamically loaded modules. `libheif-freeworld` adds the HEVC plugins from RPM Fusion Free. `-ba`
 produces binary and source RPMs. No package maintainer script fetches libraries,
 changes user settings or assigns default file associations.
 

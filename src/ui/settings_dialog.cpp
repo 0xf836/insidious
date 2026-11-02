@@ -499,6 +499,8 @@ QString SettingsDialog::shortcutCommandLabel(core::ShortcutCommand command) cons
         return tr("Last");
     case core::ShortcutCommand::QuickJump:
         return tr("Quick Jump");
+    case core::ShortcutCommand::ToggleAnimationPlayback:
+        return tr("Play/Pause Animation");
     case core::ShortcutCommand::CopyOriginalImage:
         return tr("Copy Original Image");
     case core::ShortcutCommand::Preferences:

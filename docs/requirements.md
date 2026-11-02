@@ -94,8 +94,14 @@ The explicit image allowlist is:
 
 - JPEG (`.jpg`, `.jpeg`);
 - PNG (`.png`);
+- GIF (`.gif`);
+- TIFF (`.tif`, `.tiff`, first page);
 - WebP (`.webp`);
-- BMP and DIB (`.bmp`, `.dib`).
+- BMP and DIB (`.bmp`, `.dib`);
+- AVIF (`.avif`);
+- JPEG XL (`.jxl`);
+- JPEG 2000 (`.jp2` containers, `.j2k` raw codestreams);
+- HEIC/HEIF (`.heic`, `.heif`).
 
 Bitmap-file headers and top-down/bottom-up rows are covered by regression tests. Headerless DIB depends on the file-backed system loader and is currently unsupported through archive streaming; failed entries must report an error while preserving navigation.
 
@@ -105,7 +111,23 @@ The explicit archive allowlist is:
 - 7z (`.7z`);
 - RAR (`.rar`).
 
-GIF, TIFF, AVIF, JPEG XL, and RAW are not currently supported. A format must not become user-visible solely because the system libvips build exposes a decoder for it.
+AVIF and HEIC/HEIF display the container's primary image; TIFF displays the first page. Each file remains one collection entry. GIF, animated WebP, and animated JPEG XL play automatically in the main viewer. Thumbnails and comparison show a representative still frame. APNG, timed AVIF/HEIF sequences, manual frame/page selection, playback speed control, and HDR tone mapping are not supported.
+
+### Animation playback
+
+- Play/Pause is available in View, both toolbars, and configurable shortcuts (Space by default; an existing custom Space assignment is preserved and leaves playback unbound). Finite animations stop on their last frame; Play restarts a finished animation. Reopening an entry starts from the beginning.
+- Playback respects finite/infinite loops. Positive frame durations have a 10 ms minimum; zero durations use 100 ms. Multi-page JXL timing markers are not treated as animation delays.
+- A slow decoder holds the current frame until the next is ready. No frame is skipped and there is no catch-up burst. Pause preserves the remaining frame interval.
+- View changes preserve the frame index and playback intent, holding the last raster until the new view is ready. Hidden/minimized windows and the Compare tab suspend preparation and timing; returning resumes only if the user had not paused.
+- Only confirmed animations allocate a playback source; static GIF/WebP/JXL files use the ordinary still-image path without the animation source-size limit. Animation sources are buffered only in RAM, at most 256 MiB. App-owned native/display rasters share a conservative 384 MiB session budget. Only the current and one next frame are retained; library working memory is outside this budget. Exceeding a limit stops playback with a compact error while retaining the last raster and navigation.
+- Archive animation bytes are read once per session with a bounded full-entry read and reused for loops. No disk extraction, persistent playback state, or password storage is introduced. Copy Original Image copies the complete original file.
+
+
+TIFF uses the system libvips/libtiff loader; unavailable compression codecs or unsupported variants report a decode error.
+
+High-bit-depth SDR images are converted to the existing 8-bit RGB/RGBA display pipeline. AVIF requires the system libvips HEIF loader with an AV1 decoder; JPEG XL requires its JXL loader; JPEG 2000 requires OpenJPEG. HEIC/HEIF requires the HEIF loader plus an available HEVC decoder, which is not guaranteed by the presence of AVIF support. Embedded ICC profiles are supported; HEIF NCLX-only color descriptions follow the existing unprofiled sRGB assumption. Unavailable codecs and unsupported input variants must report a decode error while preserving navigation.
+
+RAW is not currently supported. A format must not become user-visible solely because the system libvips build exposes a decoder for it.
 
 ## Archives
 

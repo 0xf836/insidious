@@ -2,6 +2,7 @@
 #include "build_version.h"
 
 #include <QApplication>
+#include <QThreadPool>
 #include <QCommandLineParser>
 #include <QIcon>
 
@@ -86,15 +87,19 @@ int main(int argc, char *argv[])
     parser.addPositionalArgument(QStringLiteral("path"), QApplication::translate("main", "Image file, folder, or archive to open."));
     parser.process(app);
 
-    insidious::ui::MainWindow window;
-    window.show();
+    int result = 0;
+    {
+        insidious::ui::MainWindow window;
+        window.show();
 
-    const QStringList positional = parser.positionalArguments();
-    if (!positional.isEmpty()) {
-        window.openPath(positional.first());
+        const QStringList positional = parser.positionalArguments();
+        if (!positional.isEmpty()) {
+            window.openPath(positional.first());
+        }
+        result = app.exec();
     }
-
-    const int result = app.exec();
+    // Session workers and outstanding still-image jobs must release libvips first.
+    QThreadPool::globalInstance()->waitForDone();
     vips_shutdown();
     g_log_remove_handler("VIPS", vipsLogHandlerId);
     return result;

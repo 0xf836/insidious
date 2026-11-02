@@ -85,7 +85,7 @@ Expanding or selecting an unloaded folder starts a targeted asynchronous load. T
 
 ### Archive sources
 
-libarchive enumerates ZIP, 7z, and RAR headers and groups supported image members into virtual folders. Display decode reads the selected member through a sequential stream without extracting it or buffering the complete member first.
+libarchive enumerates ZIP, 7z, and RAR headers and groups supported image members into virtual folders. Still-image display decode reads the selected member through a sequential stream without extracting it or buffering the complete member first. Active animations use a bounded RAM-only full-entry read so repeated loops do not traverse the archive again.
 
 A separate bounded full-entry read exists for features that require original bytes, such as clipboard copy. This path also stays in memory and does not extract to disk.
 
@@ -124,6 +124,14 @@ Neighbor prefetch is limited to fit-sized requests. Jobs are tracked and coalesc
 Actual-size, custom zoom, and password-protected archive entries do not start speculative prefetch.
 
 The render-memory budget estimates the final output raster. A transformed request also checks its final-sized native intermediate, including sample depth, against the same byte limit before allocation. Each allocation is bounded separately; this is not a combined process-memory cap. libvips working memory, source buffering, displayed images, caches, thumbnails, and concurrent tasks contribute to total process peak memory and are measured separately by the [memory audit](memory-audit.md).
+
+### Animation sessions
+
+The main-window loader owns the animation player. Its UI-thread timer schedules presentation; one dedicated worker serializes session open, sequential frame decode, view rerender, loop restart, and close. Source and view generations reject stale results; pending work coalesces to the newest request. Cancellation is cooperative between native codec calls.
+
+A libvips sequence stays lazy: only individual fully composed frames are materialized, never the complete frame stack. A native current/next pair allows view rerender without seeking backward through a consumed decoder. Detached native frames retain sample depth, ICC, and orientation and share the existing orientation → crop → resize → color pipeline. Animation rasters bypass the ordinary image LRU cache. The still decoder attaches an animation flag from timing metadata; cached posters retain this flag. Only confirmed animations create a foreground session. Negative session discovery releases the loader and encoded buffer immediately.
+
+The session owns at most 256 MiB of encoded source bytes and budgets app-owned native/display buffers against 384 MiB using the shared estimator. Rendering reserves space conservatively for intermediates and the presented raster. Codec canvases, backend caches, and other subsystems remain outside this allocation budget; total RSS requires separate measurement. Session teardown invalidates dependent libvips operations so loop/frame graphs are not retained as a frame cache.
 
 ## Asynchronous work and stale results
 
