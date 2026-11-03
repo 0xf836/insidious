@@ -557,13 +557,17 @@ DecodedImage renderVipsImage(vips::VImage image, const DecodeRequest &request)
             return result;
         }
 
-        if (useRegionRendering) {
-            image = image.extract_area(sourceRegion.x(), sourceRegion.y(),
-                sourceRegion.width(), sourceRegion.height());
-        }
         if (std::abs(physicalScale - 1.0) > 0.001) {
             image = image.resize(physicalScale,
                 vips::VImage::option()->set("kernel", scalingKernel(request.scalingQuality)));
+        }
+        if (useRegionRendering) {
+            // Crop the lazy resize output so filtering retains source neighbours and global sampling phase.
+            const int left = static_cast<int>(std::floor(sourceRegion.x() * physicalScale));
+            const int top = static_cast<int>(std::floor(sourceRegion.y() * physicalScale));
+            const int width = std::min(std::max(1, qRound(sourceRegion.width() * physicalScale)), image.width() - left);
+            const int height = std::min(std::max(1, qRound(sourceRegion.height() * physicalScale)), image.height() - top);
+            image = image.extract_area(left, top, width, height);
         }
         if (!rawToDisplay.isIdentity()) {
             // Budget the native sample representation, not only the final RGBA8.

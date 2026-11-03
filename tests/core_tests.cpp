@@ -88,6 +88,7 @@ private slots:
     void decoderExifRotationAndRegion();
     void decoderTransformedSampling_data();
     void decoderTransformedSampling();
+    void decoderRegionFilteringWithoutOverscan();
     void decoderNativeIntermediateBudget();
     void decoderFitHonorsDevicePixelRatio();
     void decoderActualSizeHonorsDevicePixelRatio();
@@ -1716,12 +1717,17 @@ void CoreTests::decoderTransformedSampling()
             QCOMPARE(decoded.effectiveScale, expectedScale);
             const QRect crop = decoded.sourceRegion;
             QVERIFY(QRect(0, 0, reference.width(), reference.height()).contains(crop));
-            reference = reference.extract_area(crop.x(), crop.y(), crop.width(), crop.height());
             if (std::abs(expectedScale - 1.0) > 0.001) {
                 const VipsKernel kernels[] = { VIPS_KERNEL_LINEAR, VIPS_KERNEL_MITCHELL,
                     VIPS_KERNEL_LANCZOS3, VIPS_KERNEL_MKS2021 };
                 reference = reference.resize(expectedScale,
                     vips::VImage::option()->set("kernel", kernels[orientation % 4]));
+            }
+            if (decoded.regionBased) {
+                const int left = static_cast<int>(std::floor(crop.x() * expectedScale));
+                const int top = static_cast<int>(std::floor(crop.y() * expectedScale));
+                reference = reference.extract_area(left, top,
+                    decoded.image.width(), decoded.image.height());
             }
             QCOMPARE(decoded.image.size(), QSize(reference.width(), reference.height()));
             size_t bytes = 0;
@@ -1743,6 +1749,50 @@ void CoreTests::decoderTransformedSampling()
                 qPrintable(QStringLiteral("Pixel mismatch %1, mode %2, autorotate %3")
                     .arg(maxDifference).arg(mode).arg(autorotate)));
         }
+    }
+}
+
+void CoreTests::decoderRegionFilteringWithoutOverscan()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = temp.filePath(QStringLiteral("pattern.png"));
+    QImage fixture(16, 16, QImage::Format_RGB888);
+    for (int y = 0; y < fixture.height(); ++y) {
+        for (int x = 0; x < fixture.width(); ++x) {
+            fixture.setPixelColor(x, y, QColor((x * 37 + y * 13) % 256,
+                (x * 7 + y * 43) % 256, (x * 19 + y * 3) % 256));
+        }
+    }
+    QVERIFY(fixture.save(path));
+    DecodeRequest request;
+    request.fitToWindow = false;
+    request.viewportSize = QSize(320, 240);
+    request.scaleFactor = 256;
+    request.colorManagementEnabled = false;
+    request.scalingQuality = ScalingQuality::HighLanczos3;
+    const auto full = vips::VImage::new_from_file(path.toUtf8().constData()).copy_memory()
+        .resize(request.scaleFactor, vips::VImage::option()->set("kernel", VIPS_KERNEL_LANCZOS3));
+    for (QPointF pan : { QPointF(), QPointF(137, -79), QPointF(-211, 149) }) {
+        request.panOffset = pan;
+        request.maxDecodedBytes = (pan.isNull() ? 1 : 2) * 1024 * 1024;
+        const auto decoded = VipsImageDecoder().decode(imageEntryFromFileInfo(QFileInfo(path)), request);
+        QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+        QVERIFY(decoded.regionBased);
+        QVERIFY(decoded.sourceRegion.width() < 4);
+        QVERIFY(decoded.sourceRegion.height() < 4);
+        QVERIFY(decoded.image.sizeInBytes() <= request.maxDecodedBytes);
+        const QPoint origin = decoded.displayRegionOffset;
+        const auto reference = full.extract_area(origin.x(), origin.y(),
+            decoded.image.width(), decoded.image.height());
+        size_t bytes = 0;
+        auto *pixels = static_cast<unsigned char *>(reference.write_to_memory(&bytes));
+        QVERIFY(pixels != nullptr);
+        const QImage expected(pixels, reference.width(), reference.height(),
+            reference.width() * 3, QImage::Format_RGB888);
+        const bool equal = decoded.image == expected;
+        g_free(pixels);
+        QVERIFY(equal);
     }
 }
 
