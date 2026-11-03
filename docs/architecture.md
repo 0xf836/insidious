@@ -104,14 +104,14 @@ The libvips decoder:
 1. validates and opens the filesystem file or archive stream;
 2. reads source dimensions and selected EXIF strings;
 3. applies optional EXIF orientation and view rotation;
-4. calculates a display-sized or region-sized request;
+4. calculates a display-sized or region-sized request, falling back from full non-fit rendering to a region and then omitting overscan if needed to fit the budget;
 5. checks the shared output-raster memory budget;
-6. resizes with the selected kernel;
+6. lazily resizes with the selected kernel, then crops the requested output region, retaining source neighbours for filtering even without overscan;
 7. for non-identity orientation/view transforms, evaluates the cropped/resized native raster in strips ordered by increasing source row, then materializes that final-sized raster in memory;
 8. converts an embedded profile to sRGB when enabled and available;
 9. normalizes pixels to an 8-bit RGB or RGBA layout and returns a `QImage` that owns its backing buffer.
 
-The strip sink preserves the existing orientation → crop → resize sampling graph. It changes evaluation order rather than moving resize across reflections. Rotated output columns or reversed rows are requested as necessary to keep sequential JPEG/archive readers moving forward. No complete source raster or temporary image file is introduced. Native sample depth/bands are checked through the shared estimator before allocating the intermediate. Its interpretation and embedded ICC profile are retained so ICC fallback can replay memory without rereading a consumed archive stream. Per-request native buffers invalidate downstream operations on scope exit and use libvips-tracked allocation so cache retention participates in the existing backend memory policy. The transformed graph drops the sequential-output metadata hint before resize while keeping sequential source access.
+The strip sink evaluates the orientation → resize → output crop sampling graph in source order. Resize remains after orientation and before region cropping so sampling uses the full source context and a stable global phase. Rotated output columns or reversed rows are requested as necessary to keep sequential JPEG/archive readers moving forward. No complete source raster or temporary image file is introduced. Native sample depth/bands are checked through the shared estimator before allocating the intermediate. Its interpretation and embedded ICC profile are retained so ICC fallback can replay memory without rereading a consumed archive stream. Per-request native buffers invalidate downstream operations on scope exit and use libvips-tracked allocation so cache retention participates in the existing backend memory policy. The transformed graph drops the sequential-output metadata hint before resize while keeping sequential source access.
 
 Profile conversion failure is non-fatal and falls back to an sRGB assumption. Display-profile matching is a separate future layer and is not implied by embedded-profile conversion.
 
@@ -142,6 +142,8 @@ Every job captures the identity needed to validate its result. `MainWindow` uses
 Same-entry rerender requests coalesce to the newest pending request. A switch to another entry starts a new foreground decode immediately and invalidates older display results. Cache hits update the UI immediately while still invalidating obsolete active decodes.
 
 Navigation preserves the previous raster until the new foreground result is ready. Zoom renders also preserve the old raster and restore the complete previous view if the new request exceeds the render budget.
+
+Same-view region refreshes preserve active pan gestures while blocking new view changes. A throttled UI timer retains updates for the latest pan position during an active decode; changing the view or restoring a temporary view cancels obsolete refreshes.
 
 ## Fullscreen architecture
 

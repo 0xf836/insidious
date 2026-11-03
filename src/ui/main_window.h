@@ -209,7 +209,7 @@ private:
     void clearArchivePasswords();
     void displayDecodedImage(const core::DecodedImage &decoded);
     void loadCurrentImage(bool showTransientLoading);
-    void loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback);
+    void loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback, bool regionRefresh = false);
     void scheduleDelayedLoadingOverlay(quint64 generation);
     void cancelDelayedLoadingOverlay();
     void cancelDelayedLoadingOverlayForGeneration(quint64 generation);
@@ -403,6 +403,7 @@ private:
     std::optional<PendingZoomRenderFallback> m_pendingZoomRenderFallback;
     std::optional<ActiveHoldZoom> m_activeHoldZoom;
     bool m_imageRenderPending = false;
+    bool m_regionRenderPending = false;
     bool m_syncingFileListSelection = false;
     bool m_syncingFolderTreeSelection = false;
     bool m_syncingFilePanelTabs = false;

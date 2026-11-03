@@ -106,6 +106,31 @@ private slots:
             QCOMPARE(limited.errorReason, core::DecodeErrorReason::RenderTooLarge);
         }
     }
+    void highZoom()
+    {
+        QTemporaryDir dir;
+        const auto entry = fixture(dir.filePath("sample.webp"));
+        core::AnimationDecodeSession session;
+        QVERIFY(session.open(entry));
+        core::DecodeRequest request;
+        request.viewportSize = QSize(100, 80);
+        request.fitToWindow = false;
+        request.scaleFactor = 256.0;
+        request.rotationDegrees = 90;
+        request.regionRendering = false;
+        const auto first = session.render(request);
+        QVERIFY2(first.ok(), qPrintable(first.errorMessage));
+        QVERIFY(first.regionBased);
+        QVERIFY(first.image.sizeInBytes() < 4 * 1024 * 1024);
+        QVERIFY(session.advance());
+        request.panOffset = QPointF(256, -256);
+        const auto next = session.render(request, first.image.sizeInBytes());
+        QVERIFY2(next.ok(), qPrintable(next.errorMessage));
+        QVERIFY(next.sourceRegion != first.sourceRegion);
+        QVERIFY(next.image.pixelColor(0, 0).blue() > 245);
+        request.maxDecodedBytes = 1;
+        QCOMPARE(session.render(request).errorReason, core::DecodeErrorReason::RenderTooLarge);
+    }
     void playback()
     {
         QTemporaryDir dir;

@@ -708,10 +708,14 @@ MainWindow::MainWindow(QWidget *parent)
     m_regionReloadTimer.setSingleShot(true);
     m_regionReloadTimer.setInterval(120);
     connect(&m_regionReloadTimer, &QTimer::timeout, this, [this]() {
-        if (!m_controller.hasCollection() || m_imageRenderPending || !m_currentDecoded.regionBased) {
+        if (!m_controller.hasCollection()) {
             return;
         }
-        loadCurrentImage(false, captureViewRenderState());
+        if (m_imageRenderPending) {
+            m_regionReloadTimer.start();
+        } else if (m_currentDecoded.regionBased) {
+            loadCurrentImage(false, captureViewRenderState(), true);
+        }
     });
 
     m_loadingOverlayTimer.setSingleShot(true);
@@ -732,6 +736,7 @@ MainWindow::MainWindow(QWidget *parent)
         const bool viewChanged = m_imageRenderPending;
         m_currentDecoded = frame;
         m_imageRenderPending = false;
+        m_regionRenderPending = false;
         m_imageView->setImage(frame.image, frame.fullDisplaySize, frame.displayRegionOffset);
         m_imageView->setPanOffset(m_controller.panOffset());
         if (viewChanged) {
@@ -966,9 +971,10 @@ void MainWindow::loadCurrentImage(bool showTransientLoading)
     loadCurrentImage(showTransientLoading, std::nullopt);
 }
 
-void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback)
+void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewRenderState> zoomFallback, bool regionRefresh)
 {
     m_regionReloadTimer.stop();
+    m_regionRenderPending = regionRefresh;
     cancelDelayedLoadingOverlay();
     if (!zoomFallback.has_value()) {
         m_activeHoldZoom.reset();
@@ -1009,7 +1015,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
         if (zoomFallback) { m_pendingZoomRenderFallback = PendingZoomRenderFallback { m_decodeGeneration, *zoomFallback }; }
         m_imageRenderPending = true;
         const bool keepHoldZoomInteraction = zoomFallback.has_value() && m_activeHoldZoom.has_value();
-        if (!keepHoldZoomInteraction) { m_imageView->setImageInteractionEnabled(false); }
+        m_imageView->setImageInteractionEnabled(false, regionRefresh || keepHoldZoomInteraction);
         updateActionState();
         updateInteractionState();
         m_animationPlayer->setView(request);
@@ -1041,9 +1047,7 @@ void MainWindow::loadCurrentImage(bool showTransientLoading, std::optional<ViewR
     m_imageRenderPending = true;
     updateInfoPanelForCurrentImage(tr("Loading..."));
     const bool keepHoldZoomInteraction = zoomFallback.has_value() && m_activeHoldZoom.has_value();
-    if (!keepHoldZoomInteraction) {
-        m_imageView->setImageInteractionEnabled(false);
-    }
+    m_imageView->setImageInteractionEnabled(false, regionRefresh || keepHoldZoomInteraction);
     if (hasDisplayedImage && showTransientLoading) {
         m_imageView->setOverlayMessage(QString());
         scheduleDelayedLoadingOverlay(generation);
@@ -3031,6 +3035,7 @@ void MainWindow::displayDecodedImage(const core::DecodedImage &decoded)
 {
     cancelDelayedLoadingOverlay();
     m_imageRenderPending = false;
+    m_regionRenderPending = false;
     m_currentDecoded = decoded;
     m_imageView->setImageInteractionEnabled(true);
     m_imageView->setImage(decoded.image, decoded.fullDisplaySize, decoded.displayRegionOffset);
@@ -3061,6 +3066,10 @@ MainWindow::ViewRenderState MainWindow::captureViewRenderState() const
 
 void MainWindow::restoreViewRenderState(const ViewRenderState &state, const QString &overlayMessage)
 {
+    m_regionReloadTimer.stop();
+    m_regionRenderPending = false;
+    m_activeHoldZoom.reset();
+    m_imageView->setImageInteractionEnabled(false);
     cancelDelayedLoadingOverlay();
     m_imageRenderPending = false;
     clearPendingDecodeRequest();
@@ -3213,10 +3222,14 @@ void MainWindow::updateInteractionState()
         && !m_imageRenderPending
         && !m_activeHoldZoom.has_value()
         && m_currentDecoded.ok()
-        && m_currentDecoded.effectiveScale > 0.0;
+        && m_currentDecoded.effectiveScale > 0.0
+        && (m_clickZoomBehavior != core::ClickZoomBehavior::HoldToZoomPan
+            || m_currentDecoded.effectiveScale < core::MaximumZoomFactor);
     m_imageView->setPanningEnabled(panningEnabled);
     m_imageView->setFitHandPanEnabled(fitHandPanEnabled);
     m_imageView->setClickZoomCursorEnabled(clickZoomCursorEnabled);
+    m_imageView->setHoldZoomAvailable(m_currentDecoded.ok()
+        && m_currentDecoded.effectiveScale < core::MaximumZoomFactor);
 }
 
 void MainWindow::updateInfoPanelForCurrentImage(const QString &state)
@@ -3254,12 +3267,13 @@ void MainWindow::scheduleFitReload()
 void MainWindow::scheduleRegionReload()
 {
     if (!m_controller.hasCollection()
-        || m_imageRenderPending
-        || !m_currentDecoded.regionBased) {
+        || (!m_currentDecoded.regionBased && !m_activeHoldZoom.has_value())) {
         return;
     }
 
-    m_regionReloadTimer.start();
+    if (!m_regionReloadTimer.isActive()) {
+        m_regionReloadTimer.start();
+    }
 }
 
 void MainWindow::clearPrefetchJobs()
@@ -3462,10 +3476,10 @@ void MainWindow::handleHoldZoomMoved(QPoint delta)
 
     const QPointF panOffset = m_controller.panOffset() + QPointF(delta);
     m_controller.setPanOffset(panOffset);
-    if (!m_imageRenderPending) {
+    if (!m_imageRenderPending || m_regionRenderPending) {
         m_imageView->setPanOffset(panOffset);
-        scheduleRegionReload();
     }
+    scheduleRegionReload();
 }
 
 void MainWindow::handleHoldZoomEnded()

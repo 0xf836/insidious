@@ -275,7 +275,7 @@ void SettingsDialog::setupViewerPage()
     zoomForm->addRow(QString(), m_colorManagementCheck);
 
     m_regionRenderingCheck = new QCheckBox(tr("Render only visible zoom region"), page);
-    m_regionRenderingCheck->setToolTip(tr("Use less memory for zoom and actual size renders. Disable for smoother panning at higher memory cost."));
+    m_regionRenderingCheck->setToolTip(tr("Use less memory for zoom and actual size renders. Disable to prefer full-image rendering for smoother panning; visible-region rendering is still used if the full image exceeds the memory budget."));
     zoomForm->addRow(QString(), m_regionRenderingCheck);
 
     QFormLayout *wheelForm = sectionForm(page, tr("Wheel Actions"));

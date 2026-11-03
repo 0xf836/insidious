@@ -8,7 +8,7 @@
 namespace insidious::core {
 
 inline constexpr double MinimumZoomFactor = 0.05;
-inline constexpr double MaximumZoomFactor = 16.0;
+inline constexpr double MaximumZoomFactor = 256.0;
 
 enum class ZoomMode {
     FitToWindow,

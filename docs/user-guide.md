@@ -64,15 +64,15 @@ Preferences selects which mode is the base view used on open and after navigatio
 
 ### Zoom and pan
 
-The default zoom step is 25% and is shared by wheel, toolbar, and shortcut zoom. `Ctrl+wheel` zooms around the pointer. Toolbar and shortcut zoom use the viewport center.
+The default zoom step is 25% and is shared by wheel, toolbar, and shortcut zoom. `Ctrl+wheel` zooms around the pointer. Toolbar and shortcut zoom use the viewport center. The main viewer supports custom zoom from 5% to 25600% (up to 256 physical display pixels per source pixel).
 
 By default, a simple left click temporarily zooms relative to the currently displayed scale and centers the clicked image point. A later simple click after click zoom or rectangle zoom restores the fit or actual-size base view. The multiplier is configurable and defaults to 2×.
 
-Hold the left button and drag to pan when the image is already outside the base fit view. In any non-fit view whose image is larger than the viewport, middle-button drag or `Ctrl+left` drag also pans without starting zoom.
+Hold the left button and drag to pan when the image is already outside the base fit view. In any non-fit view whose image is larger than the viewport, middle-button drag or `Ctrl+left` drag also pans without starting zoom. Region rendering loads new areas during the drag without requiring you to release and press the button again.
 
 Hold and drag the right button to draw a zoom rectangle. A later simple left click restores the base view.
 
-Preferences can replace click-to-zoom with **Hold to Zoom, Drag to Pan**. In that mode, pressing the left button enters temporary zoom immediately, dragging pans the zoomed image, and release restores the exact previous view.
+Preferences can replace click-to-zoom with **Hold to Zoom, Drag to Pan**. In that mode, pressing the left button enters temporary zoom immediately, dragging pans the zoomed image, and release restores the exact previous view. At the maximum zoom, where further enlargement is unavailable, left drag pans the existing view instead.
 
 The magnifier cursor appears only when the current left-button zoom or restore action can run. It is hidden while an image is loading, a render is pending, or hold zoom is active.
 
@@ -87,7 +87,7 @@ Preferences provides four scaling presets:
 
 Embedded ICC conversion is enabled by default. Profiled images are converted to sRGB when supported; unprofiled images are treated as sRGB. A broken profile or unavailable conversion support falls back without making the image unreadable. Monitor-profile matching is not currently provided.
 
-Non-fit views render the visible image region plus an overscan margin by default to control memory use. Disable region rendering in Preferences for smoother long pans at the cost of potentially much larger rasters and earlier render-budget failures.
+Non-fit views render the visible image region plus an overscan margin by default to control memory use. Disabling region rendering in Preferences prefers full-image rendering for smoother long pans, at higher memory cost. If the full raster exceeds the memory budget, the viewer automatically renders the visible region. The overscan margin is omitted if needed to fit the budget; if the visible region still cannot fit, the previous view is restored.
 
 ### Rotation and EXIF orientation
 

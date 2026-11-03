@@ -19,7 +19,7 @@ struct DecodeRequest {
     double devicePixelRatio = 1.0;
     int rotationDegrees = 0;
     bool fitToWindow = true;
-    bool regionRendering = false;
+    bool regionRendering = false; // Non-fit renders also use regions when a full raster exceeds the budget.
     bool exifAutorotate = true;
     ScalingQuality scalingQuality = ScalingQuality::HighLanczos3;
     bool colorManagementEnabled = true;
