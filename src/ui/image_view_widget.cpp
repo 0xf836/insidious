@@ -96,15 +96,18 @@ void ImageViewWidget::setOverlayMessage(const QString &message)
     update();
 }
 
-void ImageViewWidget::setImageInteractionEnabled(bool enabled)
+void ImageViewWidget::setImageInteractionEnabled(bool enabled, bool preservePanGesture)
 {
-    if (m_imageInteractionEnabled == enabled) {
+    if (m_imageInteractionEnabled == enabled && enabled) {
         return;
     }
 
     m_imageInteractionEnabled = enabled;
     if (!m_imageInteractionEnabled) {
-        stopImageInteraction();
+        if (!preservePanGesture) {
+            stopImageInteraction();
+        }
+        m_selectingZoom = false;
         cancelPendingImageClick();
         update();
         return;
@@ -134,7 +137,8 @@ void ImageViewWidget::setFitHandPanEnabled(bool enabled)
     }
 
     m_fitHandPanEnabled = enabled;
-    if (!m_fitHandPanEnabled) {
+    // Region refreshes block new presses without ending an existing hand drag.
+    if (!m_fitHandPanEnabled && m_imageInteractionEnabled) {
         m_fitHandPanning = false;
         m_fitHandPanButton = Qt::NoButton;
         updateIdleCursor();
@@ -161,6 +165,11 @@ void ImageViewWidget::setClickZoomCursorEnabled(bool enabled)
 
     m_clickZoomCursorEnabled = enabled;
     updateIdleCursor();
+}
+
+void ImageViewWidget::setHoldZoomAvailable(bool available)
+{
+    m_holdZoomAvailable = available;
 }
 
 void ImageViewWidget::setPanOffset(QPointF offset)
@@ -276,7 +285,7 @@ void ImageViewWidget::mousePressEvent(QMouseEvent *event)
     }
 
     if (event->button() == Qt::LeftButton && !m_image.isNull() && m_panningEnabled) {
-        if (m_clickZoomBehavior == core::ClickZoomBehavior::HoldToZoomPan) {
+        if (m_clickZoomBehavior == core::ClickZoomBehavior::HoldToZoomPan && m_holdZoomAvailable) {
             m_holdingZoom = true;
             m_lastMousePosition = event->pos();
             setCursor(Qt::ClosedHandCursor);
@@ -295,7 +304,7 @@ void ImageViewWidget::mousePressEvent(QMouseEvent *event)
     }
 
     if (event->button() == Qt::LeftButton && !m_image.isNull()) {
-        if (m_clickZoomBehavior == core::ClickZoomBehavior::HoldToZoomPan) {
+        if (m_clickZoomBehavior == core::ClickZoomBehavior::HoldToZoomPan && m_holdZoomAvailable) {
             m_holdingZoom = true;
             m_lastMousePosition = event->pos();
             setCursor(Qt::ClosedHandCursor);
@@ -379,14 +388,6 @@ void ImageViewWidget::mouseMoveEvent(QMouseEvent *event)
 
 void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (!m_imageInteractionEnabled
-        && (event->button() == Qt::LeftButton
-            || event->button() == Qt::RightButton
-            || event->button() == Qt::MiddleButton)) {
-        event->accept();
-        return;
-    }
-
     if (event->button() == m_fitHandPanButton && m_fitHandPanning) {
         m_fitHandPanning = false;
         m_fitHandPanButton = Qt::NoButton;
@@ -401,7 +402,7 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
         m_panning = false;
         m_leftDragMoved = false;
         updateIdleCursor();
-        if (!wasDrag) {
+        if (!wasDrag && m_imageInteractionEnabled) {
             scheduleImageClick(event->pos());
         }
         event->accept();
@@ -412,6 +413,14 @@ void ImageViewWidget::mouseReleaseEvent(QMouseEvent *event)
         m_holdingZoom = false;
         updateIdleCursor();
         emit holdZoomEnded();
+        event->accept();
+        return;
+    }
+
+    if (!m_imageInteractionEnabled
+        && (event->button() == Qt::LeftButton
+            || event->button() == Qt::RightButton
+            || event->button() == Qt::MiddleButton)) {
         event->accept();
         return;
     }

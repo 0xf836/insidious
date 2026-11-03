@@ -83,7 +83,7 @@ struct ViewerSettings {
     double zoomStepPercent = 25.0;
     ScalingQuality scalingQuality = ScalingQuality::HighLanczos3;
     bool colorManagementEnabled = true;
-    bool regionRenderingEnabled = true;
+    bool regionRenderingEnabled = true; // False prefers full rasters, with region fallback when over budget.
 };
 
 struct FullscreenSettings {

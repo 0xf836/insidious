@@ -38,7 +38,7 @@ The viewer must provide:
 
 Actual size uses physical-pixel semantics on HiDPI displays: one source image pixel maps to one physical screen pixel, while widget geometry, pointer input, overlays, and pan offsets remain in Qt logical pixels.
 
-Fit rendering should request a display-sized raster. Non-fit zoom and actual-size rendering should request the visible region plus overscan by default. Disabling region rendering may request a full scaled raster for smoother panning, but it must use the same render-memory guard and failure path.
+Fit rendering should request a display-sized raster. Non-fit zoom and actual-size rendering should request the visible region plus overscan by default. Disabling region rendering prefers a full scaled raster for smoother panning, with an automatic fallback to region rendering if the full raster exceeds the budget. If a region with overscan exceeds the budget, omit overscan before rejecting the request. Both output and transformed native intermediate rasters must pass the shared memory guard before pixel evaluation; the budget remains 384 MiB per raster for still images, with separate tighter animation accounting. Main-viewer custom zoom supports 5% through 25600%, subject to representable display geometry and the render budget.
 
 The scaling-quality preset, color-management mode, EXIF orientation, view rotation, output geometry, and device pixel ratio must participate in the decode request and cache identity whenever they can change the output raster.
 
@@ -195,7 +195,7 @@ EXIF orientation and view rotation must remain usable with fit, actual-size and 
 
 Navigation to an uncached image keeps the previous raster visible. A subtle loading overlay appears only after a short delay so fast decodes do not flash. Zoom-triggered renders also preserve the previous raster and decoded state but do not display a loading label or move the old raster prematurely.
 
-Additional zoom or view-transform requests must not stack while a render is pending; navigation may cancel the pending render. If a zoom render exceeds the memory budget, the previous raster, zoom, and pan must be restored and a compact error overlay shown.
+Additional zoom or view-transform requests must not stack while a render is pending; navigation may cancel the pending render. An active pan gesture must continue across same-view region refreshes, including accepting release during decode. Region refreshes must run during continuous movement, serialize decode work, and eventually load the latest pan position even if the mouse stops during decode. Restoring a temporary view or changing the source/view must cancel obsolete region refreshes. If a zoom render exceeds the memory budget, the previous raster, zoom, and pan must be restored and a compact error overlay shown.
 
 Unsupported, missing, unreadable, corrupt, empty, password-rejected, or oversized sources must produce a clear error without crashing. Failure of the current entry must preserve the collection and keep previous/next navigation available. Failed results must not enter caches.
 

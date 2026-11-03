@@ -1,6 +1,8 @@
 #include "ui/main_window.h"
 #include "ui/about_dialog.h"
 #include "build_version.h"
+#include "core/vips_image_decoder.h"
+#include "core/render_memory_budget.h"
 
 #include <QAction>
 #include <QClipboard>
@@ -20,6 +22,8 @@
 #include <QThreadPool>
 #include <QtTest>
 #include <vips/vips8>
+#include <archive.h>
+#include <archive_entry.h>
 
 namespace insidious::ui {
 
@@ -29,6 +33,11 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void rotateThenZoomAndPan();
+    void highZoomWithAutomaticRegionRendering();
+    void regionPanGesture_data();
+    void regionPanGesture();
+    void regionPanPending_data();
+    void regionPanPending();
     void animatedViewer();
     void animatedHoldZoom();
     void animationStopsForFolders();
@@ -55,6 +64,13 @@ private:
 };
 
 namespace {
+
+void sendPanMove(ImageViewWidget *view, QPoint position, Qt::MouseButton button, Qt::KeyboardModifiers modifiers)
+{
+    QMouseEvent event(QEvent::MouseMove, QPointF(position), QPointF(view->mapToGlobal(position)),
+        Qt::NoButton, button, modifiers);
+    QApplication::sendEvent(view, &event);
+}
 
 // Own both timers so an action that returns without a dialog leaves no callbacks.
 bool triggerAboutAndCloseModal(QAction *action, bool *timedOut)
@@ -146,6 +162,241 @@ void MainWindowAsyncTests::rotateThenZoomAndPan()
     QVERIFY(window.m_imageView->hasImage());
 }
 
+void MainWindowAsyncTests::highZoomWithAutomaticRegionRendering()
+{
+    QTemporaryDir temp;
+    const QString path = temp.filePath(QStringLiteral("large.jpg"));
+    QImage fixture(1280, 960, QImage::Format_RGB32);
+    fixture.fill(Qt::blue);
+    QVERIFY(fixture.save(path));
+    MainWindow window;
+    window.m_settings.viewer.regionRenderingEnabled = false;
+    window.setFixedSize(800, 600);
+    window.show();
+    window.openPath(path);
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_currentDecoded.ok() && !window.m_imageRenderPending, 5000);
+    window.applyCustomZoomWithFallback(32.0, QPointF());
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QCOMPARE(window.m_currentDecoded.effectiveScale, 32.0);
+    QVERIFY(window.m_currentDecoded.regionBased);
+    window.applyCustomZoomWithFallback(core::MaximumZoomFactor, QPointF());
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QCOMPARE(window.m_currentDecoded.effectiveScale, 256.0);
+    QVERIFY(window.m_currentDecoded.regionBased);
+    QVERIFY(!window.m_cache->contains(window.currentCacheKey(window.currentDecodeRequest())));
+    const QRect previousRegion = window.m_currentDecoded.sourceRegion;
+    window.m_controller.setPanOffset(QPointF(512, -256));
+    window.m_imageView->setPanOffset(window.m_controller.panOffset());
+    window.scheduleRegionReload();
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_currentDecoded.sourceRegion != previousRegion && !window.m_imageRenderPending, 5000);
+    const auto previousView = window.captureViewRenderState();
+    auto limitedRequest = window.currentDecodeRequest();
+    limitedRequest.maxDecodedBytes = 1;
+    const auto generation = ++window.m_decodeGeneration;
+    window.m_pendingZoomRenderFallback = MainWindow::PendingZoomRenderFallback { generation, previousView };
+    window.m_imageRenderPending = true;
+    window.m_controller.setCustomZoom(64.0);
+    window.m_controller.resetPan();
+    window.startDecodeJob({ generation, window.currentCacheKey(limitedRequest),
+        *window.m_controller.currentEntry(), limitedRequest, {} });
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QVERIFY(!window.m_pendingZoomRenderFallback.has_value());
+    QCOMPARE(window.m_controller.zoomFactor(), previousView.zoomFactor);
+    QCOMPARE(window.m_controller.panOffset(), previousView.panOffset);
+    QCOMPARE(window.m_currentDecoded.image, previousView.decoded.image);
+    window.zoomOut();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QVERIFY(window.m_currentDecoded.effectiveScale < 256.0);
+    QVERIFY(window.m_currentDecoded.effectiveScale > 16.0);
+    window.setActualSize();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QCOMPARE(window.m_currentDecoded.effectiveScale, 1.0);
+    QVERIFY(!window.m_currentDecoded.regionBased);
+    window.setFitToWindow();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+    QCOMPARE(window.m_controller.zoomMode(), core::ZoomMode::FitToWindow);
+    QVERIFY(window.m_imageView->hasImage());
+    QVERIFY(!window.m_settings.viewer.regionRenderingEnabled);
+}
+
+void MainWindowAsyncTests::regionPanGesture_data()
+{
+    QTest::addColumn<int>("gesture");
+    QTest::addColumn<double>("scale");
+    QTest::newRow("left") << 0 << 64.0;
+    QTest::newRow("middle") << 1 << 64.0;
+    QTest::newRow("ctrl-left") << 2 << 64.0;
+    QTest::newRow("hold") << 3 << 64.0;
+    QTest::newRow("hold-at-limit") << 3 << 256.0;
+    QTest::newRow("actual-size") << 0 << 1.0;
+    QTest::newRow("zip-jpeg") << 4 << 64.0;
+}
+
+void MainWindowAsyncTests::regionPanGesture()
+{
+    QFETCH(int, gesture);
+    QFETCH(double, scale);
+    QTemporaryDir temp;
+    QString path = temp.filePath(QStringLiteral("large.jpg"));
+    QImage fixture(1280, 960, QImage::Format_RGB32);
+    fixture.fill(Qt::blue);
+    QVERIFY(fixture.save(path));
+    if (gesture == 4) {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto bytes = file.readAll();
+        path = temp.filePath(QStringLiteral("images.zip"));
+        std::unique_ptr<struct archive, decltype(&archive_write_free)> writer(archive_write_new(), &archive_write_free);
+        QCOMPARE(archive_write_set_format_zip(writer.get()), ARCHIVE_OK);
+        QCOMPARE(archive_write_open_filename(writer.get(), path.toUtf8().constData()), ARCHIVE_OK);
+        std::unique_ptr<struct archive_entry, decltype(&archive_entry_free)> entry(archive_entry_new(), &archive_entry_free);
+        archive_entry_set_pathname(entry.get(), "large.jpg");
+        archive_entry_set_filetype(entry.get(), AE_IFREG);
+        archive_entry_set_perm(entry.get(), 0644);
+        archive_entry_set_size(entry.get(), bytes.size());
+        QCOMPARE(archive_write_header(writer.get(), entry.get()), ARCHIVE_OK);
+        QCOMPARE(archive_write_data(writer.get(), bytes.constData(), bytes.size()), bytes.size());
+        QCOMPARE(archive_write_close(writer.get()), ARCHIVE_OK);
+    }
+    MainWindow window;
+    auto settings = window.m_settings;
+    settings.viewer.regionRenderingEnabled = scale == 1.0;
+    settings.viewer.clickZoomBehavior = gesture == 3
+        ? core::ClickZoomBehavior::HoldToZoomPan : core::ClickZoomBehavior::ToggleOnClick;
+    window.applySettings(settings, false);
+    window.setFixedSize(800, 600);
+    window.show();
+    window.openPath(path);
+    QTRY_VERIFY(window.m_currentDecoded.ok() && !window.m_imageRenderPending);
+    if (scale == 1.0) { window.setActualSize(); }
+    else { window.applyCustomZoomWithFallback(scale, QPointF()); }
+    QTRY_VERIFY(!window.m_imageRenderPending);
+    QVERIFY(window.m_currentDecoded.regionBased);
+    const auto before = window.captureViewRenderState();
+    const auto button = gesture == 1 ? Qt::MiddleButton : Qt::LeftButton;
+    const auto modifiers = gesture == 2 ? Qt::ControlModifier : Qt::NoModifier;
+    const QPoint point = window.m_imageView->rect().center();
+    QTest::mousePress(window.m_imageView, button, modifiers, point);
+    QTRY_VERIFY(!window.m_imageRenderPending);
+    const QPointF initialPan = window.m_controller.panOffset();
+    const QRect initialRegion = window.m_currentDecoded.sourceRegion;
+    const double heldScale = window.m_currentDecoded.effectiveScale;
+    bool refreshedDuringDrag = false;
+    for (int i = 1; i <= 24; ++i) {
+        const QPoint offset(20 * i, 4 * i);
+        sendPanMove(window.m_imageView, point + offset, button, modifiers);
+        QCOMPARE(window.m_controller.panOffset(), initialPan + offset);
+        QTest::qWait(20);
+        refreshedDuringDrag |= window.m_currentDecoded.sourceRegion != initialRegion;
+    }
+    QVERIFY(refreshedDuringDrag);
+    QTRY_VERIFY(!window.m_imageRenderPending && !window.m_regionReloadTimer.isActive());
+    QCOMPARE(window.m_currentDecoded.effectiveScale, heldScale);
+    QCOMPARE(window.m_imageView->panOffset(), initialPan + QPointF(480, 96));
+    if (scale > 1.0) {
+        const QRectF tile(window.m_imageView->imageRect().topLeft() + window.m_currentDecoded.displayRegionOffset,
+            window.m_currentDecoded.image.deviceIndependentSize());
+        QVERIFY(tile.contains(QRectF(window.m_imageView->rect())));
+    }
+    QTest::mouseRelease(window.m_imageView, button, modifiers, point + QPoint(480, 96));
+    if (gesture == 3 && scale < core::MaximumZoomFactor) {
+        QCOMPARE(window.m_controller.panOffset(), before.panOffset);
+        QCOMPARE(window.m_currentDecoded.image, before.decoded.image);
+    } else {
+        QCOMPARE(window.m_controller.panOffset(), initialPan + QPointF(480, 96));
+    }
+}
+
+void MainWindowAsyncTests::regionPanPending_data()
+{
+    QTest::addColumn<int>("scenario");
+    QTest::newRow("release-and-final-position") << 0;
+    QTest::newRow("release-hold-restores-view") << 1;
+    QTest::newRow("source-switch") << 2;
+    QTest::newRow("render-error") << 3;
+}
+
+void MainWindowAsyncTests::regionPanPending()
+{
+    QFETCH(int, scenario);
+    QTemporaryDir temp;
+    const QString path = temp.filePath(QStringLiteral("large.jpg"));
+    QImage fixture(1280, 960, QImage::Format_RGB32);
+    fixture.fill(Qt::blue);
+    QVERIFY(fixture.save(path));
+    MainWindow window;
+    auto settings = window.m_settings;
+    settings.viewer.clickZoomBehavior = scenario == 1
+        ? core::ClickZoomBehavior::HoldToZoomPan : core::ClickZoomBehavior::ToggleOnClick;
+    window.applySettings(settings, false);
+    window.setFixedSize(800, 600);
+    window.show();
+    window.openPath(path);
+    QTRY_VERIFY(window.m_currentDecoded.ok() && !window.m_imageRenderPending);
+    window.applyCustomZoomWithFallback(64.0, QPointF());
+    QTRY_VERIFY(!window.m_imageRenderPending);
+    const auto before = window.captureViewRenderState();
+    const QPoint point = window.m_imageView->rect().center();
+    QTest::mousePress(window.m_imageView, Qt::LeftButton, Qt::NoModifier, point);
+    QTRY_VERIFY(!window.m_imageRenderPending);
+    const QPointF initialPan = window.m_controller.panOffset();
+    auto request = window.currentDecodeRequest();
+    // Fit visible pixels while forcing overscan reduction, including on HiDPI.
+    request.maxDecodedBytes = core::estimateRenderMemory(request.viewportSize, 4, request.devicePixelRatio).bytes * 2;
+    MainWindow::DecodeJobResult job;
+    job.generation = window.m_decodeGeneration;
+    job.entry = *window.m_controller.currentEntry();
+    job.decoded = core::VipsImageDecoder().decode(job.entry, request);
+    QVERIFY2(job.decoded.ok(), qPrintable(job.decoded.errorMessage));
+    const auto fallback = window.captureViewRenderState();
+    window.m_pendingZoomRenderFallback = MainWindow::PendingZoomRenderFallback { job.generation, fallback };
+    window.m_regionRenderPending = window.m_imageRenderPending = true;
+    window.m_imageView->setImageInteractionEnabled(false, true);
+    window.updateInteractionState();
+    QPromise<MainWindow::DecodeJobResult> promise;
+    promise.start();
+    window.m_decodeWatcher.setFuture(promise.future());
+    sendPanMove(window.m_imageView, point + QPoint(1500, 0), Qt::LeftButton, Qt::NoModifier);
+    QCOMPARE(window.m_controller.panOffset(), initialPan + QPointF(1500, 0));
+    QCOMPARE(window.m_imageView->panOffset(), window.m_controller.panOffset());
+    QTest::qWait(160);
+    QVERIFY(window.m_imageRenderPending);
+    QVERIFY(window.m_regionReloadTimer.isActive());
+    QVERIFY(!window.m_pendingDecodeRequest.has_value());
+    QTest::mouseRelease(window.m_imageView, Qt::LeftButton, Qt::NoModifier, point + QPoint(1500, 0));
+    if (scenario == 2) {
+        QVERIFY(QDir(temp.path()).mkdir(QStringLiteral("empty")));
+        window.openFolder(temp.filePath(QStringLiteral("empty")));
+    }
+    if (scenario == 3) {
+        job.decoded = {};
+        job.decoded.errorReason = core::DecodeErrorReason::RenderTooLarge;
+        job.decoded.errorMessage = QStringLiteral("Too large to render");
+    }
+    promise.addResult(job);
+    promise.finish();
+    QTRY_VERIFY(!window.m_imageRenderPending && !window.m_regionReloadTimer.isActive());
+    if (scenario == 0) {
+        QCOMPARE(window.m_controller.panOffset(), initialPan + QPointF(1500, 0));
+        const QRectF tile(window.m_imageView->imageRect().topLeft() + window.m_currentDecoded.displayRegionOffset,
+            window.m_currentDecoded.image.deviceIndependentSize());
+        QVERIFY(tile.contains(QRectF(window.m_imageView->rect())));
+        sendPanMove(window.m_imageView, point + QPoint(1600, 0), Qt::LeftButton, Qt::NoModifier);
+        QCOMPARE(window.m_controller.panOffset(), initialPan + QPointF(1500, 0));
+    } else if (scenario == 1) {
+        QCOMPARE(window.m_controller.panOffset(), before.panOffset);
+        QCOMPARE(window.m_currentDecoded.image, before.decoded.image);
+        QVERIFY(!window.m_activeHoldZoom.has_value());
+    } else if (scenario == 2) {
+        QTRY_VERIFY(!window.m_controller.hasCollection());
+        QVERIFY(!window.m_imageView->hasImage());
+    } else {
+        QCOMPARE(window.m_controller.panOffset(), before.panOffset);
+        QCOMPARE(window.m_currentDecoded.image, before.decoded.image);
+        QVERIFY(window.m_imageView->hasImage());
+    }
+}
+
 void MainWindowAsyncTests::animatedViewer()
 {
     QTemporaryDir temp;
@@ -227,13 +478,24 @@ void MainWindowAsyncTests::animatedHoldZoom()
     auto settings = window.m_settings;
     settings.viewer.clickZoomBehavior = core::ClickZoomBehavior::HoldToZoomPan;
     window.applySettings(settings, false);
+    window.applyCustomZoomWithFallback(64.0, QPointF());
+    QTRY_VERIFY(!window.m_imageRenderPending);
     const auto before = window.captureViewRenderState();
     const auto point = window.m_imageView->rect().center();
     QTest::mousePress(window.m_imageView, Qt::LeftButton, Qt::NoModifier, point);
     QVERIFY(window.m_activeHoldZoom.has_value());
     QTRY_VERIFY(!window.m_imageRenderPending);
-    QTest::mouseMove(window.m_imageView, point + QPoint(12, 8));
-    QTest::mouseRelease(window.m_imageView, Qt::LeftButton, Qt::NoModifier, point + QPoint(12, 8));
+    const auto initialPan = window.m_controller.panOffset();
+    const auto initialRegion = window.m_currentDecoded.sourceRegion;
+    bool refreshedDuringDrag = false;
+    for (int i = 1; i <= 24; ++i) {
+        sendPanMove(window.m_imageView, point + QPoint(20 * i, 4 * i), Qt::LeftButton, Qt::NoModifier);
+        QCOMPARE(window.m_controller.panOffset(), initialPan + QPointF(20 * i, 4 * i));
+        QTest::qWait(20);
+        refreshedDuringDrag |= window.m_currentDecoded.sourceRegion != initialRegion;
+    }
+    QVERIFY(refreshedDuringDrag);
+    QTest::mouseRelease(window.m_imageView, Qt::LeftButton, Qt::NoModifier, point + QPoint(480, 96));
     QVERIFY(!window.m_activeHoldZoom.has_value());
     QTRY_VERIFY(!window.m_imageRenderPending);
     QCOMPARE(window.m_controller.zoomMode(), before.zoomMode);

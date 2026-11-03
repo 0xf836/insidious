@@ -743,6 +743,9 @@ void CoreTests::viewerCustomZoomClampsToSupportedRange()
     controller.setCustomZoom(MaximumZoomFactor * 10.0);
     QCOMPARE(controller.zoomMode(), ZoomMode::Custom);
     QCOMPARE(controller.zoomFactor(), MaximumZoomFactor);
+    QCOMPARE(MaximumZoomFactor, 256.0);
+    controller.setCustomZoom(64.0);
+    QCOMPARE(controller.zoomFactor(), 64.0);
 }
 
 void CoreTests::memoryCacheEvictsByBudget()
@@ -1631,6 +1634,18 @@ void CoreTests::decoderTransformedSampling_data()
             }
         }
     }
+    for (int orientation : { 1, 6 }) {
+        for (int rotation : { 0, 90 }) {
+            for (double scale : { 64.0, 255.5, 256.0 }) {
+                for (bool archived : { false, true }) {
+                    const QByteArray name = QByteArray::number(orientation) + '-'
+                        + QByteArray::number(rotation) + '-' + QByteArray::number(scale)
+                        + (archived ? "-zip" : "-file");
+                    QTest::newRow(name.constData()) << orientation << rotation << scale << archived;
+                }
+            }
+        }
+    }
 }
 
 void CoreTests::decoderTransformedSampling()
@@ -1675,6 +1690,9 @@ void CoreTests::decoderTransformedSampling()
             request.rotationDegrees = rotation;
             request.viewportSize = QSize(51, 37);
             request.devicePixelRatio = 1.5;
+            if (mode != 0 && scale > 16.0) {
+                request.devicePixelRatio = orientation == 1 ? 1.0 : 2.0;
+            }
             request.fitToWindow = mode == 0;
             request.regionRendering = mode == 1;
             request.scaleFactor = scale;
@@ -1683,6 +1701,10 @@ void CoreTests::decoderTransformedSampling()
             request.scalingQuality = static_cast<ScalingQuality>(orientation % 4);
             const auto decoded = VipsImageDecoder().decode(entry, request);
             QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+            if (mode != 0 && scale > 16.0) {
+                QVERIFY(decoded.regionBased);
+                QVERIFY(decoded.image.sizeInBytes() < 4 * 1024 * 1024);
+            }
             auto reference = autorotate ? rawReference.autorot() : rawReference;
             QCOMPARE(decoded.sourceSize, QSize(reference.width(), reference.height()));
             if (rotation == 90) reference = reference.rot90();
@@ -1763,6 +1785,23 @@ void CoreTests::decoderNativeIntermediateBudget()
     const QImage ownedReference = expected.copy();
     g_free(pixels);
     QCOMPARE(accepted.image, ownedReference);
+
+    request.viewportSize = QSize(16, 12);
+    request.maxDecodedBytes = native.bytes - 1;
+    for (bool region : { false, true }) {
+        request.regionRendering = region;
+        for (QPointF pan : { QPointF(), QPointF(-48.5, -64.5), QPointF(48.5, 64.5) }) {
+            request.panOffset = pan;
+            const auto visible = VipsImageDecoder().decode(entry, request);
+            QVERIFY2(visible.ok(), qPrintable(visible.errorMessage));
+            QVERIFY(visible.regionBased);
+            QVERIFY(visible.image.width() <= request.viewportSize.width() + 1);
+            QVERIFY(visible.image.height() <= request.viewportSize.height() + 1);
+            QCOMPARE(visible.image, ownedReference.copy(visible.sourceRegion));
+        }
+    }
+    request.maxDecodedBytes = 1;
+    QCOMPARE(VipsImageDecoder().decode(entry, request).errorReason, DecodeErrorReason::RenderTooLarge);
 }
 
 void CoreTests::decoderFitHonorsDevicePixelRatio()
@@ -2005,8 +2044,8 @@ void CoreTests::decoderRegionRenderingLimitsZoomOutput()
 
     VipsImageDecoder decoder;
     const DecodedImage fullDecoded = decoder.decode(entry, fullRequest);
-    QVERIFY(!fullDecoded.ok());
-    QCOMPARE(fullDecoded.errorReason, DecodeErrorReason::RenderTooLarge);
+    QVERIFY2(fullDecoded.ok(), qPrintable(fullDecoded.errorMessage));
+    QVERIFY(fullDecoded.regionBased);
 
     DecodeRequest regionRequest = fullRequest;
     regionRequest.regionRendering = true;
@@ -2019,6 +2058,24 @@ void CoreTests::decoderRegionRenderingLimitsZoomOutput()
     QVERIFY(regionDecoded.image.height() < regionDecoded.fullDisplaySize.height());
     QVERIFY(regionDecoded.image.sizeInBytes() <= regionRequest.maxDecodedBytes);
     QVERIFY(!regionDecoded.sourceRegion.isEmpty());
+    QCOMPARE(fullDecoded.image, regionDecoded.image);
+    QCOMPARE(fullDecoded.sourceRegion, regionDecoded.sourceRegion);
+
+    fullRequest.scaleFactor = 1.0;
+    const auto smallFull = decoder.decode(entry, fullRequest);
+    QVERIFY2(smallFull.ok(), qPrintable(smallFull.errorMessage));
+    QVERIFY(!smallFull.regionBased);
+    QCOMPARE(smallFull.image.size(), source.size());
+
+    regionRequest.maxDecodedBytes = 64 * 1024;
+    const auto visible = decoder.decode(entry, regionRequest);
+    QVERIFY2(visible.ok(), qPrintable(visible.errorMessage));
+    QVERIFY(visible.image.width() < regionDecoded.image.width());
+    QVERIFY(visible.image.height() < regionDecoded.image.height());
+    QVERIFY(visible.image.sizeInBytes() <= regionRequest.maxDecodedBytes);
+
+    regionRequest.maxDecodedBytes = 1;
+    QCOMPARE(decoder.decode(entry, regionRequest).errorReason, DecodeErrorReason::RenderTooLarge);
 }
 
 void CoreTests::decoderRegionRenderingHonorsDevicePixelRatio()
@@ -2052,6 +2109,15 @@ void CoreTests::decoderRegionRenderingHonorsDevicePixelRatio()
     QVERIFY(decoded.image.width() < decoded.fullDisplaySize.width() * decoded.devicePixelRatio);
     QVERIFY(decoded.image.height() < decoded.fullDisplaySize.height() * decoded.devicePixelRatio);
     QCOMPARE(decoded.displayRegionOffset, QPoint(decoded.sourceRegion.left() * 2, decoded.sourceRegion.top() * 2));
+
+    request.maxDecodedBytes = 256 * 1024;
+    const auto visible = decoder.decode(entry, request);
+    QVERIFY2(visible.ok(), qPrintable(visible.errorMessage));
+    QCOMPARE(visible.image.devicePixelRatio(), 2.0);
+    QCOMPARE(visible.fullDisplaySize, decoded.fullDisplaySize);
+    QVERIFY(visible.image.width() < decoded.image.width());
+    QVERIFY(visible.image.height() < decoded.image.height());
+    QVERIFY(visible.image.sizeInBytes() <= request.maxDecodedBytes);
 }
 
 void CoreTests::decoderReportsRenderTooLargeReason()
@@ -2076,6 +2142,18 @@ void CoreTests::decoderReportsRenderTooLargeReason()
     QVERIFY(!decoded.ok());
     QVERIFY(!decoded.errorMessage.isEmpty());
     QCOMPARE(decoded.errorReason, DecodeErrorReason::RenderTooLarge);
+
+    request.maxDecodedBytes = 384LL * 1024 * 1024;
+    for (double scale : { 1e20, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN() }) {
+        request.scaleFactor = scale;
+        QCOMPARE(decoder.decode(entry, request).errorReason, DecodeErrorReason::RenderTooLarge);
+    }
+    request.scaleFactor = 64.0;
+    request.regionRendering = true;
+    request.panOffset = QPointF(1e100, -1e100);
+    const auto offscreen = decoder.decode(entry, request);
+    QVERIFY2(offscreen.ok(), qPrintable(offscreen.errorMessage));
+    QVERIFY(QRect(QPoint(), source.size()).contains(offscreen.sourceRegion));
 }
 
 void CoreTests::decoderUsesConfiguredScalingQuality_data()

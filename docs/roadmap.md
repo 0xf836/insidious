@@ -9,11 +9,6 @@ This roadmap is a living statement of direction, not a release schedule or compa
 - Reproduce and fix the reported failure when opening a password-protected archive.
 - Verify successful opening with a correct password, retry after an incorrect password, and cancellation without losing navigation state. Keep passwords in memory only and do not extract entries to disk.
 
-### High zoom levels
-
-- Reproduce and fix the reported inability to reach high zoom levels.
-- Check zoom limits, region rendering, and render-memory budget handling so supported zoom levels remain usable without bypassing memory safeguards.
-
 ### Quick Jump polish
 
 - Make the fullscreen search surface more compact.

@@ -23,10 +23,11 @@ public:
     void setImage(const QImage &image, QSize fullImageSize, QPoint imageRegionOffset);
     void setMessage(const QString &message);
     void setOverlayMessage(const QString &message);
-    void setImageInteractionEnabled(bool enabled);
+    void setImageInteractionEnabled(bool enabled, bool preservePanGesture = false);
     void setPanningEnabled(bool enabled);
     void setFitHandPanEnabled(bool enabled);
     void setClickZoomBehavior(core::ClickZoomBehavior behavior);
+    void setHoldZoomAvailable(bool available);
     void setClickZoomCursorEnabled(bool enabled);
     void setPanOffset(QPointF offset);
     [[nodiscard]] bool hasImage() const;
@@ -92,6 +93,7 @@ private:
     bool m_clickPending = false;
     bool m_selectingZoom = false;
     bool m_holdingZoom = false;
+    bool m_holdZoomAvailable = true;
     bool m_clickZoomCursorEnabled = false;
     core::ClickZoomBehavior m_clickZoomBehavior = core::ClickZoomBehavior::ToggleOnClick;
 };

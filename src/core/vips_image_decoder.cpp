@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <limits>
 #include <vector>
 #include <vips/vips8>
 
@@ -252,14 +253,17 @@ QSize scaledSizeFor(QSize imageSize, double scale)
         return QSize();
     }
 
-    return QSize(
-        static_cast<int>(std::ceil(static_cast<double>(imageSize.width()) * scale)),
-        static_cast<int>(std::ceil(static_cast<double>(imageSize.height()) * scale)));
+    const double width = std::ceil(static_cast<double>(imageSize.width()) * scale);
+    const double height = std::ceil(static_cast<double>(imageSize.height()) * scale);
+    if (width > std::numeric_limits<int>::max() || height > std::numeric_limits<int>::max()) {
+        return QSize();
+    }
+    return QSize(static_cast<int>(width), static_cast<int>(height));
 }
 
-int clampedInt(int value, int minimum, int maximum)
+int clampedInt(double value, int minimum, int maximum)
 {
-    return std::clamp(value, minimum, maximum);
+    return static_cast<int>(std::clamp(value, static_cast<double>(minimum), static_cast<double>(maximum)));
 }
 
 QRect clampedDisplayRegion(QRectF region, QSize fullDisplaySize)
@@ -281,7 +285,7 @@ QRect clampedDisplayRegion(QRectF region, QSize fullDisplaySize)
     return QRect(left, top, right - left, bottom - top);
 }
 
-QRect regionDisplayRect(QSize fullDisplaySize, QSize viewportSize, QPointF panOffset)
+QRect regionDisplayRect(QSize fullDisplaySize, QSize viewportSize, QPointF panOffset, bool overscan)
 {
     if (fullDisplaySize.isEmpty()) {
         return QRect();
@@ -302,13 +306,13 @@ QRect regionDisplayRect(QSize fullDisplaySize, QSize viewportSize, QPointF panOf
 
     if (visible.isEmpty()) {
         const QPointF center = viewportInDisplay.center();
-        const int x = clampedInt(static_cast<int>(std::floor(center.x())), 0, fullDisplaySize.width() - 1);
-        const int y = clampedInt(static_cast<int>(std::floor(center.y())), 0, fullDisplaySize.height() - 1);
+        const int x = clampedInt(std::floor(center.x()), 0, fullDisplaySize.width() - 1);
+        const int y = clampedInt(std::floor(center.y()), 0, fullDisplaySize.height() - 1);
         visible = QRect(x, y, 1, 1);
     }
 
-    const int overscanX = std::max(128, viewportSize.width() / 2);
-    const int overscanY = std::max(128, viewportSize.height() / 2);
+    const int overscanX = overscan ? std::max(128, viewportSize.width() / 2) : 0;
+    const int overscanY = overscan ? std::max(128, viewportSize.height() / 2) : 0;
     return clampedDisplayRegion(
         QRectF(visible).adjusted(-overscanX, -overscanY, overscanX, overscanY),
         fullDisplaySize);
@@ -512,13 +516,31 @@ DecodedImage renderVipsImage(vips::VImage image, const DecodeRequest &request)
             : std::max(0.01, request.scaleFactor);
         const double logicalScale = physicalScale / devicePixelRatio;
         const QSize fullDisplaySize = scaledSizeFor(rotatedSize, logicalScale);
+        if (fullDisplaySize.isEmpty() || !std::isfinite(request.scaleFactor)
+            || !std::isfinite(request.panOffset.x()) || !std::isfinite(request.panOffset.y())) {
+            result.errorMessage = QObject::tr("Image is too large to render at the requested scale.");
+            result.errorReason = DecodeErrorReason::RenderTooLarge;
+            return result;
+        }
         QRect sourceRegion(QPoint(0, 0), rotatedSize);
         QPoint displayRegionOffset;
-        const bool useRegionRendering = request.regionRendering && !request.fitToWindow;
+        const int outputBands = normalizedOutputBands(image);
+        const auto exceedsBudget = [&](QSize size) {
+            return exceedsRenderMemoryBudget(size, outputBands, physicalScale, request.maxDecodedBytes)
+                || (!rawToDisplay.isIdentity() && exceedsRenderMemoryBudget(size, image.bands(),
+                    physicalScale, request.maxDecodedBytes, static_cast<int>(vips_format_sizeof(image.format()))));
+        };
+        const bool useRegionRendering = !request.fitToWindow
+            && (request.regionRendering || exceedsBudget(rotatedSize));
 
         if (useRegionRendering) {
-            const QRect displayRegion = regionDisplayRect(fullDisplaySize, request.viewportSize, request.panOffset);
+            const QRect displayRegion = regionDisplayRect(fullDisplaySize, request.viewportSize, request.panOffset, true);
             sourceRegion = sourceRegionForDisplayRegion(displayRegion, logicalScale, rotatedSize);
+            if (exceedsBudget(sourceRegion.size())) {
+                sourceRegion = sourceRegionForDisplayRegion(
+                    regionDisplayRect(fullDisplaySize, request.viewportSize, request.panOffset, false),
+                    logicalScale, rotatedSize);
+            }
             if (sourceRegion.isEmpty()) {
                 result.errorMessage = QObject::tr("Image region is empty.");
                 result.errorReason = DecodeErrorReason::Other;
@@ -529,12 +551,7 @@ DecodedImage renderVipsImage(vips::VImage image, const DecodeRequest &request)
                 static_cast<int>(std::floor(sourceRegion.top() * logicalScale)));
         }
 
-        const int outputBands = normalizedOutputBands(image);
-        if (exceedsRenderMemoryBudget(
-                sourceRegion.size(),
-                outputBands,
-                physicalScale,
-                request.maxDecodedBytes)) {
+        if (exceedsBudget(sourceRegion.size())) {
             result.errorMessage = QObject::tr("Image is too large to render at the requested scale.");
             result.errorReason = DecodeErrorReason::RenderTooLarge;
             return result;
