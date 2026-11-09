@@ -625,6 +625,23 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
     QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
     QVERIFY(window.m_currentDecoded.ok());
     QCOMPARE(window.m_controller.rotationDegrees(), 90);
+    if (extension == QStringLiteral("jxl")) {
+        window.setActualSize();
+        QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+        QCOMPARE(window.m_currentDecoded.effectiveScale, 1.0);
+        window.applyCustomZoomWithFallback(32.0, QPointF());
+        QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+        QVERIFY(window.m_currentDecoded.ok());
+        QVERIFY(window.m_currentDecoded.regionBased);
+        const QRect previousRegion = window.m_currentDecoded.sourceRegion;
+        window.m_controller.setPanOffset(QPointF(200, -100));
+        window.m_imageView->setPanOffset(window.m_controller.panOffset());
+        window.scheduleRegionReload();
+        QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending && window.m_currentDecoded.sourceRegion != previousRegion, 5000);
+        window.setFitToWindow();
+        QTRY_VERIFY_WITH_TIMEOUT(!window.m_imageRenderPending, 5000);
+        QVERIFY(window.m_currentDecoded.ok());
+    }
     QApplication::clipboard()->clear();
     window.copyOriginalImageToClipboard();
     const QString mimeType = extension == QStringLiteral("tif") ? QStringLiteral("image/tiff")

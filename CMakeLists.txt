@@ -29,6 +29,22 @@ pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 
 include(cmake/BuildMetadata.cmake)
 
+find_program(CARGO_EXECUTABLE cargo REQUIRED)
+set(JXL_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rust/jxl_bridge")
+set(JXL_BRIDGE_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/cargo/release/libinsidious_jxl.a")
+add_custom_command(
+    OUTPUT "${JXL_BRIDGE_LIBRARY}"
+    COMMAND "${CMAKE_COMMAND}" -E env "CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR}/cargo"
+        "${CARGO_EXECUTABLE}" build --release --locked --manifest-path "${JXL_BRIDGE_DIR}/Cargo.toml"
+    DEPENDS "${JXL_BRIDGE_DIR}/Cargo.toml" "${JXL_BRIDGE_DIR}/Cargo.lock" "${JXL_BRIDGE_DIR}/src/lib.rs"
+    VERBATIM
+)
+add_custom_target(insidious_jxl_build DEPENDS "${JXL_BRIDGE_LIBRARY}")
+add_library(insidious_jxl STATIC IMPORTED)
+set_target_properties(insidious_jxl PROPERTIES IMPORTED_LOCATION "${JXL_BRIDGE_LIBRARY}")
+add_dependencies(insidious_jxl insidious_jxl_build)
+find_package(Threads REQUIRED)
+
 set(CORE_SOURCES
     src/core/animation_decode_session.cpp
     src/core/animation_decode_session.h
@@ -52,6 +68,9 @@ set(CORE_SOURCES
     src/core/image_formats.h
     src/core/image_sort.cpp
     src/core/image_sort.h
+    src/core/jxl_rs_bridge.h
+    src/core/jxl_rs_image_decoder.cpp
+    src/core/jxl_rs_image_decoder.h
     src/core/memory_image_cache.cpp
     src/core/memory_image_cache.h
     src/core/multi_collection_source.cpp
@@ -75,6 +94,10 @@ target_link_libraries(insidious_core
         Qt6::Concurrent
         PkgConfig::VIPSCPP
         PkgConfig::LIBARCHIVE
+    PRIVATE
+        insidious_jxl
+        Threads::Threads
+        ${CMAKE_DL_LIBS}
 )
 
 set(UI_SOURCES

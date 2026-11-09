@@ -89,6 +89,7 @@ private slots:
     void decoderGifFirstFrame();
     void decoderModernFormats_data();
     void decoderModernFormats();
+    void decoderJxlRsErrors();
     void decoderModernFormatFrames_data();
     void decoderModernFormatFrames();
     void decoderExifRotationAndRegion_data();
@@ -1508,6 +1509,52 @@ void CoreTests::decoderGifFirstFrame()
     }
 }
 
+void CoreTests::decoderJxlRsErrors()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = temp.filePath(QStringLiteral("sample.JXL"));
+    try {
+        auto image = vips::VImage::black(32, 24, vips::VImage::option()->set("bands", 3))
+            .new_from_image({40, 120, 200}).copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB));
+        image.jxlsave(path.toUtf8().constData(), vips::VImage::option()->set("lossless", TRUE)->set("effort", 1));
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
+    const auto entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(16, 12);
+    request.maxDecodedBytes = 1;
+    const auto tooLarge = VipsImageDecoder().decode(entry, request);
+    QVERIFY(!tooLarge.ok());
+    QCOMPARE(tooLarge.errorReason, DecodeErrorReason::RenderTooLarge);
+
+    request.maxDecodedBytes = 1024 * 1024;
+    const auto valid = VipsImageDecoder().decode(entry, request);
+    QVERIFY2(valid.ok(), qPrintable(valid.errorMessage));
+    QVERIFY(!valid.animated);
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadWrite));
+    const QByteArray original = file.readAll();
+    QVERIFY(file.resize(original.size() / 2));
+    QVERIFY(file.flush());
+    const auto truncated = VipsImageDecoder().decode(entry, request);
+    QVERIFY(!truncated.ok());
+    QCOMPARE(truncated.errorReason, DecodeErrorReason::Other);
+    QVERIFY(truncated.errorMessage.startsWith(QStringLiteral("jxl-rs:")));
+
+    QVERIFY(file.resize(0));
+    file.close();
+    // A PNG with a JXL suffix would open through libvips content detection: no silent fallback.
+    QImage png(8, 8, QImage::Format_RGB32);
+    png.fill(Qt::red);
+    QVERIFY(png.save(path, "PNG"));
+    const auto wrongFormat = VipsImageDecoder().decode(entry, request);
+    QVERIFY(!wrongFormat.ok());
+    QVERIFY(wrongFormat.errorMessage.startsWith(QStringLiteral("jxl-rs:")));
+}
+
 void CoreTests::decoderModernFormats_data()
 {
     QTest::addColumn<QString>("extension");
@@ -1711,6 +1758,9 @@ void CoreTests::decoderModernFormatFrames()
     const auto decoded = VipsImageDecoder().decode(entry, request);
     QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
     QCOMPARE(decoded.sourceSize, QSize(32, 24));
+    if (extension == QStringLiteral("jxl")) {
+        QVERIFY(!decoded.animated);
+    }
     const QColor pixel = decoded.image.pixelColor(16, 12);
     const QColor wanted = extension != QStringLiteral("jxl") ? QColor(180, 60, 30) : QColor(40, 120, 200);
     QVERIFY(std::abs(pixel.red() - wanted.red()) <= 4);

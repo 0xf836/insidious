@@ -1,0 +1,14 @@
+[package]
+name = "insidious_jxl"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+jxl = "=0.8.0"
+
+[profile.release]
+panic = "unwind"
