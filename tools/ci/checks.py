@@ -69,9 +69,9 @@ def package_required(paths):
     if docs_only(paths):
         return False
     return any(
-        path in {'CMakeLists.txt', 'PKGBUILD'}
+        path in {'CMakeLists.txt', 'PKGBUILD', 'tools/rust_dependencies.py'}
         or path.startswith(('cmake/', 'packaging/', 'resources/', '.github/workflows/',
-                            'tools/ci/', 'tools/packaging/', 'tools/release/'))
+                            'tools/ci/', 'tools/packaging/', 'tools/release/', 'rust/'))
         for path in paths)
 
 

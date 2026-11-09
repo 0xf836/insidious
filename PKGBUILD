@@ -13,7 +13,7 @@ depends=(
     'imagemagick'
     'libheif'
     'libde265'
-    'libjxl'
+    'libexif'
     'libarchive'
 )
 makedepends=(
@@ -21,8 +21,12 @@ makedepends=(
     'git'
     'ninja'
     'pkgconf'
+    'rust>=1.89'
+    'cargo'
+    'libjxl'
+    'python'
 )
-checkdepends=('zip' 'python' 'desktop-file-utils' 'appstream')
+checkdepends=('zip' 'desktop-file-utils' 'appstream')
 provides=('insidious')
 conflicts=('insidious')
 source=("insidious::git+${url}.git")
@@ -39,6 +43,11 @@ pkgver() {
         "${project_version}" \
         "$(git rev-list --count HEAD)" \
         "$(git rev-parse --short=7 HEAD)"
+}
+
+prepare() {
+    cd "${srcdir}/insidious/rust/jxl_bridge"
+    cargo fetch --locked
 }
 
 build() {

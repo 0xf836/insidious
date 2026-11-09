@@ -6,6 +6,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('artifacts', ROOT / 'tools/release/artifacts.py')
@@ -64,6 +65,29 @@ class SourceTests(unittest.TestCase):
         self.assertTrue(path.exists())
         with self.assertRaises(ValueError):
             artifacts.source_archive(self.source, self.root / 'bad-candidate', 'v0.1.0', True)
+
+    def test_rust_sources_are_prepared_from_export_and_normalized(self):
+        bridge = self.source / 'rust/jxl_bridge'
+        bridge.mkdir(parents=True)
+        (bridge / 'Cargo.toml').write_text('[package]\nname="fixture"\nversion="0.1.0"\n')
+        self.command('add', '.')
+        self.command('commit', '-qm', 'test: Rust bridge')
+        def vendor(manifest):
+            (manifest.parent / 'vendor/sample').mkdir(parents=True)
+            (manifest.parent / 'vendor/sample/lib.rs').write_text('// source\n')
+            (manifest.parent / '.cargo').mkdir()
+            (manifest.parent / '.cargo/config.toml').write_text('directory="vendor"\n')
+            (manifest.parent / 'third-party').mkdir()
+            (manifest.parent / 'third-party/THIRD_PARTY.json').write_text('[]\n')
+            (manifest.parent / 'bundled-rust.provides').write_text('')
+        with patch.object(artifacts, 'vendor', side_effect=vendor) as prepare:
+            path = artifacts.source_archive(self.source, self.root / 'rust-source', candidate=True)
+            prepare.assert_called_once()
+        self.assertFalse((bridge / 'vendor').exists())
+        with tarfile.open(path) as archive:
+            member = archive.getmember('insidious-0.1.0/rust/jxl_bridge/vendor/sample/lib.rs')
+            self.assertEqual((member.uid, member.gid, member.uname, member.gname), (0, 0, '', ''))
+            self.assertEqual(archive.extractfile(member).read(), b'// source\n')
 
     def test_source_rejects_symlinks(self):
         (self.source / 'link').symlink_to('image.txt')

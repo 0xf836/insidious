@@ -83,7 +83,7 @@ Opening one image:
 6. `VipsImageDecoder::decode()` returns a display raster as `DecodedImage`.
 7. `MainWindow` ignores stale decode results via generation counters, updates `ImageViewWidget`, then prefetches previous/next entries only for fit-sized decode requests. Same-entry render reloads are coalesced so only the newest pending request is kept while the active render finishes; switching to another entry starts a new foreground decode immediately. Prefetch jobs are tracked by cache key, coalesced while in flight, and use `MemoryImageCache` generation guards so results decoded before a cache clear cannot repopulate a new source cache.
 
-AVIF and HEIC/HEIF use the HEIF loader's default primary-image selection without setting `page` or `n`, since setting either changes that default to page zero. Still-image GIF and JPEG XL decoding uses the default first-frame selection; TIFF uses its loader's default first-page selection. These defaults are covered by multi-image fixtures, including an AVIF whose primary image is not the first item. These formats use the shared decoder for viewer, thumbnails, and comparison; no separate backend or archive extraction path is introduced.
+AVIF and HEIC/HEIF use the HEIF loader's default primary-image selection without setting `page` or `n`, since setting either changes that default to page zero. Still-image GIF and JPEG XL poster decoding uses the first visible frame; TIFF uses its loader's default first-page selection. These defaults are covered by multi-image fixtures, including an AVIF whose primary image is not the first item. These formats use the shared decoder for viewer, thumbnails, and comparison; JPEG XL uses its dedicated Rust backend; no archive extraction path is introduced.
 
 Raw JPEG 2000 codestreams use `image/x-jp2-codestream` for clipboard bytes and desktop associations, matching the system MIME database.
 
@@ -315,3 +315,42 @@ These boundaries are product decisions rather than a list of incomplete implemen
 `check.sh` builds and tests packages, then `runtime.sh` checks the resulting package
 in a fresh container without build tools. `evidence.py` binds the build/runtime
 reports to source and package digests. See [native packaging](packaging.md).
+
+## JPEG XL implementation
+
+`rust/jxl_bridge` implements source callbacks, checked native geometry, sequential
+frame decoding/header scans and a shared Rayon runner. Its C ABI is declared in
+`jxl_rs_bridge.h`; `JxlRasterDecoder` owns the callback context and handle, file or
+archive stream (or bounded RAM source for playback), and exposes frames plus
+metadata to the existing renderer. The source must outlive its handle. The adapter normalizes oriented codec output back into raw coordinates before the shared renderer applies autorotate, including when autorotate is disabled. Native
+pixel allocations use the shared estimator and libvips-tracked storage with an
+ownership callback; display QImages own their output storage independently.
+
+`VipsImageDecoder` dispatches JXL by case-insensitive extension. Static decoding
+uses a separate 384 MiB native limit, streams through to trailing EXIF, and keeps
+the caller's output budget unchanged. Animation timing is discovered through upstream scan mode without returning
+remaining pixel frames; invisible/reference frames may still require section decoding.
+Discovery failures retain the decoded poster and defer playback errors to session startup. Multipage timing
+sentinels do not start playback. `AnimationDecodeSession` uses the JXL branch for
+scan/advance/restart and the existing player for scheduling and generation guards.
+EXIF mapping lives in core and uses libexif, with bounded compressed/uncompressed
+container capture in Rust. GIF/WebP remain on their existing libvips session path.
+
+The optional `INSIDIOUS_BUILD_JXL_BENCHMARK` target compares the JXL and libvips
+backends in native and fit modes. It writes raw timings, medians and pixel hashes
+only to an explicit new JSON destination; input paths are not recorded. Run each
+configuration in a separate process, set `RAYON_NUM_THREADS` and `VIPS_CONCURRENCY`
+explicitly for comparisons, and compare hashes or pixel tolerances as appropriate.
+This tool and the memory audit are never installed with the viewer.
+
+For example, after building the benchmark target:
+
+```sh
+RAYON_NUM_THREADS=8 VIPS_CONCURRENCY=8 ./build/insidious_jxl_benchmark jxl-rs image.jxl fit 15 jxl-fit.json
+VIPS_CONCURRENCY=8 ./build/insidious_jxl_benchmark libvips image.jxl fit 15 vips-fit.json
+```
+
+Use `native` instead of `fit` to measure the full decoded source raster. Each
+invocation performs two excluded warmups and refuses to overwrite an output file.
+Hashing is outside the timed interval; different decoder implementations can
+have small rounding differences even when single/multi-thread jxl-rs hashes agree.

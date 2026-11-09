@@ -1,5 +1,6 @@
 #include "core/animation_decode_session.h"
 #include "core/archive_collection_source.h"
+#include "core/vips_image_decoder.h"
 #include "ui/animation_player.h"
 #include <QFileInfo>
 #include <QColorSpace>
@@ -342,6 +343,26 @@ private slots:
                 }
             }
         }
+    }
+    void jxlMultipageDoesNotStartPlayback()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath("pages.jxl");
+        auto first = vips::VImage::black(32, 24);
+        auto pages = first.join(first.new_from_image({255}), VIPS_DIRECTION_VERTICAL);
+        pages.set(VIPS_META_PAGE_HEIGHT, 24);
+        pages.write_to_file(path.toUtf8().constData());
+        core::ImageEntry entry;
+        entry.absolutePath = path;
+        entry.fileSize = QFileInfo(path).size();
+        core::AnimationDecodeSession session;
+        QVERIFY2(session.open(entry), qPrintable(session.errorMessage()));
+        QVERIFY(!session.info().animated());
+        core::DecodeRequest request;
+        request.viewportSize = QSize(32, 24);
+        const auto poster = core::VipsImageDecoder().decode(entry, request);
+        QVERIFY2(poster.ok(), qPrintable(poster.errorMessage));
+        QVERIFY(!poster.animated);
     }
     void existingSpaceShortcut()
     {

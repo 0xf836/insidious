@@ -37,6 +37,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Select Rust source preparation toolchain
+        run: |
+          rustup toolchain install 1.89.0 --profile minimal
+          echo "RUSTUP_TOOLCHAIN=1.89.0" >> "$GITHUB_ENV"
       - name: Prepare candidate sources for package qualification only
         run: |
           python3 tools/release/artifacts.py source --source . --candidate --output .ci-results/source

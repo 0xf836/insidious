@@ -6,3 +6,9 @@ updates:
       prefix: "ci(deps)"
     schedule:
       interval: monthly
+  - package-ecosystem: cargo
+    directory: /rust/jxl_bridge
+    commit-message:
+      prefix: "build(deps)"
+    schedule:
+      interval: monthly

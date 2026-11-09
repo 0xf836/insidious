@@ -2,8 +2,10 @@
 #include "core/vips_raster_renderer.h"
 
 #include "core/archive_entry_stream.h"
+#include "core/jxl_rs_image_decoder.h"
 #include "core/render_memory_budget.h"
 
+#include <QFileInfo>
 #include <QImage>
 #include <QObject>
 #include <QColorSpace>
@@ -438,6 +440,10 @@ DecodedImage VipsImageDecoder::decode(
     std::unique_ptr<ArchiveEntryStreamReader> archiveStream;
 
     try {
+        const QString sourcePath = entry.source == ImageEntrySource::Archive ? entry.archiveEntryPath : entry.absolutePath;
+        if (QFileInfo(sourcePath).suffix().compare(QLatin1String("jxl"), Qt::CaseInsensitive) == 0) {
+            return decodeJxlRs(entry, request, archivePassword);
+        }
         vips::VImage image;
         if (entry.source == ImageEntrySource::Archive) {
             archiveStream = std::make_unique<ArchiveEntryStreamReader>(entry, archivePassword);

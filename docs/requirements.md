@@ -40,6 +40,8 @@ Actual size uses physical-pixel semantics on HiDPI displays: one source image pi
 
 Fit rendering should request a display-sized raster. Non-fit zoom and actual-size rendering should request the visible region plus overscan by default. Disabling region rendering prefers a full scaled raster for smoother panning, with an automatic fallback to region rendering if the full raster exceeds the budget. If a region with overscan exceeds the budget, omit overscan before rejecting the request. Both output and transformed native intermediate rasters must pass the shared memory guard before pixel evaluation; the budget remains 384 MiB per raster for still images, with separate tighter animation accounting. Main-viewer custom zoom supports 5% through 25600%, subject to representable display geometry and the render budget.
 
+JPEG XL separately limits the full native source raster to 384 MiB, including its sample depth. This applies to fit, regions, thumbnails and comparison independently of their output budgets. A source exceeding this limit reports a render-too-large error; it does not fall back to another decoder. Static JXL sources are streamed without a 256 MiB encoded-source limit.
+
 The scaling-quality preset, color-management mode, EXIF orientation, view rotation, output geometry, and device pixel ratio must participate in the decode request and cache identity whenever they can change the output raster.
 
 ## Navigation
@@ -119,13 +121,13 @@ AVIF and HEIC/HEIF display the container's primary image; TIFF displays the firs
 - Playback respects finite/infinite loops. Positive frame durations have a 10 ms minimum; zero durations use 100 ms. Multi-page JXL timing markers are not treated as animation delays.
 - A slow decoder holds the current frame until the next is ready. No frame is skipped and there is no catch-up burst. Pause preserves the remaining frame interval.
 - View changes preserve the frame index and playback intent, holding the last raster until the new view is ready. Hidden/minimized windows and the Compare tab suspend preparation and timing; returning resumes only if the user had not paused.
-- Only confirmed animations allocate a playback source; static GIF/WebP/JXL files use the ordinary still-image path without the animation source-size limit. Animation sources are buffered only in RAM, at most 256 MiB. App-owned native/display rasters share a conservative 384 MiB session budget. Only the current and one next frame are retained; library working memory is outside this budget. Exceeding a limit stops playback with a compact error while retaining the last raster and navigation.
+- Confirmed animations allocate a playback source; static GIF/WebP/JXL files use the ordinary still-image path without the animation source-size limit. A JXL poster whose timing discovery fails may attempt bounded playback startup to report the error while preserving its pixels. Animation sources are buffered only in RAM, at most 256 MiB. App-owned native/display rasters share a conservative 384 MiB session budget. The session explicitly retains at most two native frames; backend operation caches may retain additional pixels, and library working memory is outside this budget. JXL animation timing discovery is limited to 65,536 visible frames. Exceeding a limit stops playback with a compact error while retaining the last raster and navigation.
 - Archive animation bytes are read once per session with a bounded full-entry read and reused for loops. No disk extraction, persistent playback state, or password storage is introduced. Copy Original Image copies the complete original file.
 
 
 TIFF uses the system libvips/libtiff loader; unavailable compression codecs or unsupported variants report a decode error.
 
-High-bit-depth SDR images are converted to the existing 8-bit RGB/RGBA display pipeline. AVIF requires the system libvips HEIF loader with an AV1 decoder; JPEG XL requires its JXL loader; JPEG 2000 requires OpenJPEG. HEIC/HEIF requires the HEIF loader plus an available HEVC decoder, which is not guaranteed by the presence of AVIF support. Embedded ICC profiles are supported; HEIF NCLX-only color descriptions follow the existing unprofiled sRGB assumption. Unavailable codecs and unsupported input variants must report a decode error while preserving navigation.
+High-bit-depth SDR images are converted to the existing 8-bit RGB/RGBA display pipeline. AVIF requires the system libvips HEIF loader with an AV1 decoder; JPEG XL uses jxl-rs and does not require the libvips JXL loader at runtime; JPEG 2000 requires OpenJPEG. HEIC/HEIF requires the HEIF loader plus an available HEVC decoder, which is not guaranteed by the presence of AVIF support. Embedded ICC profiles are supported; HEIF NCLX-only color descriptions follow the existing unprofiled sRGB assumption. Unavailable codecs and unsupported input variants must report a decode error while preserving navigation.
 
 RAW is not currently supported. A format must not become user-visible solely because the system libvips build exposes a decoder for it.
 
@@ -161,7 +163,7 @@ Comparison fullscreen is separate from viewer fullscreen. It preserves mode, ali
 
 ## Information and clipboard
 
-The Info panel must display existing `ImageEntry` and decode data only: name, format, path, file size, modified time, decoded dimensions, color-profile state, and a curated set of EXIF fields supplied by the decoder. It must not initiate separate filesystem scans or metadata backends.
+The Info panel must display existing `ImageEntry` and decode data only: name, format, path, file size, modified time, decoded dimensions, color-profile state, and a curated set of EXIF fields supplied by the decoder. JXL EXIF uses libexif; encoded and decompressed EXIF blocks are each limited to 8 MiB. Invalid or oversized optional EXIF is omitted without failing the pixels. It must not initiate separate filesystem scans or metadata backends.
 
 Copy Original Image must place original source bytes on the clipboard with an appropriate MIME type and may add compatible image data decoded from those bytes. It must never copy the transformed display raster. Filesystem and archive reads run away from the UI thread, use a bounded read, and reject stale results if the current entry changes.
 

@@ -2,10 +2,13 @@ Name:           insidious
 Version:        @VERSION@
 Release:        1%{?dist}
 Summary:        Fast, privacy-conscious image viewer for Linux
-License:        MIT
+License:        MIT AND BSD-3-Clause AND Unicode-3.0
 URL:            https://github.com/@REPOSITORY@
 Source0:        %{url}/releases/download/v%{version}/insidious-%{version}.tar.xz
 BuildRequires:  gcc-c++
+BuildRequires:  rust >= 1.89
+BuildRequires:  cargo
+BuildRequires:  pkgconfig(libexif)
 BuildRequires:  cmake
 BuildRequires:  ninja-build
 BuildRequires:  git-core
@@ -22,12 +25,15 @@ BuildRequires:  vips-magick
 BuildRequires:  vips-heif
 BuildRequires:  libheif-freeworld
 BuildRequires:  vips-jxl
+BuildRequires:  pkgconfig(libjxl)
 Requires:       qt6-qtbase >= 6.6
 Requires:       vips >= 8.18.3
 Requires:       vips-magick >= 8.18.3
 Requires:       vips-heif >= 8.18.3
 Requires:       libheif-freeworld
-Requires:       vips-jxl >= 8.18.3
+Requires:       libexif
+
+@BUNDLED_RUST_PROVIDES@
 
 %description
 Native Linux image viewer for browsing images, folders and image archives.
@@ -43,16 +49,20 @@ extraction to disk.
 
 %install
 %cmake_install
-# RPM owns the license installation through %%license.
-rm -rf %{buildroot}%{_datadir}/licenses/insidious
+# RPM owns the application license; retain third-party notices.
+rm -f %{buildroot}%{_datadir}/licenses/insidious/LICENSE
 
 %check
 %ctest
+if [ -n "${INSIDIOUS_RUNTIME_PROBE_DIR:-}" ]; then
+    install -Dm755 %{_vpath_builddir}/insidious_jxl_benchmark "${INSIDIOUS_RUNTIME_PROBE_DIR}/insidious_jxl_benchmark"
+fi
 desktop-file-validate resources/io.github._0xf836.Insidious.desktop
 appstreamcli validate --no-net resources/io.github._0xf836.Insidious.metainfo.xml
 
 %files
 %license LICENSE
+%license %{_datadir}/licenses/insidious/third-party/
 %{_bindir}/insidious
 %doc %{_docdir}/insidious/
 %{_datadir}/applications/io.github._0xf836.Insidious.desktop

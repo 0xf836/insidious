@@ -26,7 +26,7 @@ Actual decode behavior depends on the libvips build and its optional loaders. Em
 
 Current mitigation: an explicit format allowlist prevents accidental feature exposure; profile failures fall back without failing the entry; the build requires libvips/vips-cpp 8.18.3 or newer. The [dependency audit](dependency-audit.md) records missing SIMD resize bounds fixes in Ubuntu 26.04's 8.18.0 package and the performance cost of disabling SIMD.
 
-AVIF requires the HEIF module with an AV1 decoder, JPEG XL requires the JXL module, and JPEG 2000 requires OpenJPEG. HEIC/HEIF additionally needs a HEVC decoder in libheif; an AVIF-capable installation does not imply HEVC support. NCLX-only HEIF color descriptions are not converted separately and follow the unprofiled sRGB assumption. Codec dependencies are declared explicitly in native recipes. Codec libraries can allocate full source frames even for fit/region output; the shared render budget is not a bound on those allocations or total process memory. Target-distribution coverage must be checked when expanding formats or packaging.
+AVIF requires the HEIF module with an AV1 decoder, JPEG XL uses the bundled jxl-rs backend, and JPEG 2000 requires OpenJPEG. HEIC/HEIF additionally needs a HEVC decoder in libheif; an AVIF-capable installation does not imply HEVC support. NCLX-only HEIF color descriptions are not converted separately and follow the unprofiled sRGB assumption. Codec dependencies are declared explicitly in native recipes. Codec libraries can allocate full source frames even for fit/region output; the shared render budget is not a bound on those allocations or total process memory. Target-distribution coverage must be checked when expanding formats or packaging.
 
 ## Fullscreen behavior across window managers
 
@@ -45,3 +45,12 @@ Current mitigation: configured mouse shortcuts take priority over built-in gestu
 TIFF has a wide variety of layouts and sizes; first-page support does not promise every compression or scientific sample representation. The render budget does not bound source codec allocations. RAW is a family of formats requiring preview policy, color processing, and significant dependency decisions.
 
 Current mitigation: TIFF displays only its first page through the shared decoder and reports unsupported variants without losing navigation. RAW remains outside the explicit allowlist and requires separate research.
+
+## JPEG XL native memory and parallelism
+
+JXL needs a full native raster before the shared renderer can crop or resize it.
+The 384 MiB native guard does not bound codec working memory, concurrently running
+jobs or display caches. Large sources may therefore be rejected in fit or thumbnail
+mode even when the requested output is small. Uncached zoom/pan still repeats
+source decoding. The memory audit and developer benchmark cover this tradeoff;
+a new native-source cache or decode scheduler requires separate measurement.

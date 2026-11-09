@@ -15,7 +15,7 @@ source /etc/os-release
 case "${1:?Expected arch or fedora}" in
     arch)
         [[ "$ID" == arch ]]
-        pacman -Syu --noconfirm --needed base-devel cmake ninja pkgconf git zip python qt6-base libvips imagemagick libheif libde265 libjxl libarchive desktop-file-utils appstream
+        pacman -Syu --noconfirm --needed base-devel cmake ninja pkgconf git zip python qt6-base libvips imagemagick libheif libde265 libjxl libexif rust cargo libarchive desktop-file-utils appstream
         id builder >/dev/null 2>&1 || useradd --create-home builder
         cp /input/PKGBUILD /work/
         cp /input/insidious-*.tar.xz /work/
@@ -35,10 +35,11 @@ case "${1:?Expected arch or fedora}" in
         dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False upgrade --refresh
         # RPM Fusion supplies the system libheif HEVC plugins.
         dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm
-        dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install gcc-c++ cmake ninja-build git-core zip python3 qt6-qtbase-devel vips-devel vips-magick vips-heif libheif-freeworld vips-jxl libarchive-devel desktop-file-utils appstream rpm-build
+        dnf -y --disable-repo=fedora-cisco-openh264 --setopt=install_weak_deps=False install gcc-c++ cmake ninja-build git-core zip python3 qt6-qtbase-devel vips-devel vips-magick vips-heif libheif-freeworld vips-jxl libjxl-devel libexif-devel rust cargo libarchive-devel desktop-file-utils appstream rpm-build
         mkdir -p /work/rpmbuild/{SOURCES,SPECS}
         cp /input/insidious-*.tar.xz /work/rpmbuild/SOURCES/
         cp /input/insidious.spec /work/rpmbuild/SPECS/
+        export INSIDIOUS_RUNTIME_PROBE_DIR=/results
         rpmbuild -ba --define '_topdir /work/rpmbuild' --define '_smp_mflags -j2' /work/rpmbuild/SPECS/insidious.spec
         copy_rpms /work/rpmbuild /results
         package=(/results/insidious-[0-9]*.x86_64.rpm)
@@ -47,6 +48,13 @@ case "${1:?Expected arch or fedora}" in
     *) exit 2 ;;
 esac
 [[ "${#package[@]}" == 1 && -f "${package[0]}" ]]
+# Reuse the non-installed benchmark as a decoder probe in the clean runtime image.
+if [[ ! -x /results/insidious_jxl_benchmark ]]; then
+    mapfile -t probes < <(find /work -type f -name insidious_jxl_benchmark -executable)
+    [[ "${#probes[@]}" == 1 ]]
+    cp "${probes[0]}" /results/insidious_jxl_benchmark
+fi
+cp /src/tests/fixtures/runtime-static.jxl /results/runtime-static.jxl
 source_archive=(/input/insidious-*.tar.xz)
 [[ "${#source_archive[@]}" == 1 && -f "${source_archive[0]}" ]]
 python3 /src/tools/packaging/evidence.py build "$1" "${source_archive[0]}" "${package[0]}" /results/build.json

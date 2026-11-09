@@ -2,6 +2,7 @@
 #include "core/archive_entry_stream.h"
 #include "core/archive_read_error.h"
 #include "core/app_settings.h"
+#include "core/animation_decode_session.h"
 #include "core/folder_collection_source.h"
 #include "core/image_entry_validation.h"
 #include "core/image_formats.h"
@@ -11,6 +12,8 @@
 #include "core/natural_sort.h"
 #include "core/render_memory_budget.h"
 #include "core/vips_image_decoder.h"
+#include "core/jxl_rs_image_decoder.h"
+#include "core/vips_raster_renderer.h"
 #include "core/viewer_controller.h"
 
 #include <QDir>
@@ -27,7 +30,9 @@
 #include <QTemporaryDir>
 #include <QtTest>
 #include <QtEndian>
+#include <QtConcurrent>
 
+#include <jxl/encode.h>
 #include <archive.h>
 #include <archive_entry.h>
 #include <array>
@@ -89,6 +94,11 @@ private slots:
     void decoderGifFirstFrame();
     void decoderModernFormats_data();
     void decoderModernFormats();
+    void decoderJxlRsErrors();
+    void decoderJxlAnimationLimitKeepsPoster();
+    void decoderJxlStreamingAndMetadata();
+    void decoderJxlThumbnailBudgetAndConcurrentSources();
+    void decoderJxlOrientationAndRegion();
     void decoderModernFormatFrames_data();
     void decoderModernFormatFrames();
     void decoderExifRotationAndRegion_data();
@@ -1508,6 +1518,273 @@ void CoreTests::decoderGifFirstFrame()
     }
 }
 
+void CoreTests::decoderJxlRsErrors()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = temp.filePath(QStringLiteral("sample.JXL"));
+    try {
+        auto image = vips::VImage::black(32, 24, vips::VImage::option()->set("bands", 3))
+            .new_from_image({40, 120, 200}).copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB));
+        image.jxlsave(path.toUtf8().constData(), vips::VImage::option()->set("lossless", TRUE)->set("effort", 1));
+    } catch (const vips::VError &error) {
+        QFAIL(error.what());
+    }
+    const auto entry = imageEntryFromFileInfo(QFileInfo(path));
+    DecodeRequest request;
+    request.viewportSize = QSize(16, 12);
+    request.maxDecodedBytes = 1;
+    const auto tooLarge = VipsImageDecoder().decode(entry, request);
+    QVERIFY(!tooLarge.ok());
+    QCOMPARE(tooLarge.errorReason, DecodeErrorReason::RenderTooLarge);
+
+    request.maxDecodedBytes = 1024 * 1024;
+    const auto valid = VipsImageDecoder().decode(entry, request);
+    QVERIFY2(valid.ok(), qPrintable(valid.errorMessage));
+    QVERIFY(!valid.animated);
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadWrite));
+    const QByteArray original = file.readAll();
+    QVERIFY(file.resize(original.size() / 2));
+    QVERIFY(file.flush());
+    const auto truncated = VipsImageDecoder().decode(entry, request);
+    QVERIFY(!truncated.ok());
+    QCOMPARE(truncated.errorReason, DecodeErrorReason::Other);
+    QVERIFY(truncated.errorMessage.startsWith(QStringLiteral("jxl-rs:")));
+
+    QVERIFY(file.resize(0));
+    file.close();
+    // A PNG with a JXL suffix would open through libvips content detection: no silent fallback.
+    QImage png(8, 8, QImage::Format_RGB32);
+    png.fill(Qt::red);
+    QVERIFY(png.save(path, "PNG"));
+    const auto wrongFormat = VipsImageDecoder().decode(entry, request);
+    QVERIFY(!wrongFormat.ok());
+    QVERIFY(wrongFormat.errorMessage.startsWith(QStringLiteral("jxl-rs:")));
+}
+
+void CoreTests::decoderJxlAnimationLimitKeepsPoster()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    std::unique_ptr<JxlEncoder, decltype(&JxlEncoderDestroy)> encoder(JxlEncoderCreate(nullptr), JxlEncoderDestroy);
+    QVERIFY(encoder);
+    JxlBasicInfo info;
+    JxlEncoderInitBasicInfo(&info);
+    info.xsize = 1; info.ysize = 1; info.bits_per_sample = 8;
+    info.uses_original_profile = JXL_TRUE;
+    info.have_animation = JXL_TRUE;
+    info.animation.tps_numerator = 1000;
+    info.animation.tps_denominator = 1;
+    QCOMPARE(JxlEncoderSetBasicInfo(encoder.get(), &info), JXL_ENC_SUCCESS);
+    JxlColorEncoding color;
+    JxlColorEncodingSetToSRGB(&color, JXL_FALSE);
+    QCOMPARE(JxlEncoderSetColorEncoding(encoder.get(), &color), JXL_ENC_SUCCESS);
+    auto *settings = JxlEncoderFrameSettingsCreate(encoder.get(), nullptr);
+    QCOMPARE(JxlEncoderSetFrameLossless(settings, JXL_TRUE), JXL_ENC_SUCCESS);
+    QCOMPARE(JxlEncoderFrameSettingsSetOption(settings, JXL_ENC_FRAME_SETTING_EFFORT, 1), JXL_ENC_SUCCESS);
+    JxlFrameHeader header;
+    JxlEncoderInitFrameHeader(&header);
+    header.duration = 100;
+    QCOMPARE(JxlEncoderSetFrameHeader(settings, &header), JXL_ENC_SUCCESS);
+    const JxlPixelFormat format {3, JXL_TYPE_UINT8, JXL_NATIVE_ENDIAN, 0};
+    const uint8_t pixel[] = {240, 20, 10};
+    for (int i = 0; i < 65537; ++i) {
+        QCOMPARE(JxlEncoderAddImageFrame(settings, &format, pixel, sizeof(pixel)), JXL_ENC_SUCCESS);
+    }
+    JxlEncoderCloseInput(encoder.get());
+    QByteArray encoded;
+    JxlEncoderStatus status;
+    do {
+        const auto offset = encoded.size();
+        encoded.resize(offset + 65536);
+        auto *next = reinterpret_cast<uint8_t *>(encoded.data() + offset);
+        size_t available = 65536;
+        status = JxlEncoderProcessOutput(encoder.get(), &next, &available);
+        QVERIFY(status == JXL_ENC_SUCCESS || status == JXL_ENC_NEED_MORE_OUTPUT);
+        encoded.resize(encoded.size() - available);
+    } while (status == JXL_ENC_NEED_MORE_OUTPUT);
+    const auto path = temp.filePath(QStringLiteral("too-many-frames.jxl"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QCOMPARE(file.write(encoded), encoded.size());
+    file.close();
+    ImageEntry entry;
+    entry.absolutePath = path;
+    DecodeRequest request;
+    request.viewportSize = QSize(1, 1);
+    const auto poster = VipsImageDecoder().decode(entry, request);
+    QVERIFY2(poster.ok(), qPrintable(poster.errorMessage));
+    QVERIFY(poster.animated);
+    QCOMPARE(poster.image.pixelColor(0, 0), QColor(240, 20, 10));
+    AnimationDecodeSession session;
+    QVERIFY(!session.open(entry));
+    QVERIFY(session.errorMessage().contains(QStringLiteral("too many frames")));
+}
+
+void CoreTests::decoderJxlStreamingAndMetadata()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = temp.filePath(QStringLiteral("metadata.jxl"));
+    vips::VImage::black(32, 24, vips::VImage::option()->set("bands", 3))
+        .copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB))
+        .jxlsave(path.toUtf8().constData(), vips::VImage::option()->set("lossless", true));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadWrite));
+    QByteArray encoded = file.readAll();
+    auto box = [](const char *type, const QByteArray &payload) {
+        QByteArray result(8, '\0');
+        qToBigEndian<quint32>(payload.size() + 8, result.data());
+        std::memcpy(result.data() + 4, type, 4);
+        return result + payload;
+    };
+    if (encoded.startsWith(QByteArray::fromHex("ff0a"))) {
+        encoded = QByteArray::fromHex("0000000c4a584c200d0a870a") + box("jxlc", encoded);
+    }
+    QByteArray exif = QByteArray::fromHex("0000000049492a0008000000010010010200080000001a00000000000000");
+    exif.append("RustCam\0", 8);
+    QByteArray withoutExif = encoded.left(12);
+    for (qsizetype pos = 12; pos < encoded.size();) {
+        const quint32 size = qFromBigEndian<quint32>(encoded.constData() + pos);
+        QVERIFY(size >= 8 && pos + size <= encoded.size());
+        const auto type = encoded.mid(pos + 4, 4);
+        if (type != "Exif" && !(type == "brob" && encoded.mid(pos + 8, 4) == "Exif")) {
+            withoutExif += encoded.mid(pos, size);
+        }
+        pos += size;
+    }
+    encoded = withoutExif + box("Exif", exif);
+    QVERIFY(file.resize(0));
+    QVERIFY(file.seek(0));
+    QCOMPARE(file.write(encoded), encoded.size());
+    QVERIFY(file.flush());
+    DecodeRequest request;
+    request.viewportSize = QSize(16, 12);
+    auto entry = imageEntryFromFileInfo(QFileInfo(path));
+    auto decoded = VipsImageDecoder().decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QVERIFY(std::any_of(decoded.metadataFields.begin(), decoded.metadataFields.end(), [](const auto &field) {
+        return field.name == QStringLiteral("Camera") && field.value == QStringLiteral("RustCam");
+    }));
+    // A legal large trailing box must be streamed, rather than subject to the old source-buffer limit.
+    QByteArray freeHeader(8, '\0');
+    constexpr quint32 payload = 256U * 1024 * 1024 + 16;
+    qToBigEndian<quint32>(payload + 8, freeHeader.data());
+    std::memcpy(freeHeader.data() + 4, "free", 4);
+    QCOMPARE(file.write(freeHeader), freeHeader.size());
+    QVERIFY(file.resize(encoded.size() + 8 + payload));
+    QVERIFY(file.flush());
+    entry = imageEntryFromFileInfo(QFileInfo(path));
+    decoded = VipsImageDecoder().decode(entry, request);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.image.size(), QSize(16, 12));
+
+    JxlRasterDecoder limited;
+    QVERIFY(limited.open(entry, {}));
+    vips::VImage raster;
+    double delay;
+    bool more;
+    QVERIFY(!limited.readFrame(&raster, &delay, &more, 1));
+    QCOMPARE(limited.errorReason(), DecodeErrorReason::RenderTooLarge);
+}
+
+void CoreTests::decoderJxlThumbnailBudgetAndConcurrentSources()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString large = temp.filePath(QStringLiteral("large.jxl"));
+    vips::VImage::black(3072, 3072, vips::VImage::option()->set("bands", 3))
+        .new_from_image({40, 120, 200}).copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB))
+        .jxlsave(large.toUtf8().constData(), vips::VImage::option()->set("lossless", true)->set("effort", 1));
+    DecodeRequest thumbnail;
+    thumbnail.viewportSize = QSize(128, 128);
+    thumbnail.maxDecodedBytes = 32LL * 1024 * 1024;
+    const auto decoded = VipsImageDecoder().decode(imageEntryFromFileInfo(QFileInfo(large)), thumbnail);
+    QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+    QCOMPARE(decoded.image.size(), QSize(128, 128));
+    QList<QFuture<DecodedImage>> jobs;
+    for (int i = 0; i < 6; ++i) {
+        const QString path = temp.filePath(QStringLiteral("source-%1.jxl").arg(i));
+        vips::VImage::black(64, 48, vips::VImage::option()->set("bands", 3))
+            .new_from_image({double(i * 30), 120, 200}).copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB))
+            .jxlsave(path.toUtf8().constData(), vips::VImage::option()->set("lossless", true));
+        const auto entry = imageEntryFromFileInfo(QFileInfo(path));
+        jobs.append(QtConcurrent::run([entry, thumbnail]() { return VipsImageDecoder().decode(entry, thumbnail); }));
+    }
+    for (int i = 0; i < jobs.size(); ++i) {
+        const auto result = jobs[i].result();
+        QVERIFY2(result.ok(), qPrintable(result.errorMessage));
+        QVERIFY(std::abs(result.image.pixelColor(10, 10).red() - i * 30) <= 1);
+    }
+}
+
+void CoreTests::decoderJxlOrientationAndRegion()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    QImage pixels(64, 48, QImage::Format_RGB888);
+    for (int y = 0; y < pixels.height(); ++y) {
+        for (int x = 0; x < pixels.width(); ++x) { pixels.setPixelColor(x, y, QColor(20 + 3*x, 30 + 4*y, 100)); }
+    }
+    for (int orientation = 1; orientation <= 8; ++orientation) {
+        auto source = vips::VImage::new_from_memory(pixels.bits(), pixels.sizeInBytes(), 64, 48, 3, VIPS_FORMAT_UCHAR)
+            .copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB));
+        source.set(VIPS_META_ORIENTATION, orientation);
+        const auto path = temp.filePath(QStringLiteral("orientation-%1.jxl").arg(orientation));
+        std::unique_ptr<JxlEncoder, decltype(&JxlEncoderDestroy)> encoder(JxlEncoderCreate(nullptr), JxlEncoderDestroy);
+        QVERIFY(encoder);
+        JxlBasicInfo info;
+        JxlEncoderInitBasicInfo(&info);
+        info.xsize = 64; info.ysize = 48; info.bits_per_sample = 8;
+        info.uses_original_profile = JXL_TRUE;
+        info.orientation = static_cast<JxlOrientation>(orientation);
+        QCOMPARE(JxlEncoderSetBasicInfo(encoder.get(), &info), JXL_ENC_SUCCESS);
+        JxlColorEncoding color;
+        JxlColorEncodingSetToSRGB(&color, JXL_FALSE);
+        QCOMPARE(JxlEncoderSetColorEncoding(encoder.get(), &color), JXL_ENC_SUCCESS);
+        auto *settings = JxlEncoderFrameSettingsCreate(encoder.get(), nullptr);
+        QCOMPARE(JxlEncoderSetFrameLossless(settings, JXL_TRUE), JXL_ENC_SUCCESS);
+        const JxlPixelFormat format {3, JXL_TYPE_UINT8, JXL_NATIVE_ENDIAN, 0};
+        QCOMPARE(JxlEncoderAddImageFrame(settings, &format, pixels.constBits(), pixels.sizeInBytes()), JXL_ENC_SUCCESS);
+        JxlEncoderCloseInput(encoder.get());
+        QByteArray encoded(65536, '\0');
+        auto *next = reinterpret_cast<uint8_t *>(encoded.data());
+        size_t available = encoded.size();
+        QCOMPARE(JxlEncoderProcessOutput(encoder.get(), &next, &available), JXL_ENC_SUCCESS);
+        encoded.resize(encoded.size() - available);
+        QFile output(path);
+        QVERIFY(output.open(QIODevice::WriteOnly));
+        QCOMPARE(output.write(encoded), encoded.size());
+        output.close();
+        for (bool autorotate : {false, true}) {
+            for (int rotation : {0, 90, 180, 270}) {
+                DecodeRequest request;
+                request.fitToWindow = false;
+                request.regionRendering = true;
+                request.exifAutorotate = autorotate;
+                request.rotationDegrees = rotation;
+                request.devicePixelRatio = 2;
+                request.scaleFactor = 15.75;
+                request.viewportSize = QSize(32, 24);
+                request.panOffset = QPointF(9, -5);
+                const auto expected = renderVipsImage(source, request);
+                const auto actual = VipsImageDecoder().decode(imageEntryFromFileInfo(QFileInfo(path)), request);
+                QVERIFY2(actual.ok(), qPrintable(actual.errorMessage));
+                QVERIFY(expected.ok());
+                QCOMPARE(actual.sourceSize, expected.sourceSize);
+                QCOMPARE(actual.sourceRegion, expected.sourceRegion);
+                QCOMPARE(actual.image.size(), expected.image.size());
+                const auto a = actual.image.pixelColor(actual.image.width()/2, actual.image.height()/2);
+                const auto b = expected.image.pixelColor(expected.image.width()/2, expected.image.height()/2);
+                QVERIFY2(std::abs(a.red() - b.red()) <= 2, qPrintable(QStringLiteral("orientation=%1 autorotate=%2 rotation=%3 actual=%4 expected=%5").arg(orientation).arg(autorotate).arg(rotation).arg(a.red()).arg(b.red())));
+                QVERIFY(std::abs(a.green() - b.green()) <= 2);
+            }
+        }
+    }
+}
+
 void CoreTests::decoderModernFormats_data()
 {
     QTest::addColumn<QString>("extension");
@@ -1711,6 +1988,9 @@ void CoreTests::decoderModernFormatFrames()
     const auto decoded = VipsImageDecoder().decode(entry, request);
     QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
     QCOMPARE(decoded.sourceSize, QSize(32, 24));
+    if (extension == QStringLiteral("jxl")) {
+        QVERIFY(decoded.animated);
+    }
     const QColor pixel = decoded.image.pixelColor(16, 12);
     const QColor wanted = extension != QStringLiteral("jxl") ? QColor(180, 60, 30) : QColor(40, 120, 200);
     QVERIFY(std::abs(pixel.red() - wanted.red()) <= 4);

@@ -2,6 +2,9 @@
 #include "core/archive_collection_source.h"
 #include "core/render_memory_budget.h"
 #include "core/vips_raster_renderer.h"
+#include "core/jxl_rs_image_decoder.h"
+#include <cmath>
+#include <limits>
 
 #include <QFile>
 #include <QFileInfo>
@@ -20,6 +23,9 @@ struct AnimationDecodeSession::Data {
     int previousIndex = -1;
     ~Data() { if (!sequence.is_null()) { vips_image_invalidate_all(sequence.get_image()); } }
     qint64 nativeBytes = 0;
+    bool jxl = false;
+    std::unique_ptr<JxlRasterDecoder> jxlDecoder;
+    QVector<ImageMetadataField> metadata;
 };
 AnimationDecodeSession::AnimationDecodeSession() : d(std::make_unique<Data>()) {}
 AnimationDecodeSession::~AnimationDecodeSession() = default;
@@ -51,6 +57,7 @@ bool AnimationDecodeSession::open(const ImageEntry &entry, const QString &passwo
             d->error = QObject::tr("Could not read animation within the memory limit."); return false;
         }
     }
+    d->jxl = QFileInfo(entry.source == ImageEntrySource::Archive ? entry.archiveEntryPath : entry.absolutePath).suffix().compare(QLatin1String("jxl"), Qt::CaseInsensitive) == 0;
     if (!restart()) { return false; }
     if (!d->info.animated()) {
         d = std::make_unique<Data>();
@@ -68,6 +75,39 @@ bool AnimationDecodeSession::restart()
         if (!d->sequence.is_null()) { vips_image_invalidate_all(d->sequence.get_image()); }
         d->sequence = {};
         d->index = -1;
+        if (d->jxl) {
+            if (d->info.delaysMs.isEmpty()) {
+                JxlRasterDecoder scanner;
+                if (!scanner.openBytes(d->bytes, true)) { d->error = scanner.errorMessage(); return false; }
+                const auto &header = scanner.info();
+                if (!header.animated) { return true; }
+                if (header.totalPlays > static_cast<uint32_t>(std::numeric_limits<int>::max())) {
+                    d->error = QObject::tr("Invalid JPEG XL loop count."); return false;
+                }
+                d->info.canvasSize = QSize(header.width, header.height);
+                d->info.totalPlays = static_cast<int>(header.totalPlays);
+                const auto native = estimateRenderMemory(d->info.canvasSize, header.bands, 1.0, header.bytesPerSample);
+                if (native.overflowed || native.bytes > RasterByteLimit / 2) {
+                    d->error = QObject::tr("Animation canvas exceeds the memory limit."); return false;
+                }
+                d->nativeBytes = native.bytes;
+                bool more = true;
+                while (more) {
+                    double delay = -1;
+                    if (!scanner.readFrame(nullptr, &delay, &more, RasterByteLimit / 2)) { d->error = scanner.errorMessage(); return false; }
+                    if (delay < 0) { d->info = {}; return true; }
+                    if (!std::isfinite(delay) || delay > std::numeric_limits<int>::max()) {
+                        d->error = QObject::tr("Invalid JPEG XL frame duration."); return false;
+                    }
+                    d->info.delaysMs.append(delay == 0 ? 100 : std::max(10, static_cast<int>(std::lround(delay))));
+                    if (d->info.delaysMs.size() > 65536) { d->error = QObject::tr("Animation has too many frames."); return false; }
+                }
+                if (!scanner.finishMetadata(&d->metadata)) { d->error = scanner.errorMessage(); return false; }
+            }
+            d->jxlDecoder = std::make_unique<JxlRasterDecoder>();
+            if (!d->jxlDecoder->openBytes(d->bytes)) { d->error = d->jxlDecoder->errorMessage(); return false; }
+            return true;
+        }
         d->sequence = vips::VImage::new_from_buffer(d->bytes.constData(), d->bytes.size(), "",
             vips::VImage::option()->set("n", -1)->set("access", "sequential"));
         d->info = {};
@@ -97,6 +137,16 @@ bool AnimationDecodeSession::advance()
         if (!d->info.animated() || d->index + 1 >= d->info.delaysMs.size()) { return false; }
         const int next = d->index + 1;
         if (!d->current.is_null()) { d->previous = {}; }
+        if (d->jxl) {
+            vips::VImage image;
+            double duration;
+            bool more;
+            if (!d->jxlDecoder->readFrame(&image, &duration, &more, RasterByteLimit / 2)) { d->error = d->jxlDecoder->errorMessage(); return false; }
+            if (!d->current.is_null()) { d->previous = d->current; d->previousIndex = d->index; }
+            d->current = image;
+            d->index = next;
+            return true;
+        }
         auto image = d->sequence.extract_area(0, next * d->info.canvasSize.height(),
             d->info.canvasSize.width(), d->info.canvasSize.height()).copy_memory();
         // A detached frame must not retain sequence geometry.
@@ -121,6 +171,8 @@ DecodedImage AnimationDecodeSession::render(const DecodeRequest &request, qint64
         result.errorReason = DecodeErrorReason::RenderTooLarge;
         return result;
     }
-    return renderVipsImage(frameIndex >= 0 && frameIndex == d->previousIndex && !d->previous.is_null() ? d->previous : d->current, bounded);
+    auto result = renderVipsImage(frameIndex >= 0 && frameIndex == d->previousIndex && !d->previous.is_null() ? d->previous : d->current, bounded);
+    if (d->jxl) { result.metadataFields = d->metadata; }
+    return result;
 }
 }
