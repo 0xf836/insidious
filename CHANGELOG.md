@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0](https://github.com/0xf836/insidious/compare/v0.2.0...v0.3.0) (2026-11-09)
+
+
+### Features
+
+* **decoder:** add experimental jxl-rs JPEG XL decoding ([79d1b6d](https://github.com/0xf836/insidious/commit/79d1b6dc40827a2737df01150770d4b7b49d7b68))
+* **decoder:** complete jxl-rs JPEG XL integration ([03bc0aa](https://github.com/0xf836/insidious/commit/03bc0aa0bc3820045d2c7c41fadb1d5033e90648))
+
+
+### Bug Fixes
+
+* distinguish unsupported archive encryption ([#17](https://github.com/0xf836/insidious/issues/17)) ([8acfd5a](https://github.com/0xf836/insidious/commit/8acfd5a5e5ab09effecce50ad11ba5e8260a52b7))
+
+
+### Performance
+
+* **decoder:** parallelize experimental jxl-rs decoding ([35d0658](https://github.com/0xf836/insidious/commit/35d06587df821967381323ba5b24a12015acb06a))
+
+
+### Build and Packaging
+
+* **deps:** bump brotli-decompressor from 6.0.0 to 6.3.0 in /rust/jxl_bridge ([1949f9d](https://github.com/0xf836/insidious/commit/1949f9d761b3864494cf9f46a5081b7c41a00fa1))
+* **deps:** bump brotli-decompressor in /rust/jxl_bridge ([eba456c](https://github.com/0xf836/insidious/commit/eba456cc30f211c0c499841950beb903a0447090))
+
 ## [0.2.0](https://github.com/0xf836/insidious/compare/v0.1.0...v0.2.0) (2026-11-02)
 
 
