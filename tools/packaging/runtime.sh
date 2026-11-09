@@ -27,7 +27,7 @@ case "$distribution" in
     *) exit 2 ;;
 esac
 # Do not mask undeclared runtime requirements with build dependencies.
-for command in c++ cmake ninja; do
+for command in c++ cmake ninja cargo rustc; do
     if command -v "$command"; then
         printf 'Build tool unexpectedly present: %s\n' "$command" >&2
         exit 1
@@ -78,8 +78,15 @@ insidious --version | tee /results/version.txt
 desktop-file-validate /usr/share/applications/io.github._0xf836.Insidious.desktop
 appstreamcli validate --no-net /usr/share/metainfo/io.github._0xf836.Insidious.metainfo.xml
 cp /usr/share/icons/hicolor/128x128/apps/io.github._0xf836.Insidious.png '/work/image spaces ü.png'
+if [[ "$distribution" == fedora && ( "$previous" == --clean-install || "$previous" == --first-package ) ]]; then
+    ! rpm -q vips-jxl
+fi
+# The core probe shares the packaged decoder implementation but is never installed.
+/input/insidious_jxl_benchmark jxl-rs /input/runtime-static.jxl fit 2 /results/jxl-decode.json
+cp /input/runtime-static.jxl '/work/image spaces ü.jxl'
+
 set +e
-QT_QPA_PLATFORM=xcb xvfb-run -a timeout 5 insidious '/work/image spaces ü.png' > /results/launch.log 2>&1
+QT_QPA_PLATFORM=xcb xvfb-run -a timeout 5 insidious '/work/image spaces ü.jxl' > /results/launch.log 2>&1
 status=$?
 set -e
 [[ "$status" == 124 ]]
@@ -98,7 +105,7 @@ for attempt in {1..50}; do
 done
 [[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]]
 set +e
-QT_QPA_PLATFORM=wayland timeout 5 insidious '/work/image spaces ü.png' > /results/wayland-launch.log 2>&1
+QT_QPA_PLATFORM=wayland timeout 5 insidious '/work/image spaces ü.jxl' > /results/wayland-launch.log 2>&1
 status=$?
 set -e
 [[ "$status" == 124 ]]

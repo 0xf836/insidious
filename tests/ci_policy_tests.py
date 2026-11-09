@@ -3,6 +3,8 @@ import copy
 import importlib.util
 import json
 import os
+import re
+import shlex
 from pathlib import Path
 import tempfile
 import subprocess
@@ -92,7 +94,7 @@ class PolicyTests(unittest.TestCase):
         self.assertTrue(checks.aggregate(documentation, False, True))
         self.assertFalse(checks.aggregate(documentation, False, False))
         for path in ['CMakeLists.txt',
-                     'resources/icon.svg', 'tools/release/artifacts.py',
+                     'resources/icon.svg', 'tools/release/artifacts.py', 'rust/jxl_bridge/Cargo.lock', 'tools/rust_dependencies.py',
                      'packaging/platforms.json', '.github/workflows/release.yml']:
             self.assertTrue(checks.package_required([path]), path)
         for required in (False, True):
@@ -109,6 +111,15 @@ class PolicyTests(unittest.TestCase):
                                      status == expected[name]['result'])
             expected.pop('packages')
             self.assertFalse(checks.aggregate(expected, required))
+
+    def test_arch_python_is_available_without_checkdepends(self):
+        for recipe in ['PKGBUILD', 'packaging/arch/PKGBUILD.in']:
+            text = (ROOT / recipe).read_text()
+            build = re.search(r'makedepends=\((.*?)\)', text, re.S).group(1)
+            check = re.search(r'checkdepends=\((.*?)\)', text, re.S).group(1)
+            with self.subTest(recipe=recipe):
+                self.assertIn('python', shlex.split(build))
+                self.assertNotIn('python', shlex.split(check))
 
     def test_version(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {

@@ -64,7 +64,7 @@ Decision status is one of **Accepted**, **Planned**, **Historical**, or **Supers
 
 **Decision:** Image decoding, scaling, orientation, region extraction, and optional ICC conversion use libvips/vips-cpp. Unsupported or unavailable codecs produce a decode error rather than switching to a second backend.
 
-BMP/DIB require the system ImageMagick module. AVIF requires libheif with an AV1 decoder, JPEG XL requires libjxl, and JPEG 2000 requires OpenJPEG. HEIC/HEIF uses the same HEIF loader as AVIF but needs a HEVC decoder. Codec availability is a runtime condition: missing HEVC support reports a decode error rather than fetching a codec or adding a second backend. Native recipes and clean CI environments must install these optional libvips capabilities explicitly: `imagemagick`, `libheif`, and `libjxl` on Arch; `vips-magick`, `vips-heif`, and `vips-jxl` on Fedora. OpenJPEG and libtiff (for TIFF) are supplied by the standard libvips dependency chain. HEVC decoding is an explicit runtime dependency: `libde265` on Arch and `libheif-freeworld` from RPM Fusion Free on Fedora. The Fedora plugin package also supplies HEVC encoding for synthetic regression fixtures. This is a narrow exception to the standard-repository policy; keep Qt, libvips, and the base libheif from the distribution, without private libraries or automatic repository setup in the application/package maintainer scripts. They extend the existing backend rather than introducing another decoder.
+BMP/DIB require the system ImageMagick module. AVIF requires libheif with an AV1 decoder, JPEG XL uses the jxl-rs backend described in ADR-024, and JPEG 2000 requires OpenJPEG. HEIC/HEIF uses the same HEIF loader as AVIF but needs a HEVC decoder. Codec availability is a runtime condition: missing HEVC support reports a decode error rather than fetching a codec or adding a second backend. Native recipes and clean CI environments must install these optional libvips capabilities explicitly: `imagemagick` and `libheif` on Arch; `vips-magick` and `vips-heif` on Fedora. The libvips JXL loader is build/test-only for fixture encoding. OpenJPEG and libtiff (for TIFF) are supplied by the standard libvips dependency chain. HEVC decoding is an explicit runtime dependency: `libde265` on Arch and `libheif-freeworld` from RPM Fusion Free on Fedora. The Fedora plugin package also supplies HEVC encoding for synthetic regression fixtures. This is a narrow exception to the standard-repository policy; keep Qt, libvips, and the base libheif from the distribution, without private libraries or automatic repository setup in the application/package maintainer scripts. They extend the existing backend rather than introducing another decoder.
 
 **Rationale:** libvips is demand-driven, supports streaming and parallel processing, and fits the application’s performance and memory goals. One backend keeps color, orientation, and memory behavior consistent.
 
@@ -202,3 +202,26 @@ setup and retries. Production repository setup and enablement remain separate.
 **Decision:** Require the system libvips ImageMagick loader in clean build environments and native runtime dependency lists: `imagemagick` on Arch and `vips-magick` on Fedora. Keep missing Magick module warnings visible. No private library, new image backend or format allowlist expansion is introduced.
 
 **Rationale:** Clean candidate builds with the main libvips packages compiled successfully but failed all BMP/DIB decode checks (12 core cases). Arch ships the module with libvips but leaves its ImageMagick library optional; Fedora ships it as a separate subpackage. The viewer already promises these formats, so a successful host build with undeclared installed codecs is insufficient. [Continuous integration](ci.md) describes the candidate build workflows; native package qualification remains separate.
+
+## ADR-024: JPEG XL uses jxl-rs and the shared libvips renderer
+
+**Status:** Implemented; native qualification remains a separate validation gate.
+
+**Decision:** Statically link the locked Rust jxl-rs decoder and Rayon runner into
+the viewer, using synchronous streaming callbacks from core. Keep libvips for
+raster processing and all other codecs. Use system libexif for the existing JXL
+EXIF fields and a bounded Brotli decoder for compressed EXIF. Do not add backend
+selection or automatic fallback. Stills have a separate 384 MiB native raster
+limit; animations retain their bounded RAM-source and frame-pair policy. No new
+source cache, HDR tone mapping or progressive display is introduced.
+
+**Rationale:** Parallel JXL decoding removes the previous backend bottleneck while
+preserving the existing rendering, navigation and privacy model. A full native
+raster requires distinct budgeting from the requested thumbnail/display output.
+libexif avoids maintaining a TIFF/EXIF parser and restores the existing Info fields.
+The shared worker pool avoids creating a pool for every foreground/background job.
+
+Rust 1.89+, Cargo and Python 3 are build dependencies. Official source exports
+include the locked crates and their licenses; native builds run without registry
+access. Native Qt/libvips/libarchive/libexif stay distribution-managed. Static Rust
+components carry installed third-party notices and package license/provides data.

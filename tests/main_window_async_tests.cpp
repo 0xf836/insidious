@@ -39,7 +39,9 @@ private slots:
     void regionPanGesture();
     void regionPanPending_data();
     void regionPanPending();
+    void animatedViewer_data();
     void animatedViewer();
+    void animatedHoldZoom_data();
     void animatedHoldZoom();
     void animationStopsForFolders();
     void staticAnimationFormats_data();
@@ -400,10 +402,20 @@ void MainWindowAsyncTests::regionPanPending()
     }
 }
 
+void MainWindowAsyncTests::animatedViewer_data()
+{
+    QTest::addColumn<QString>("extension");
+    QTest::newRow("webp") << QStringLiteral("webp");
+    QTest::newRow("jxl") << QStringLiteral("jxl");
+}
+
+void MainWindowAsyncTests::animatedHoldZoom_data() { animatedViewer_data(); }
+
 void MainWindowAsyncTests::animatedViewer()
 {
+    QFETCH(QString, extension);
     QTemporaryDir temp;
-    const QString path = temp.filePath(QStringLiteral("animated.webp"));
+    const QString path = temp.filePath((QStringLiteral("animated.") + extension));
     auto first = vips::VImage::black(80, 60, vips::VImage::option()->set("bands", 3))
         .new_from_image({ 255, 0, 0 }).copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB));
     auto frames = first.join(first.new_from_image({ 0, 0, 255 }), VIPS_DIRECTION_VERTICAL);
@@ -443,10 +455,11 @@ void MainWindowAsyncTests::animatedViewer()
     window.m_animationAction->trigger();
     QTRY_VERIFY(presented.size() >= 5);
     window.copyOriginalImageToClipboard();
-    QTRY_VERIFY(QApplication::clipboard()->mimeData() != nullptr && QApplication::clipboard()->mimeData()->hasFormat(QStringLiteral("image/webp")));
+    QTRY_VERIFY(QApplication::clipboard()->mimeData() != nullptr && QApplication::clipboard()->mimeData()->hasFormat((QStringLiteral("image/") + extension)));
     QFile original(path);
     QVERIFY(original.open(QIODevice::ReadOnly));
-    QCOMPARE(QApplication::clipboard()->mimeData()->data(QStringLiteral("image/webp")), original.readAll());
+    const auto originalBytes = original.readAll();
+    QTRY_COMPARE_WITH_TIMEOUT(QApplication::clipboard()->mimeData()->data((QStringLiteral("image/") + extension)), originalBytes, 5000);
     window.m_animationPlayer->setView(oversized);
     QTRY_VERIFY(!window.m_animationPlayer->available());
     QVERIFY(window.m_imageView->hasImage());
@@ -455,9 +468,9 @@ void MainWindowAsyncTests::animatedViewer()
     QVERIFY(!window.m_animationPlayer->available());
 }
 
-static QString writeLoopingWebp(const QTemporaryDir &temp)
+static QString writeLoopingWebp(const QTemporaryDir &temp, const QString &extension = QStringLiteral("webp"))
 {
-    const QString path = temp.filePath(QStringLiteral("animated.webp"));
+    const QString path = temp.filePath(QStringLiteral("animated.") + extension);
     auto image = vips::VImage::black(80, 60, vips::VImage::option()->set("bands", 3))
         .new_from_image({255, 0, 0}).copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB));
     auto frames = image.join(image.new_from_image({0, 0, 255}), VIPS_DIRECTION_VERTICAL);
@@ -470,8 +483,9 @@ static QString writeLoopingWebp(const QTemporaryDir &temp)
 
 void MainWindowAsyncTests::animatedHoldZoom()
 {
+    QFETCH(QString, extension);
     QTemporaryDir temp;
-    const auto path = writeLoopingWebp(temp);
+    const auto path = writeLoopingWebp(temp, extension);
     MainWindow window;
     window.setFixedSize(800, 600);
     window.show();
@@ -648,7 +662,7 @@ void MainWindowAsyncTests::modernFormatsOpenCopyAndNavigate()
                                                                : QStringLiteral("image/") + extension;
     QTRY_VERIFY_WITH_TIMEOUT(QApplication::clipboard()->mimeData() != nullptr
             && QApplication::clipboard()->mimeData()->hasFormat(mimeType), 5000);
-    QCOMPARE(QApplication::clipboard()->mimeData()->data(mimeType), bytes);
+    QTRY_COMPARE_WITH_TIMEOUT(QApplication::clipboard()->mimeData()->data(mimeType), bytes, 5000);
     window.showNextImage();
     QTRY_VERIFY_WITH_TIMEOUT(window.m_controller.currentIndex() == 1 && !window.m_imageRenderPending, 5000);
     QVERIFY(!window.m_currentDecoded.ok());

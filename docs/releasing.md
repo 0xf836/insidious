@@ -344,3 +344,9 @@ These are design references, not promises that an upstream service or distributi
 - [Flatpak application ID conventions](https://docs.flatpak.org/en/latest/conventions.html#application-ids)
 - [D-Bus bus-name rules and escaping leading digits](https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-bus)
 - [Flatpak runtime, dependencies, and sandbox concepts](https://docs.flatpak.org/en/latest/basic-concepts.html)
+
+Source archives also include locked Rust dependency sources, relative Cargo
+configuration, bundled-crate inventory and license notices, as defined in
+[the packaging contract](packaging.md#locked-rust-dependencies). Cargo is required
+for source preparation; compilation uses these sources without registry access.
+The canonical archive remains normalized and bound to the source commit.

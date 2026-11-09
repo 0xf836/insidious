@@ -41,14 +41,16 @@ Requirements:
 - Ninja
 - C++20 compiler
 - Qt 6.6 or newer with Core, Gui, Widgets, Concurrent, and Test components
-- libvips/vips-cpp 8.18.3 or newer, including its system ImageMagick loader for BMP/DIB, libheif with an AV1 decoder for AVIF, libjxl for JPEG XL, OpenJPEG for JPEG 2000, and a libheif HEVC decoder for HEIC/HEIF
-- libarchive
+- libvips/vips-cpp 8.18.3 or newer, including its system ImageMagick loader for BMP/DIB, libheif with an AV1 decoder for AVIF, OpenJPEG for JPEG 2000, and a libheif HEVC decoder for HEIC/HEIF
+- libarchive and libexif
+- Rust 1.89 or newer, Cargo, and Python 3; JPEG XL is decoded by the statically linked jxl-rs backend
+- The libvips JXL loader/libjxl for generating test fixtures only
 - pkg-config
 
 Arch Linux and similar systems:
 
 ```sh
-sudo pacman -S qt6-base libvips imagemagick libheif libde265 libjxl libarchive cmake ninja pkgconf git bash
+sudo pacman -S qt6-base libvips imagemagick libheif libde265 libjxl libexif rust cargo python libarchive cmake ninja pkgconf git bash
 ```
 
 Debian, Ubuntu, and similar systems:
@@ -56,12 +58,13 @@ Debian, Ubuntu, and similar systems:
 Check the [dependency audit](docs/dependency-audit.md) and [platform matrix](packaging/platforms.json) before using the package names below. Arch and Fedora 44 are qualified native targets. Standard Ubuntu 24.04 lacks the required Qt API, and Ubuntu 26.04 currently ships libvips 8.18.0, below the retained 8.18.3 minimum. These commands do not imply native support for those releases.
 
 ```sh
-sudo apt install qt6-base-dev libvips-dev libarchive-dev cmake ninja-build pkg-config git bash
+sudo apt install qt6-base-dev libvips-dev libarchive-dev libexif-dev libjxl-dev rustc cargo python3 cmake ninja-build pkg-config git bash
 ```
 
-Configure, build, and test:
+Configure, build, and test (skip the fetch for official source archives, which include locked Rust dependencies):
 
 ```sh
+cargo fetch --locked --manifest-path rust/jxl_bridge/Cargo.toml
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ctest --test-dir build --output-on-failure

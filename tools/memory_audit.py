@@ -13,6 +13,8 @@ SCENARIOS = [
     "archive-fit",
     "zoom-render",
     "prefetch-simulation",
+    "concurrent-decode",
+    "animation-playback",
 ]
 
 
@@ -42,7 +44,7 @@ def create_noise_jpeg(path, width, height):
     ], quiet=True)
 
 
-def create_fixtures(fixture_dir):
+def create_fixtures(fixture_dir, image_format="jpg"):
     fixture_dir.mkdir(parents=True, exist_ok=True)
 
     create_noise_jpeg(fixture_dir / "large-fs.jpg", 4800, 3200)
@@ -50,6 +52,9 @@ def create_fixtures(fixture_dir):
     for index in range(1, 4):
         create_noise_jpeg(fixture_dir / f"prefetch-{index}.jpg", 3600, 2400)
 
+    if image_format == "jxl":
+        for jpeg in fixture_dir.glob("*.jpg"):
+            run(["vips", "copy", str(jpeg), str(jpeg.with_suffix(".jxl"))], quiet=True)
     archive_path = fixture_dir / "large-archive.zip"
     if archive_path.exists():
         archive_path.unlink()
@@ -58,7 +63,7 @@ def create_fixtures(fixture_dir):
         "-q",
         "-j",
         str(archive_path),
-        str(fixture_dir / "large-archive-entry.jpg"),
+        str(fixture_dir / ("large-archive-entry." + image_format)),
     ])
 
 
@@ -72,7 +77,7 @@ def parse_key_value(output):
     return result
 
 
-def run_scenario(executable, fixture_dir, scenario):
+def run_scenario(executable, fixture_dir, scenario, image_format="jpg"):
     completed = subprocess.run(
         [
             str(executable),
@@ -80,6 +85,8 @@ def run_scenario(executable, fixture_dir, scenario):
             str(fixture_dir),
             "--scenario",
             scenario,
+            "--format",
+            image_format,
         ],
         text=True,
         stdout=subprocess.PIPE,
@@ -130,6 +137,7 @@ def main():
     parser.add_argument("--build-dir", default="build", help="CMake build directory.")
     parser.add_argument("--fixture-dir", help="Directory for generated synthetic fixtures.")
     parser.add_argument("--keep-fixtures", action="store_true", help="Keep generated fixtures.")
+    parser.add_argument("--format", choices=("jpg", "jxl"), default="jpg")
     parser.add_argument("--scenario", choices=SCENARIOS, action="append", help="Scenario to run; defaults to all.")
     args = parser.parse_args()
 
@@ -148,8 +156,8 @@ def main():
         fixture_dir = Path(owned_temp.name)
 
     try:
-        create_fixtures(fixture_dir)
-        rows = [run_scenario(executable, fixture_dir, scenario) for scenario in (args.scenario or SCENARIOS)]
+        create_fixtures(fixture_dir, args.format)
+        rows = [run_scenario(executable, fixture_dir, scenario, args.format) for scenario in (args.scenario or (SCENARIOS if args.format == "jxl" else SCENARIOS[:-1]))]
         print(markdown_table(rows))
         print()
         print(f"Fixture directory: {fixture_dir}")

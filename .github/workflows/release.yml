@@ -61,6 +61,10 @@ jobs:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Select Rust source preparation toolchain
+        run: |
+          rustup toolchain install 1.89.0 --profile minimal
+          echo "RUSTUP_TOOLCHAIN=1.89.0" >> "$GITHUB_ENV"
       - name: Create source archive and recipes
         env:
           RELEASE_TAG: ${{ inputs.tag }}

@@ -17,6 +17,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
 include(CTest)
+option(INSIDIOUS_BUILD_JXL_BENCHMARK "Build developer JPEG XL benchmark" OFF)
 option(INSIDIOUS_BUILD_MEMORY_AUDIT "Build developer memory-audit tooling" OFF)
 
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
@@ -26,24 +27,48 @@ endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VIPSCPP REQUIRED IMPORTED_TARGET vips-cpp>=8.18.3)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
+pkg_check_modules(LIBEXIF REQUIRED IMPORTED_TARGET libexif)
+if(BUILD_TESTING)
+    pkg_check_modules(JXL_TEST REQUIRED IMPORTED_TARGET libjxl)
+endif()
 
 include(cmake/BuildMetadata.cmake)
 
 find_program(CARGO_EXECUTABLE cargo REQUIRED)
+find_program(RUSTC_EXECUTABLE rustc REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+execute_process(COMMAND "${RUSTC_EXECUTABLE}" --version OUTPUT_VARIABLE RUSTC_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+if(NOT RUSTC_VERSION MATCHES "rustc ([0-9]+\\.[0-9]+\\.[0-9]+)" OR CMAKE_MATCH_1 VERSION_LESS "1.89.0")
+    message(FATAL_ERROR "Rust 1.89.0 or newer is required for JPEG XL decoding")
+endif()
 set(JXL_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rust/jxl_bridge")
+set(JXL_RUSTFLAGS "--remap-path-prefix=${CMAKE_CURRENT_SOURCE_DIR}=. --remap-path-prefix=$ENV{HOME}/.cargo=rust-deps")
 set(JXL_BRIDGE_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/cargo/release/libinsidious_jxl.a")
+file(GLOB JXL_BRIDGE_SOURCES CONFIGURE_DEPENDS "${JXL_BRIDGE_DIR}/src/*.rs")
 add_custom_command(
-    OUTPUT "${JXL_BRIDGE_LIBRARY}"
-    COMMAND "${CMAKE_COMMAND}" -E env "CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR}/cargo"
-        "${CARGO_EXECUTABLE}" build --release --locked --manifest-path "${JXL_BRIDGE_DIR}/Cargo.toml"
-    DEPENDS "${JXL_BRIDGE_DIR}/Cargo.toml" "${JXL_BRIDGE_DIR}/Cargo.lock" "${JXL_BRIDGE_DIR}/src/lib.rs"
+    OUTPUT "${JXL_BRIDGE_LIBRARY}" "${CMAKE_CURRENT_BINARY_DIR}/rust-licenses/THIRD_PARTY.json"
+    COMMAND "${CMAKE_COMMAND}" -E env "CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR}/cargo" "RUSTFLAGS=${JXL_RUSTFLAGS}"
+        "${CARGO_EXECUTABLE}" build --release --frozen --manifest-path "${JXL_BRIDGE_DIR}/Cargo.toml"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/rust_dependencies.py" notices
+        --manifest "${JXL_BRIDGE_DIR}/Cargo.toml" --output "${CMAKE_CURRENT_BINARY_DIR}/rust-licenses"
+    DEPENDS "${JXL_BRIDGE_DIR}/Cargo.toml" "${JXL_BRIDGE_DIR}/Cargo.lock" ${JXL_BRIDGE_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/rust_dependencies.py"
+    WORKING_DIRECTORY "${JXL_BRIDGE_DIR}"
     VERBATIM
 )
-add_custom_target(insidious_jxl_build DEPENDS "${JXL_BRIDGE_LIBRARY}")
+add_custom_target(insidious_jxl_build DEPENDS "${JXL_BRIDGE_LIBRARY}" "${CMAKE_CURRENT_BINARY_DIR}/rust-licenses/THIRD_PARTY.json")
 add_library(insidious_jxl STATIC IMPORTED)
 set_target_properties(insidious_jxl PROPERTIES IMPORTED_LOCATION "${JXL_BRIDGE_LIBRARY}")
 add_dependencies(insidious_jxl insidious_jxl_build)
 find_package(Threads REQUIRED)
+if(BUILD_TESTING)
+    add_test(NAME insidious_rust_tests COMMAND "${CMAKE_COMMAND}" -E env
+        "CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR}/cargo" "RUSTFLAGS=${JXL_RUSTFLAGS}" "RAYON_NUM_THREADS=4"
+        "${CARGO_EXECUTABLE}" test --release --frozen --manifest-path "${JXL_BRIDGE_DIR}/Cargo.toml")
+    set_tests_properties(insidious_rust_tests PROPERTIES WORKING_DIRECTORY "${JXL_BRIDGE_DIR}")
+endif()
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/rust-licenses/"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/licenses/insidious/third-party")
 
 set(CORE_SOURCES
     src/core/animation_decode_session.cpp
@@ -96,6 +121,7 @@ target_link_libraries(insidious_core
         PkgConfig::LIBARCHIVE
     PRIVATE
         insidious_jxl
+        PkgConfig::LIBEXIF
         Threads::Threads
         ${CMAKE_DL_LIBS}
 )
@@ -164,6 +190,11 @@ install(FILES LICENSE
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME}"
 )
 
+if(INSIDIOUS_BUILD_JXL_BENCHMARK OR BUILD_TESTING)
+    add_executable(insidious_jxl_benchmark tools/jxl_benchmark.cpp)
+    target_link_libraries(insidious_jxl_benchmark PRIVATE insidious_core)
+endif()
+
 if(INSIDIOUS_BUILD_MEMORY_AUDIT)
 add_executable(insidious_memory_audit
     tools/memory_audit.cpp
@@ -190,6 +221,9 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME insidious_packaging_tests
         COMMAND "${Python3_EXECUTABLE}" -m unittest discover
             -s "${CMAKE_SOURCE_DIR}/tests" -p packaging_tests.py -v)
+    add_test(NAME insidious_rust_dependency_tests
+        COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+            -s "${CMAKE_SOURCE_DIR}/tests" -p rust_dependency_tests.py -v)
     add_test(NAME insidious_release_tests
         COMMAND "${Python3_EXECUTABLE}" -m unittest discover
             -s "${CMAKE_SOURCE_DIR}/tests" -p release_tests.py -v)
@@ -208,6 +242,7 @@ target_link_libraries(insidious_core_tests
         insidious_core
         Qt6::Test
 )
+target_link_libraries(insidious_core_tests PRIVATE PkgConfig::JXL_TEST)
 add_test(NAME insidious_core_tests COMMAND insidious_core_tests)
 set_tests_properties(insidious_core_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"

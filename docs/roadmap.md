@@ -75,3 +75,7 @@ Revisit native Debian/Ubuntu recipes when dependency exclusions are resolved.
 - Archive password storage.
 - File logging during normal use.
 - Silent support for every format exposed by the system image stack.
+
+JPEG XL progressive display, HDR tone mapping and native-source raster reuse remain
+separate investigations. The current jxl-rs backend and its limits are described
+in [the requirements](requirements.md), rather than treated as future format support.

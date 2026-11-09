@@ -30,3 +30,12 @@ jobs:
       - run: python3 -m unittest discover -s tests -p 'release_tests.py' -v
       - id: policy
         run: python3 tools/ci/checks.py validate
+      - name: Check locked Rust bridge
+        if: steps.policy.outputs.docs_only != 'true'
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/.ci-results/cargo-checks
+        run: |
+          rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
+          rustup run 1.89.0 cargo fetch --locked --manifest-path rust/jxl_bridge/Cargo.toml
+          rustup run 1.89.0 cargo fmt --manifest-path rust/jxl_bridge/Cargo.toml -- --check
+          rustup run 1.89.0 cargo clippy --frozen --manifest-path rust/jxl_bridge/Cargo.toml -- -D warnings

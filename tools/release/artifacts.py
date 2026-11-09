@@ -8,10 +8,13 @@ import re
 import subprocess
 import sys
 import tarfile
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools/packaging'))
 from prepare import VERSION, inspect_source
+sys.path.insert(0, str(ROOT / 'tools'))
+from rust_dependencies import vendor
 
 
 def git(source, *args):
@@ -46,7 +49,8 @@ def source_archive(source, output, tag=None, candidate=False):
     output.mkdir(parents=True, exist_ok=False)
     path = output / f'insidious-{version}.tar.xz'
     exported = git(source, 'archive', '--format=tar', commit)
-    with tarfile.open(fileobj=io.BytesIO(exported)) as archive, \
+    with tempfile.TemporaryDirectory() as temporary, \
+            tarfile.open(fileobj=io.BytesIO(exported)) as archive, \
             tarfile.open(path, 'w:xz', format=tarfile.PAX_FORMAT) as result:
         members = list(archive)
         if any(m.name == 'source-metadata.json' for m in members):
@@ -62,6 +66,32 @@ def source_archive(source, output, tag=None, candidate=False):
             member.mtime = epoch
             member.pax_headers = {}
             result.addfile(member, archive.extractfile(member) if member.isfile() else None)
+        manifest_name = 'rust/jxl_bridge/Cargo.toml'
+        if f'insidious-{version}/{manifest_name}' in archive.getnames():
+            staging = Path(temporary)
+            # Members were validated above; extract regular source files only.
+            for original in archive.getmembers():
+                relative = PurePosixPath(original.name).relative_to(f'insidious-{version}')
+                staged_file = staging / relative
+                if original.isfile():
+                    staged_file.parent.mkdir(parents=True, exist_ok=True)
+                    staged_file.write_bytes(archive.extractfile(original).read())
+            bridge = staging / 'rust/jxl_bridge'
+            vendor(bridge / 'Cargo.toml')
+            for generated in ('vendor', '.cargo', 'third-party', 'bundled-rust.provides'):
+                base = bridge / generated
+                paths = sorted(base.rglob('*')) if base.is_dir() else [base]
+                for staged_file in paths:
+                    if staged_file.is_symlink():
+                        raise ValueError('Symlink in vendored Rust source')
+                    if not staged_file.is_file():
+                        continue
+                    member = tarfile.TarInfo(f'insidious-{version}/' + staged_file.relative_to(staging).as_posix())
+                    member.size = staged_file.stat().st_size
+                    member.mode = 0o644
+                    member.mtime = epoch
+                    with staged_file.open('rb') as stream:
+                        result.addfile(member, stream)
         metadata = (json.dumps({'version': version, 'commit': commit}, sort_keys=True) + '\n').encode()
         member = tarfile.TarInfo(f'insidious-{version}/source-metadata.json')
         member.size, member.mtime, member.mode = len(metadata), epoch, 0o644

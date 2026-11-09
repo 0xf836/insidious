@@ -82,3 +82,10 @@ packages without another build or CTest pass. Package evidence is retained for
 name remains `CI required`.
 
 GitHub semantics used here are described in [reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows) and [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).
+
+Rust source preparation and offline package builds follow the
+[locked dependency contract](packaging.md#locked-rust-dependencies).
+Cargo source/lockfile changes request package qualification. Distribution build
+checks include Rust formatting, clippy and unit tests; source preparation uses
+Rust 1.89 to validate the declared minimum. Dependabot handles Cargo updates
+separately from workflow dependencies.

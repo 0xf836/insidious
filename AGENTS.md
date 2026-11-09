@@ -32,7 +32,7 @@ This is a native Linux GUI image viewer. The application should quickly open and
 
 ## Current implementation quick map
 
-The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18.3+, and libarchive. BMP/DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF require system libvips codec modules; keep their dependencies aligned across native recipes and clean CI environments. See `docs/decisions.md#adr-008-libvips-builds-display-rasters` for the codec requirements.
+The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18.3+, and libarchive. JPEG XL uses a statically linked Rust jxl-rs backend with system libexif for EXIF; Rust 1.89+, Cargo and Python 3 are build dependencies. BMP/DIB, AVIF, JPEG 2000, and HEIC/HEIF require system libvips codec modules; keep their dependencies aligned across native recipes and clean CI environments. See `docs/decisions.md#adr-008-libvips-builds-display-rasters` for the codec requirements.
 
 - `CMakeLists.txt` defines `insidious_core`, the `insidious` GUI executable, developer memory-audit tooling, the Qt Test targets, and native install rules for the binary, desktop resources, documentation tree, and license.
 - `src/app/main.cpp` owns process bootstrap: initializes libvips, filters known missing-dependency warnings from optional modules outside the supported format allowlist, configures libvips cache limits, creates `QApplication`, parses an optional path argument, and shows the main window.
@@ -47,6 +47,7 @@ The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18
 - `src/ui/quick_jump_dialog.*` is a UI-only filename jump dialog over the current collection. Keep it free of filesystem scanning, decoding, metadata lookup, and persistent state.
 - `src/ui/image_view_widget.*` paints the current `QImage` and translates mouse input into viewer commands. It should not scan folders or decode images.
 - `src/ui/animation_player.*` owns the animation timer and one sequential worker. Keep codec/source state in `src/core/animation_decode_session.*`; preserve bounded preparation and generation guards.
+- `rust/jxl_bridge/` owns JPEG XL source callbacks, bounded EXIF container capture, native decoding and Rayon scheduling. `src/core/jxl_rs_image_decoder.*` owns source lifetimes, raster budgets and libexif field mapping; libvips still renders the decoded pixels.
 - `src/core/` is non-widget logic: image entries, supported format filtering, natural sorting, folder/archive/multi-source scanning, viewer state, settings schema, decode request/result types, render-memory budget estimation, memory cache, libarchive full-entry/stream reading, and libvips decoding.
 - `tools/vips_vector_benchmark.py` is developer-only SIMD comparison tooling. It uses temporary fixtures and writes raw measurements plus CPU/SIMD metadata only to an explicit JSON destination; it is not installed with the application.
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` are developer-only total peak memory audit tooling. They generate temporary synthetic fixtures and must not introduce persistent app data or user-facing settings.
@@ -58,6 +59,7 @@ The current implementation is C++20 with Qt6 Widgets 6.6+, libvips/vips-cpp 8.18
 Use an out-of-source build. The default local build directory is ignored by git.
 
 ```sh
+cargo fetch --locked --manifest-path rust/jxl_bridge/Cargo.toml
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ctest --test-dir build --output-on-failure
@@ -157,7 +159,7 @@ Current fullscreen behavior:
 - Filesystem folder nodes should be loaded lazily on selection/expansion. Do not reintroduce full recursive filesystem scans for normal folder opening.
 - Archive folder trees are built from async header enumeration; do not extract archives to disk or read image data before decode.
 - The left file list should mirror the active folder collection only. Do not put source scanning, archive access, decoding, thumbnails, comparison decoding, or persistence there. The separate thumbnail tab may request thumbnail decode work only while visibly active; comparison work belongs to the comparison widget and only after explicit context-menu launch.
-- The right info panel should display existing entry/decode data only, including decoder-provided color profile status. EXIF currently comes from libvips metadata collected during decode; do not add separate metadata backends or persistent panel state unless explicitly planned.
+- The right info panel should display existing entry/decode data only, including decoder-provided color profile status. EXIF comes from libvips metadata for its loaders and bounded JXL EXIF parsed by libexif; do not add separate metadata backends or persistent panel state unless explicitly planned.
 - If adding dependencies, update `README.md`, `docs/decisions.md`, and this file with why they are needed.
 - Keep `PKGBUILD`, `docs/arch-linux.md`, install rules, and package dependency lists aligned when changing build dependencies or installed files.
 

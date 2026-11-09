@@ -101,7 +101,7 @@ This atomic classification avoids partial opens and gives multi-archive password
 
 A decode request describes the entry and every property that can change its output raster: view mode, requested scale or region, viewport, pan, device pixel ratio, EXIF orientation, view rotation, scaling quality, color-management mode, and region-rendering policy.
 
-The libvips decoder:
+The shared decoder selects jxl-rs for JPEG XL and libvips loaders for other formats. Both use the same libvips raster renderer:
 
 1. validates and opens the filesystem file or archive stream;
 2. reads source dimensions and selected EXIF strings;
@@ -113,7 +113,7 @@ The libvips decoder:
 8. converts an embedded profile to sRGB when enabled and available;
 9. normalizes pixels to an 8-bit RGB or RGBA layout and returns a `QImage` that owns its backing buffer.
 
-The strip sink evaluates the orientation → resize → output crop sampling graph in source order. Resize remains after orientation and before region cropping so sampling uses the full source context and a stable global phase. Rotated output columns or reversed rows are requested as necessary to keep sequential JPEG/archive readers moving forward. No complete source raster or temporary image file is introduced. Native sample depth/bands are checked through the shared estimator before allocating the intermediate. Its interpretation and embedded ICC profile are retained so ICC fallback can replay memory without rereading a consumed archive stream. Per-request native buffers invalidate downstream operations on scope exit and use libvips-tracked allocation so cache retention participates in the existing backend memory policy. The transformed graph drops the sequential-output metadata hint before resize while keeping sequential source access.
+The strip sink evaluates the orientation → resize → output crop sampling graph in source order. Resize remains after orientation and before region cropping so sampling uses the full source context and a stable global phase. Rotated output columns or reversed rows are requested as necessary to keep sequential JPEG/archive readers moving forward. Other-format streaming loaders do not introduce a complete source raster or temporary image file. JPEG XL materializes one full native raster, separately limited to 384 MiB, before this rendering graph; output and transformed-intermediate limits still apply. Native sample depth/bands are checked through the shared estimator before allocating the intermediate. Its interpretation and embedded ICC profile are retained so ICC fallback can replay memory without rereading a consumed archive stream. Per-request native buffers invalidate downstream operations on scope exit and use libvips-tracked allocation so cache retention participates in the existing backend memory policy. The transformed graph drops the sequential-output metadata hint before resize while keeping sequential source access.
 
 Profile conversion failure is non-fatal and falls back to an sRGB assumption. Display-profile matching is a separate future layer and is not implied by embedded-profile conversion.
 
@@ -131,9 +131,9 @@ The render-memory budget estimates the final output raster. A transformed reques
 
 The main-window loader owns the animation player. Its UI-thread timer schedules presentation; one dedicated worker serializes session open, sequential frame decode, view rerender, loop restart, and close. Source and view generations reject stale results; pending work coalesces to the newest request. Cancellation is cooperative between native codec calls.
 
-A libvips sequence stays lazy: only individual fully composed frames are materialized, never the complete frame stack. A native current/next pair allows view rerender without seeking backward through a consumed decoder. Detached native frames retain sample depth, ICC, and orientation and share the existing orientation → crop → resize → color pipeline. Animation rasters bypass the ordinary image LRU cache. The still decoder attaches an animation flag from timing metadata; cached posters retain this flag. Only confirmed animations create a foreground session. Negative session discovery releases the loader and encoded buffer immediately.
+GIF/WebP use a lazy libvips sequence; JXL uses a sequential jxl-rs session with timing discovery through upstream scan mode (invisible/reference frames may still require section decoding). In both cases, only individual fully composed frames are materialized, never the complete frame stack. A native current/next pair allows view rerender without seeking backward through a consumed decoder. Detached native frames retain sample depth, ICC, and orientation and share the existing orientation → crop → resize → color pipeline. Animation rasters bypass the ordinary image LRU cache. The still decoder attaches an animation flag from timing metadata; cached posters retain this flag. Confirmed animations and JXL posters whose timing discovery failed create a foreground session; session startup reports playback errors while retaining the poster. Negative session discovery releases the loader and encoded buffer immediately.
 
-The session owns at most 256 MiB of encoded source bytes and budgets app-owned native/display buffers against 384 MiB using the shared estimator. Rendering reserves space conservatively for intermediates and the presented raster. Codec canvases, backend caches, and other subsystems remain outside this allocation budget; total RSS requires separate measurement. Session teardown invalidates dependent libvips operations so loop/frame graphs are not retained as a frame cache.
+The session owns at most 256 MiB of encoded source bytes and budgets app-owned native/display buffers against 384 MiB using the shared estimator. Rendering reserves space conservatively for intermediates and the presented raster. Codec canvases, backend caches, and other subsystems remain outside this allocation budget; total RSS requires separate measurement. Session teardown releases explicit frame references. libvips operation caches may retain native pixel buffers after a frame or session is released; invalidation does not guarantee immediate eviction.
 
 ## Asynchronous work and stale results
 
@@ -174,3 +174,25 @@ Privacy requirements are architectural constraints:
 - no viewed paths in settings.
 
 Non-native Qt file dialogs avoid implicit desktop recent-item integration. Changing that behavior requires an explicit architecture and privacy decision.
+
+## JPEG XL backend boundary
+
+The Rust bridge receives a synchronous read callback owned by the core decoder.
+Files and selected archive members stream through it without disk extraction or
+whole-source buffering for stills. C++ exceptions never cross the callback, Rust
+unwinding is caught at the ABI, and I/O diagnostics remain attached to the source.
+Each decoder owns independent codec state and pixels; Rayon supplies one shared
+worker pool. The native raster budget is independent of display-sized requests,
+including thumbnails. Concurrent decoders and library working memory contribute
+to RSS separately; no total-process memory cap is claimed.
+
+Bounded container observation captures EXIF before or after codestream data.
+Compressed EXIF is expanded with a size-limited Brotli reader and parsed by the
+system libexif into the existing metadata fields. JXL orientation comes from the
+codestream and is applied once by the shared renderer. Output ICC describes the
+actual decoded samples. High-bit-depth SDR remains 16-bit through native render
+operations before conversion into the existing 8-bit display pipeline.
+
+No persistent or additional native-source cache is introduced. An uncached still
+view change decodes the source again. Animation sessions retain their native frame
+pair for view rerender and buffer the encoded source within the existing limit.

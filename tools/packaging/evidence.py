@@ -40,6 +40,9 @@ def record_build(distribution, source, package, output):
         'source': {'version': version, 'commit': metadata['commit'],
                    'filename': source.name, 'sha256': source_digest},
         'package': {'filename': package.name, 'sha256': digest(package)},
+        'runtime_probe': {name: digest(output.parent / name)
+                          for name in ('insidious_jxl_benchmark', 'runtime-static.jxl')
+                          if (output.parent / name).exists()},
     })
 
 
@@ -56,6 +59,9 @@ def verify_build(directory, distribution):
             or package['filename'] != package_pattern(distribution, source['version'])
             or digest(directory / package['filename']) != package['sha256']):
         raise ValueError('Package build evidence or digest mismatch')
+    for name, checksum in data.get('runtime_probe', {}).items():
+        if name not in ('insidious_jxl_benchmark', 'runtime-static.jxl') or digest(directory / name) != checksum:
+            raise ValueError('Runtime probe digest mismatch')
     return data
 
 

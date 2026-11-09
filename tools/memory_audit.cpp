@@ -1,4 +1,7 @@
 #include "core/archive_collection_source.h"
+#include "core/animation_decode_session.h"
+#include <QtConcurrent>
+#include <QTemporaryDir>
 #include "core/folder_collection_source.h"
 #include "core/memory_image_cache.h"
 #include "core/render_memory_budget.h"
@@ -22,6 +25,7 @@
 namespace core = insidious::core;
 
 namespace {
+QString fixtureExtension = QStringLiteral("jpg");
 
 constexpr qint64 MiB = 1024LL * 1024LL;
 
@@ -142,7 +146,7 @@ core::ImageEntry filesystemEntry(const QString &path)
 
 ScenarioResult filesystemFit(const QString &fixtureDir)
 {
-    const QString path = QDir(fixtureDir).filePath(QStringLiteral("large-fs.jpg"));
+    const QString path = QDir(fixtureDir).filePath((QStringLiteral("large-fs.") + fixtureExtension));
     const core::ImageEntry entry = filesystemEntry(path);
     const core::DecodeRequest request = fitRequest();
     const core::DecodedImage decoded = decodeOrFail(entry, request);
@@ -186,7 +190,7 @@ ScenarioResult archiveFit(const QString &fixtureDir)
 
 ScenarioResult zoomRender(const QString &fixtureDir)
 {
-    const QString path = QDir(fixtureDir).filePath(QStringLiteral("large-fs.jpg"));
+    const QString path = QDir(fixtureDir).filePath((QStringLiteral("large-fs.") + fixtureExtension));
     const core::ImageEntry entry = filesystemEntry(path);
     const core::DecodeRequest request = zoomRequest();
     const core::DecodedImage decoded = decodeOrFail(entry, request);
@@ -206,9 +210,9 @@ ScenarioResult zoomRender(const QString &fixtureDir)
 ScenarioResult prefetchSimulation(const QString &fixtureDir)
 {
     const QStringList names = {
-        QStringLiteral("prefetch-1.jpg"),
-        QStringLiteral("prefetch-2.jpg"),
-        QStringLiteral("prefetch-3.jpg"),
+        (QStringLiteral("prefetch-1.") + fixtureExtension),
+        (QStringLiteral("prefetch-2.") + fixtureExtension),
+        (QStringLiteral("prefetch-3.") + fixtureExtension),
     };
     const core::DecodeRequest request = fitRequest();
     core::MemoryImageCache cache;
@@ -221,7 +225,7 @@ ScenarioResult prefetchSimulation(const QString &fixtureDir)
         const core::ImageEntry entry = filesystemEntry(path);
         core::DecodedImage decoded = decodeOrFail(entry, request);
         cache.insert(core::cacheKeyFor(entry, request), decoded);
-        if (name == QLatin1String("prefetch-2.jpg")) {
+        if (name == QStringLiteral("prefetch-2.") + fixtureExtension) {
             retained.append(decoded);
         }
     }
@@ -234,7 +238,7 @@ ScenarioResult prefetchSimulation(const QString &fixtureDir)
     ScenarioResult result;
     result.scenario = QStringLiteral("prefetch-simulation");
     result.source = QStringLiteral("filesystem");
-    result.fixture = QStringLiteral("prefetch-*.jpg");
+    result.fixture = (QStringLiteral("prefetch-*.") + fixtureExtension);
     result.sourceBytes = sourceBytes;
     result.renderEstimateBytes = displayedBytes;
     result.displayedBytes = displayedBytes;
@@ -244,11 +248,65 @@ ScenarioResult prefetchSimulation(const QString &fixtureDir)
     return result;
 }
 
+ScenarioResult concurrentDecode(const QString &fixtureDir)
+{
+    QList<QFuture<core::DecodedImage>> jobs;
+    const auto request = fitRequest();
+    for (int i = 1; i <= 3; ++i) {
+        const auto entry = filesystemEntry(QDir(fixtureDir).filePath(QStringLiteral("prefetch-%1.%2").arg(i).arg(fixtureExtension)));
+        jobs.append(QtConcurrent::run([entry, request]() { return decodeOrFail(entry, request); }));
+    }
+    ScenarioResult result;
+    result.scenario = QStringLiteral("concurrent-decode");
+    result.source = QStringLiteral("filesystem");
+    result.fixture = QStringLiteral("prefetch-*.") + fixtureExtension;
+    for (auto &job : jobs) { result.displayedBytes += job.result().image.sizeInBytes(); }
+    result.peakRssBytes = statusValueBytes(QStringLiteral("VmHWM"));
+    result.notes = QStringLiteral("three concurrent source decodes with retained display results");
+    return result;
+}
+
+ScenarioResult animationPlayback()
+{
+    QTemporaryDir directory;
+    if (!directory.isValid()) { std::exit(2); }
+    const auto path = directory.filePath(QStringLiteral("animation.jxl"));
+    {
+        auto first = vips::VImage::black(1024, 768, vips::VImage::option()->set("bands", 4))
+            .new_from_image({255, 0, 0, 128}).copy(vips::VImage::option()->set("interpretation", VIPS_INTERPRETATION_sRGB));
+        auto frames = first.join(first.new_from_image({0, 0, 255, 255}), VIPS_DIRECTION_VERTICAL);
+        frames.set(VIPS_META_PAGE_HEIGHT, 768);
+        frames.set("delay", std::vector<int>{40, 80});
+        frames.jxlsave(path.toUtf8().constData(), vips::VImage::option()->set("lossless", true)->set("effort", 1));
+    }
+    core::AnimationDecodeSession session;
+    if (!session.open(filesystemEntry(path))) { QTextStream(stderr) << session.errorMessage(); std::exit(2); }
+    core::DecodedImage displayed;
+    qint64 warm = 0;
+    for (int loop = 0; loop < 100; ++loop) {
+        if (loop && (!session.restart() || !session.advance())) { std::exit(2); }
+        displayed = session.render(fitRequest());
+        if (!displayed.ok() || !session.advance()) { std::exit(2); }
+        displayed = session.render(fitRequest());
+        if (!displayed.ok()) { std::exit(2); }
+        if (loop == 10) { warm = vips_tracked_get_mem(); }
+    }
+    ScenarioResult result;
+    result.scenario = QStringLiteral("animation-playback");
+    result.source = QStringLiteral("filesystem");
+    result.fixture = QStringLiteral("animation.jxl");
+    result.sourceBytes = QFileInfo(path).size();
+    result.displayedBytes = displayed.image.sizeInBytes();
+    result.peakRssBytes = statusValueBytes(QStringLiteral("VmHWM"));
+    result.notes = QStringLiteral("100 two-frame loops; tracked growth after warmup: %1 bytes").arg(static_cast<qint64>(vips_tracked_get_mem()) - warm);
+    return result;
+}
+
 void printUsage()
 {
     QTextStream(stderr)
         << "Usage: insidious_memory_audit --fixture-dir DIR --scenario "
-        << "filesystem-fit|archive-fit|zoom-render|prefetch-simulation\n";
+        << "filesystem-fit|archive-fit|zoom-render|prefetch-simulation|concurrent-decode|animation-playback [--format jpg|jxl]\n";
 }
 
 } // namespace
@@ -264,6 +322,11 @@ int main(int argc, char **argv)
 
     const QString fixtureDir = argValue(arguments, QStringLiteral("--fixture-dir"));
     const QString scenario = argValue(arguments, QStringLiteral("--scenario"));
+    const QString format = argValue(arguments, QStringLiteral("--format"));
+    if (!format.isEmpty()) {
+        if (format != QLatin1String("jpg") && format != QLatin1String("jxl")) { printUsage(); return 2; }
+        fixtureExtension = format;
+    }
     if (fixtureDir.isEmpty() || scenario.isEmpty()) {
         printUsage();
         return 1;
@@ -287,6 +350,10 @@ int main(int argc, char **argv)
         printResult(zoomRender(fixtureDir));
     } else if (scenario == QLatin1String("prefetch-simulation")) {
         printResult(prefetchSimulation(fixtureDir));
+    } else if (scenario == QLatin1String("concurrent-decode")) {
+        printResult(concurrentDecode(fixtureDir));
+    } else if (scenario == QLatin1String("animation-playback")) {
+        printResult(animationPlayback());
     } else {
         printUsage();
         result = 1;

@@ -77,7 +77,7 @@ rpmbuild -ba --define "_topdir $PWD/rpm-build" rpm-build/SPECS/insidious.spec
 ```
 
 RPM generates shared-library requirements; explicit Qt/libvips minimums and the
-`vips-magick`, `vips-heif`, and `vips-jxl` runtime dependencies retain the application's BMP/DIB, AVIF, and JPEG XL requirements, including dynamically loaded modules. `libheif-freeworld` adds the HEVC plugins from RPM Fusion Free. `-ba`
+`vips-magick` and `vips-heif` runtime dependencies retain the application's BMP/DIB and AVIF requirements, including dynamically loaded modules. JPEG XL uses the linked jxl-rs backend; `vips-jxl` is needed only for build/test fixture generation. `libheif-freeworld` adds the HEVC plugins from RPM Fusion Free. `-ba`
 produces binary and source RPMs. No package maintainer script fetches libraries,
 changes user settings or assigns default file associations.
 
@@ -149,3 +149,26 @@ UI acceptance is not required for platform qualification or releases. Keep
 `native_qualified` false until the applicable automated package gates pass.
 Release readiness also requires release automation and publication validation.
 See [release acceptance](releasing.md#delivery-stages-and-acceptance).
+
+## Locked Rust dependencies
+
+JPEG XL is built from the committed Cargo lockfile with Rust 1.89 or newer.
+Source preparation performs `cargo vendor --locked`, includes crates, relative
+Cargo source configuration, bundled-crate inventory and license texts, and
+normalizes archive member identity and timestamps. The Git tree does not contain
+vendor copies. Source preparation needs Cargo and registry access (or a populated
+cache); package compilation and Rust tests use `--frozen` without network access.
+Git/VCS builds fetch the locked dependencies explicitly before configuring CMake.
+
+Python 3 is a build dependency: `tools/rust_dependencies.py` collects the locked
+crates' license texts and inventory for installation. It also prepares vendored
+sources and bundled-crate metadata during source preparation. Python is not needed
+by the installed application.
+
+The Rust static library has no Rust runtime package requirement. System libexif
+is a runtime dependency; the libvips JXL module is needed only by fixture writers.
+Installed third-party notices cover the statically linked Rust components. RPM
+recipes render bundled-crate Provides from the validated source inventory.
+Cargo changes request package qualification, and distribution build checks include
+Rust formatting, lint and unit tests. Hosted results and local package/desktop
+checks are separate evidence; source preparation does not publish anything.

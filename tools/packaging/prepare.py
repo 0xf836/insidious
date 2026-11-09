@@ -54,6 +54,16 @@ def render_recipes(source, repository='0xf836/insidious'):
     recipes = {}
     # Keep recipes aligned with the source being packaged.
     with tarfile.open(source, 'r:xz') as archive:
+        provides_name = f'insidious-{version}/rust/jxl_bridge/bundled-rust.provides'
+        provides = ''
+        if provides_name in archive.getnames():
+            member = archive.getmember(provides_name)
+            if not member.isfile() or member.size > 65536:
+                raise ValueError('Invalid Rust dependency inventory')
+            provides = archive.extractfile(member).read().decode('ascii')
+            if not all(re.fullmatch(r'Provides: bundled\(crate\([A-Za-z0-9_-]+\)\) = [0-9][A-Za-z0-9.+-]*', line)
+                       for line in provides.splitlines()):
+                raise ValueError('Invalid bundled Rust provides')
         for template, name in [('arch/PKGBUILD.in', 'PKGBUILD'),
                                ('rpm/insidious.spec.in', 'insidious.spec')]:
             try:
@@ -64,7 +74,7 @@ def render_recipes(source, repository='0xf836/insidious'):
                 raise ValueError('Invalid or oversized native recipe template')
             content = archive.extractfile(member).read().decode('utf-8')
             recipes[name] = (content.replace('@VERSION@', version).replace('@SHA256@', digest)
-                            .replace('@REPOSITORY@', repository))
+                            .replace('@REPOSITORY@', repository).replace('@BUNDLED_RUST_PROVIDES@', provides))
     return version, digest, recipes
 
 

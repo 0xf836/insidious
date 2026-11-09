@@ -49,3 +49,8 @@ The local rotation fix was checked in a Debug build with Qt 6.12.0, libvips 8.18
 The JPEG fit probe took approximately 0.08 s for identity and 0.25 s for rotation. Source-ordered strips preserve sampling; removing the transformed graph's sequential-output hint prevents resize caches from repeatedly evaluating the wrong axis. Native samples use libvips-tracked allocation, participate in backend cache pressure and invalidate derived operations when the decode scope ends. Thirty and sixty repeated rotated JPEG fit decodes both retained about 242 MiB of tracked allocations and 225 cached operations; measured peak RSS was about 361 / 372 MiB, respectively. This exercises backend cache pressure and does not establish a universal no-growth or total-memory bound.
 
 The shared estimator checks both the final 8-bit raster and the transformed native intermediate, accounting for sample width before allocating the latter. Each must fit the request limit independently; both buffers and backend working/cache memory can coexist. Ordinary identity rendering does not add the intermediate. Tests verify the exact native 16-bit allocation boundary, and small-fixture references cover all EXIF mirrors and fractional sampling without retaining a full source raster in production.
+
+The audit accepts `--format jxl` to encode the same synthetic fixtures as JPEG XL
+and exercise native JXL allocations in filesystem, archive, zoom and cache scenarios.
+Native rasters are limited separately from display output; concurrent working
+memory and the shared Rayon pool are included in measured process RSS.
