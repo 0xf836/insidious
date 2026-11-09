@@ -12,7 +12,7 @@ crate-type = ["staticlib"]
 [dependencies]
 jxl = "=0.8.0"
 rayon = "=1.12.0"
-brotli-decompressor = "=6.0.0"
+brotli-decompressor = "=6.3.0"
 
 [profile.release]
 panic = "unwind"
