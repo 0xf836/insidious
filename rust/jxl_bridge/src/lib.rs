@@ -4,8 +4,44 @@ use std::{ptr, slice};
 
 use jxl::api::{
     AlphaMode, Event, ExtraChannel, JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions,
-    JxlOutputBuffer, JxlPixelFormat,
+    JxlOutputBuffer, JxlParallelRunner, JxlParallelRunnerFun, JxlPixelFormat,
 };
+use rayon::prelude::*;
+
+struct ParallelRunner;
+
+impl JxlParallelRunner for ParallelRunner {
+    fn run(&mut self, num: usize, fun: &JxlParallelRunnerFun<'_>) -> jxl::error::Result<()> {
+        (0..num).into_par_iter().try_for_each(fun)
+    }
+
+    fn num_threads(&self) -> usize {
+        rayon::current_num_threads()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn runner_executes_each_task_and_propagates_errors() {
+        let counts: Vec<_> = (0..97).map(|_| AtomicUsize::new(0)).collect();
+        ParallelRunner
+            .run_ordered(counts.len(), Some(4), &|i| {
+                counts[i].fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+            .unwrap();
+        assert!(counts.iter().all(|n| n.load(Ordering::Relaxed) == 1));
+        assert!(
+            ParallelRunner
+                .run(4, &|_| Err(jxl::error::Error::InvalidSignature))
+                .is_err()
+        );
+    }
+}
 
 #[repr(C)]
 pub struct InsidiousJxlInfo {
@@ -177,11 +213,13 @@ pub unsafe extern "C" fn insidious_jxl_decode(
             )
         };
         let mut output = JxlOutputBuffer::new(output, state.height, state.width * state.bands);
+        let mut runner = ParallelRunner;
         loop {
-            match state
-                .decoder
-                .process(&mut input, Some(slice::from_mut(&mut output)), None)?
-            {
+            match state.decoder.process(
+                &mut input,
+                Some(slice::from_mut(&mut output)),
+                Some(&mut runner),
+            )? {
                 Event::FrameHeader => {}
                 Event::FrameComplete { .. } => return Ok(()),
                 _ => return Err(jxl::error::Error::ApiUsageError("truncated JPEG XL frame")),
