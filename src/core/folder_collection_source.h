@@ -15,6 +15,7 @@ enum class ScanErrorReason {
     Generic,
     PasswordRequired,
     InvalidPassword,
+    UnsupportedEncryption,
 };
 
 struct ScanResult {

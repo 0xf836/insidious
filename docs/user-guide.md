@@ -15,6 +15,8 @@ Several images become one temporary flat collection. Several folders or several 
 
 Supported images are JPEG, PNG, GIF, TIFF, WebP, BMP, DIB, AVIF, JPEG XL, JPEG 2000, and HEIC/HEIF. Supported archives are ZIP, 7z, and RAR. Headerless DIB may depend on the file-backed system loader and cannot currently be decoded from an archive; use a BMP-file container for that path.
 
+Encrypted archive support depends on the installed libarchive. Supported encrypted ZIPs prompt for a password; the libarchive 3.8.11 baseline cannot decrypt RAR or 7z. Unsupported encryption is reported directly, without asking you to retry a password. See [archive requirements](requirements.md#archives) for the support boundary and planned 7z qualification.
+
 AVIF and HEIC/HEIF show the primary image; TIFF shows the first page. GIF, animated WebP, and animated JPEG XL play automatically in the viewer. Use View → Play/Pause Animation, the toolbar button, or Space to pause/resume. Play restarts an animation that has finished. Zoom, pan, and rotation preserve playback position. Hiding/minimizing the window or opening Compare suspends playback; thumbnails and comparison remain static. APNG, animated AVIF/HEIF, and manual frame selection are not available. These formats use the existing SDR display pipeline and require the corresponding system libvips codecs. See [supported formats](requirements.md#supported-formats) for details.
 
 ## Main window

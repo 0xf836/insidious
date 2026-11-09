@@ -50,6 +50,8 @@ The build creates the following targets (test targets require the default `BUILD
 - `src/core/archive_collection_source.*` scans ZIP/7z/RAR archives with libarchive, builds virtual folder trees from archive headers, filters supported image entries, and still provides bounded full-entry reads for features that require original bytes.
 - `src/core/multi_collection_source.*` builds synthetic source trees for homogeneous multi-image, multi-folder, and multi-archive open/drop operations. It preserves top-level input order, namespaces folder paths to avoid collisions, keeps multi-folder lazy loading, and reuses archive scans without disk extraction.
 - `src/core/archive_entry_stream.*` opens one archive member as a sequential in-memory stream for display decode without extracting it to disk or buffering the full member first.
+- Stream read failures are terminal: subsequent reads return an error without re-entering libarchive, preserving the original diagnostic during decoder probing.
+- `src/core/archive_read_error.*` classifies backend errors for archive scans, full-entry reads, and sequential streams. Unsupported encryption is distinct from password rejection; other read failures keep their backend details. Classification follows backend diagnostics rather than a format-extension ban.
 - `src/core/viewer_controller.*` stores collection position and view state: zoom mode, zoom factor, pan offset, and view-only rotation.
 - `src/core/app_settings.*` defines persistent settings defaults, enum/string conversion, validation/clamping, category reset behavior, and `QSettings` read/write.
 - `src/core/decoded_image.h` defines decode requests and decode results shared by UI/cache/decoder, including decoded dimensions, region-render metadata, metadata fields, and machine-readable decode error reasons.
@@ -59,7 +61,7 @@ The build creates the following targets (test targets require the default `BUILD
 - `tools/memory_audit.cpp` and `tools/memory_audit.py` provide developer-only total peak memory audit tooling using synthetic temporary fixtures and Linux `VmHWM`.
 - `tools/vips_vector_benchmark.py` reproduces the developer-only SIMD comparison in the [dependency audit](dependency-audit.md), recording raw timings and CPU/SIMD metadata; its committed evidence is under `docs/evidence/`.
 - `tests/main_window_async_tests.cpp` uses controlled Qt futures and a private test friend to test current/stale/cancelled loader completions. CMake reuses `UI_SOURCES` for this test target and the app.
-- `tests/fixtures/` contains original stored RAR4/RAR5 fixtures with a stdlib-only regeneration script; tests do not require RAR tooling or Python at runtime.
+- `tests/fixtures/` contains original stored RAR4/RAR5 fixtures with a stdlib-only regeneration script, plus encrypted RAR5/7z fixtures for content and header encryption. Tests do not require RAR/7-Zip tooling or Python at runtime; 7z tests also accept successful decryption when the installed backend supports it.
 - `.github/workflows/` and `tools/ci/` implement reusable CI validation, clean candidate builds and native package qualification; see [CI](ci.md).
 - `tools/release/` exports source archives with version metadata. GitHub workflows build packages and publish drafts through standard `gh` commands. `release-please-config.json` defines version automation; the [release specification](releasing.md#implemented-automation) owns its interfaces and credentials.
 - `packaging/platforms.json` records native target qualification and exclusions; it does not authorize a release.
@@ -120,7 +122,7 @@ Opening an archive:
 2. `openArchive()` clears the current collection and starts async `scanArchiveSourceTree()`.
 3. `scanArchiveSourceTree()` uses libarchive to enumerate headers, filter supported image extensions, build virtual folder nodes, and sort folders/files naturally.
 4. Archive-backed `ImageEntry` values keep both the archive path and internal entry path; the active folder's file list and quick jump treat direct images in that folder as the current collection.
-5. If libarchive reports that a password is required or invalid, `MainWindow` prompts the user and retries the scan until the password works or the user cancels.
+5. The first encrypted image entry is read to let libarchive validate the password and report unsupported encryption or integrity failures. RAR4 may report unsupported encryption with an otherwise successful header read; that diagnostic is checked before reading its payload. Only explicit password-required/rejected errors trigger `MainWindow` retries. Unsupported encryption and other failures terminate the open; failed full-entry reads discard partial bytes. An unrelated active collection remains navigable and receives the error in the status line.
 6. The current archive password is stored only in `MainWindow` memory for the active archive source and is passed by value to archive scan/decode jobs; it is never written to `ImageEntry`, cache keys, docs, logs, settings, or UI labels.
 7. During display decode, `VipsImageDecoder` wraps the selected archive entry in an unseekable sequential `VipsSourceCustom` stream and passes it to `vips::VImage::new_from_source()`. The selected entry is not buffered fully in memory first.
 

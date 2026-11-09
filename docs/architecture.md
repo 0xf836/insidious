@@ -89,6 +89,8 @@ libarchive enumerates ZIP, 7z, and RAR headers and groups supported image member
 
 A separate bounded full-entry read exists for features that require original bytes, such as clipboard copy. This path also stays in memory and does not extract to disk.
 
+Archive scans and both read paths share backend error classification. Unsupported encryption terminates the operation; only explicit password-required/rejected failures can request another password. Other read failures preserve their details. Encryption capabilities belong to the installed libarchive, as specified in the [archive requirements](requirements.md#archives).
+
 ### Multi-source operations
 
 Open and drop requests are classified before any source is committed. The operation proceeds only when all paths are supported and belong to one category: images, folders, or archives.

@@ -4,10 +4,11 @@ This roadmap is a living statement of direction, not a release schedule or compa
 
 ## Next
 
-### Password-protected archive opening
+### Encrypted 7z support
 
-- Reproduce and fix the reported failure when opening a password-protected archive.
-- Verify successful opening with a correct password, retry after an incorrect password, and cancellation without losing navigation state. Keep passwords in memory only and do not extract entries to disk.
+- Track upstream [libarchive PR #3388](https://github.com/libarchive/libarchive/pull/3388), which proposes read-side AES-256 support for 7z contents and encrypted headers. It is not yet merged; builds without the required crypto support retain the unsupported-encryption behavior.
+- Qualify encrypted 7z only after the implementation is merged, released, and available in target-distribution libraries. Verify correct and incorrect passwords, cancellation, header enumeration, sequential display reads, and bounded original-byte reads. Keep passwords in memory and avoid disk extraction.
+- Encrypted RAR support is deferred. No alternate archive backend is planned for it; unsupported encryption must remain a terminal error rather than an incorrect-password retry.
 
 ### Quick Jump polish
 

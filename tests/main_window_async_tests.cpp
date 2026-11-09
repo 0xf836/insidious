@@ -10,6 +10,7 @@
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QPushButton>
 #include <QUrl>
 #include <QMenu>
@@ -53,6 +54,8 @@ private slots:
     void decodeCompletion();
     void staleScanDoesNotReplaceSource_data();
     void staleScanDoesNotReplaceSource();
+    void archiveScanErrorsDoNotPrompt_data();
+    void archiveScanErrorsDoNotPrompt();
     void staleFolderLoadDoesNotReplaceBranch_data();
     void staleFolderLoadDoesNotReplaceBranch();
 public slots:
@@ -822,6 +825,64 @@ void MainWindowAsyncTests::staleScanDoesNotReplaceSource()
     QTRY_COMPARE(finished.count(), 1);
     QCOMPARE(window.m_sourceRoot, stale ? currentRoot : job.result.root);
     QCOMPARE(window.m_sourceRootPath, stale ? QStringLiteral("current-source") : job.result.rootPath);
+}
+
+void MainWindowAsyncTests::archiveScanErrorsDoNotPrompt_data()
+{
+    QTest::addColumn<bool>("hasCollection");
+    QTest::addColumn<bool>("unsupported");
+    QTest::newRow("unsupported-empty") << false << true;
+    QTest::newRow("unsupported-current") << true << true;
+    QTest::newRow("corrupt-empty") << false << false;
+    QTest::newRow("corrupt-current") << true << false;
+}
+
+void MainWindowAsyncTests::archiveScanErrorsDoNotPrompt()
+{
+    QFETCH(bool, hasCollection);
+    QFETCH(bool, unsupported);
+    MainWindow window;
+    core::ImageEntry entry;
+    entry.absolutePath = QStringLiteral("current.png");
+    if (hasCollection) {
+        window.m_controller.setCollection({ entry }, 0);
+        core::DecodedImage decoded;
+        decoded.image = QImage(3, 2, QImage::Format_RGB32);
+        decoded.image.fill(Qt::green);
+        decoded.sourceSize = decoded.image.size();
+        window.m_currentDecoded = decoded;
+        window.m_imageView->setImage(decoded.image);
+    }
+    MainWindow::ScanJobResult job;
+    job.generation = window.m_sourceGeneration;
+    const QString path = QFINDTESTDATA("fixtures/encrypted-data-rar5.rar");
+    QVERIFY(!path.isEmpty());
+    job.selectedPaths = { path };
+    job.result.errorMessage = unsupported ? QStringLiteral("Archive encryption is not supported.") : QStringLiteral("ZIP bad CRC");
+    job.result.errorReason = unsupported ? core::ScanErrorReason::UnsupportedEncryption : core::ScanErrorReason::Generic;
+    window.rememberArchivePassword(job.selectedPaths.first(), QStringLiteral("secret"));
+
+    bool prompted = false;
+    QTimer closer;
+    connect(&closer, &QTimer::timeout, &closer, [&]() {
+        if (auto *dialog = qobject_cast<QInputDialog *>(QApplication::activeModalWidget())) {
+            prompted = true;
+            dialog->reject();
+        }
+    });
+    closer.start(0);
+    window.applyScanResult(job);
+    closer.stop();
+    QVERIFY(!prompted);
+    QCOMPARE(window.m_statusLabel->text(), job.result.errorMessage);
+    QCOMPARE(window.m_controller.hasCollection(), hasCollection);
+    QCOMPARE(window.m_imageView->hasImage(), hasCollection);
+    if (hasCollection) {
+        QCOMPARE(window.m_controller.currentEntry()->absolutePath, entry.absolutePath);
+        QCOMPARE(window.m_currentDecoded.image.pixelColor(0, 0), QColor(Qt::green));
+    } else {
+        QVERIFY(window.m_archivePasswords.isEmpty());
+    }
 }
 
 void MainWindowAsyncTests::staleFolderLoadDoesNotReplaceBranch_data()

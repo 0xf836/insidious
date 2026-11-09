@@ -1,5 +1,6 @@
 #include "core/archive_collection_source.h"
 #include "core/archive_entry_stream.h"
+#include "core/archive_read_error.h"
 #include "core/app_settings.h"
 #include "core/folder_collection_source.h"
 #include "core/image_entry_validation.h"
@@ -30,6 +31,7 @@
 #include <archive.h>
 #include <archive_entry.h>
 #include <array>
+#include <cerrno>
 #include <cmath>
 #include <limits>
 #include <vips/vips8>
@@ -56,6 +58,11 @@ private slots:
     void archiveListSourceTreePreservesArchiveRoots();
     void archiveListSourceTreeUsesSharedPassword();
     void archivePasswordIsRequiredAndAccepted();
+    void archiveErrorsKeepTheirReason_data();
+    void archiveErrorsKeepTheirReason();
+    void encryptedArchiveCapabilities_data();
+    void encryptedArchiveCapabilities();
+    void encryptedArchiveCorruptionIsNotInvalidPassword();
     void viewerNavigationStopsAtBounds();
     void viewerRotationNormalizesAndResetsOnImageSwitch();
     void viewerCustomZoomClampsToSupportedRange();
@@ -647,6 +654,181 @@ void CoreTests::archivePasswordIsRequiredAndAccepted()
     const DecodedImage decoded = decoder.decode(correctPassword.entries.first(), request, QStringLiteral("secret"));
     QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
     QCOMPARE(decoded.sourceSize, QSize(10, 5));
+}
+
+void CoreTests::archiveErrorsKeepTheirReason_data()
+{
+    QTest::addColumn<QString>("message");
+    QTest::addColumn<int>("reason");
+    const auto add = [](const char *name, const char *message, ArchiveEntryReadErrorReason reason) {
+        QTest::newRow(name) << QString::fromLatin1(message) << static_cast<int>(reason);
+    };
+    add("rar-headers", "Encryption is not supported", ArchiveEntryReadErrorReason::UnsupportedEncryption);
+    add("rar-data", "Reading encrypted data is not currently supported", ArchiveEntryReadErrorReason::UnsupportedEncryption);
+    add("rar4", "RAR encryption support unavailable", ArchiveEntryReadErrorReason::UnsupportedEncryption);
+    add("7z-data", "The file content is encrypted, but currently not supported", ArchiveEntryReadErrorReason::UnsupportedEncryption);
+    add("7z-headers", "The archive header is encrypted, but currently not supported", ArchiveEntryReadErrorReason::UnsupportedEncryption);
+    add("missing-crypto", "Decryption is unsupported due to lack of crypto library", ArchiveEntryReadErrorReason::UnsupportedEncryption);
+    add("7z-bcj2", "Unsupported form of encrypted BCJ2 streams", ArchiveEntryReadErrorReason::UnsupportedEncryption);
+    add("required", "Passphrase required for this entry", ArchiveEntryReadErrorReason::InvalidPassword);
+    add("7z-required", "Passphrase required for this 7-Zip encrypted archive", ArchiveEntryReadErrorReason::InvalidPassword);
+    add("incorrect", "Incorrect passphrase", ArchiveEntryReadErrorReason::InvalidPassword);
+    add("exhausted", "Too many incorrect passphrases", ArchiveEntryReadErrorReason::InvalidPassword);
+    add("crc", "ZIP bad CRC", ArchiveEntryReadErrorReason::Generic);
+    add("truncated", "Truncated 7-Zip encrypted stream", ArchiveEntryReadErrorReason::Generic);
+    add("memory", "No memory for ZIP decryption", ArchiveEntryReadErrorReason::Generic);
+    add("passphrase-processing", "Failed to process passphrase", ArchiveEntryReadErrorReason::Generic);
+    add("crypto-failure", "7-Zip AES decryption failed", ArchiveEntryReadErrorReason::Generic);
+    add("properties", "Malformed 7-Zip encryption properties", ArchiveEntryReadErrorReason::Generic);
+    add("password-in-filename", "Could not open password.rar", ArchiveEntryReadErrorReason::Generic);
+    add("fallback", "", ArchiveEntryReadErrorReason::Generic);
+}
+
+void CoreTests::archiveErrorsKeepTheirReason()
+{
+    QFETCH(QString, message);
+    QFETCH(int, reason);
+    const QString fallback = QStringLiteral("Could not read archive.");
+    for (const QString &password : { QString(), QStringLiteral("secret") }) {
+        archive *reader = archive_read_new();
+        archive_set_error(reader, EIO, "%s", message.toUtf8().constData());
+        const auto error = archiveReadError(reader, fallback, password);
+        archive_read_free(reader);
+        auto expected = static_cast<ArchiveEntryReadErrorReason>(reason);
+        if (expected == ArchiveEntryReadErrorReason::InvalidPassword && password.isEmpty()) {
+            expected = ArchiveEntryReadErrorReason::PasswordRequired;
+        }
+        QCOMPARE(error.reason, expected);
+        if (expected == ArchiveEntryReadErrorReason::UnsupportedEncryption) {
+            QVERIFY(error.message.contains(QStringLiteral("not supported")));
+        } else {
+            QCOMPARE(error.message, message.isEmpty() ? fallback : message);
+        }
+    }
+}
+
+void CoreTests::encryptedArchiveCapabilities_data()
+{
+    QTest::addColumn<QString>("fixture");
+    QTest::addColumn<bool>("sevenZip");
+    QTest::newRow("rar5-data") << QStringLiteral("fixtures/encrypted-data-rar5.rar") << false;
+    QTest::newRow("rar5-headers") << QStringLiteral("fixtures/encrypted-headers-rar5.rar") << false;
+    QTest::newRow("7z-data") << QStringLiteral("fixtures/encrypted-data.7z") << true;
+    QTest::newRow("7z-headers") << QStringLiteral("fixtures/encrypted-headers.7z") << true;
+}
+
+void CoreTests::encryptedArchiveCapabilities()
+{
+    QFETCH(QString, fixture);
+    QFETCH(bool, sevenZip);
+    const QString path = QFINDTESTDATA(qPrintable(fixture));
+    QVERIFY(!path.isEmpty());
+    const ScanResult accepted = scanArchive(path, QStringLiteral("secret"));
+    const bool decryptionSupported = sevenZip && accepted.ok();
+    if (!decryptionSupported) {
+        QCOMPARE(accepted.errorReason, ScanErrorReason::UnsupportedEncryption);
+    }
+
+    ImageEntry entry;
+    entry.source = ImageEntrySource::Archive;
+    entry.archivePath = path;
+    entry.archiveEntryPath = QStringLiteral("sample.png");
+    for (const QString &password : { QString(), QStringLiteral("wrong"), QStringLiteral("secret") }) {
+        auto expectedScan = ScanErrorReason::UnsupportedEncryption;
+        auto expectedRead = ArchiveEntryReadErrorReason::UnsupportedEncryption;
+        if (decryptionSupported) {
+            expectedScan = password.isEmpty() ? ScanErrorReason::PasswordRequired
+                : password == QLatin1String("secret") ? ScanErrorReason::None : ScanErrorReason::InvalidPassword;
+            expectedRead = password.isEmpty() ? ArchiveEntryReadErrorReason::PasswordRequired
+                : password == QLatin1String("secret") ? ArchiveEntryReadErrorReason::None : ArchiveEntryReadErrorReason::InvalidPassword;
+        }
+        const auto scan = scanArchive(path, password);
+        QCOMPARE(scan.errorReason, expectedScan);
+        const auto tree = scanArchiveSourceTree(path, password);
+        QCOMPARE(tree.errorReason, expectedScan);
+        const auto multiple = archiveListSourceTree({ path }, password);
+        QCOMPARE(multiple.errorReason, expectedScan);
+        const auto bytes = readArchiveEntry(entry, password);
+        QCOMPARE(bytes.errorReason, expectedRead);
+        ArchiveEntryStreamReader stream(entry, password);
+        QByteArray streamed;
+        char buffer[17];
+        qint64 count = -1;
+        if (stream.open()) {
+            while ((count = stream.read(buffer, sizeof(buffer))) > 0) {
+                streamed.append(buffer, count);
+            }
+        }
+        QCOMPARE(stream.errorReason(), expectedRead);
+        DecodeRequest request;
+        request.fitToWindow = false;
+        const auto decoded = VipsImageDecoder().decode(entry, request, password);
+        if (expectedRead == ArchiveEntryReadErrorReason::None) {
+            QVERIFY2(decoded.ok(), qPrintable(decoded.errorMessage));
+            QCOMPARE(decoded.image.size(), QSize(3, 2));
+            QCOMPARE(decoded.image.pixelColor(1, 1), QColor(20, 120, 200));
+            QCOMPARE(count, 0);
+            QCOMPARE(streamed, bytes.data);
+        } else {
+            QVERIFY(!scan.ok());
+            QVERIFY(!tree.ok());
+            QVERIFY(!multiple.ok());
+            QVERIFY(!bytes.ok());
+            QVERIFY(bytes.data.isEmpty());
+            QCOMPARE(count, -1);
+            QCOMPARE(stream.errorMessage(), bytes.errorMessage);
+            for (int retry = 0; retry < 2; ++retry) {
+                QCOMPARE(stream.read(buffer, sizeof(buffer)), -1);
+                QCOMPARE(stream.errorReason(), expectedRead);
+                QCOMPARE(stream.errorMessage(), bytes.errorMessage);
+            }
+            QCOMPARE(decoded.errorMessage, bytes.errorMessage);
+        }
+    }
+}
+
+void CoreTests::encryptedArchiveCorruptionIsNotInvalidPassword()
+{
+    if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+        QSKIP("zip command is not available");
+    }
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = temp.filePath(QStringLiteral("corrupt.zip"));
+    const QByteArray contents = QByteArrayLiteral("This is not PNG data.");
+    QVERIFY(writeEncryptedZipArchive(path, QStringLiteral("sample.png"), contents, QStringLiteral("secret")));
+    const auto scan = scanArchive(path, QStringLiteral("secret"));
+    QVERIFY2(scan.ok(), qPrintable(scan.errorMessage));
+    QCOMPARE(readArchiveEntry(scan.entries.first(), QStringLiteral("secret")).data, contents);
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadWrite));
+    QByteArray data = file.readAll();
+    const qsizetype central = data.indexOf(QByteArrayLiteral("PK\x01\x02"));
+    QVERIFY(central >= 0);
+    const quint32 size = qFromLittleEndian<quint32>(data.constData() + central + 20);
+    const qsizetype offset = 30 + qFromLittleEndian<quint16>(data.constData() + 26)
+        + qFromLittleEndian<quint16>(data.constData() + 28);
+    QVERIFY(size > 12 && offset + size <= data.size());
+    data[offset + size - 1] = static_cast<char>(data.at(offset + size - 1) ^ 0x80);
+    QVERIFY(file.seek(0));
+    QCOMPARE(file.write(data), data.size());
+    file.close();
+
+    QCOMPARE(scanArchive(path, QStringLiteral("secret")).errorReason, ScanErrorReason::Generic);
+    QCOMPARE(scanArchiveSourceTree(path, QStringLiteral("secret")).errorReason, ScanErrorReason::Generic);
+    const auto bytes = readArchiveEntry(scan.entries.first(), QStringLiteral("secret"));
+    QCOMPARE(bytes.errorReason, ArchiveEntryReadErrorReason::Generic);
+    QVERIFY(!bytes.ok());
+    QVERIFY(bytes.data.isEmpty());
+    ArchiveEntryStreamReader stream(scan.entries.first(), QStringLiteral("secret"));
+    QVERIFY(stream.open());
+    char buffer[32];
+    qint64 count;
+    while ((count = stream.read(buffer, sizeof(buffer))) > 0) {
+    }
+    QCOMPARE(count, -1);
+    QCOMPARE(stream.errorReason(), ArchiveEntryReadErrorReason::Generic);
 }
 
 void CoreTests::viewerNavigationStopsAtBounds()
