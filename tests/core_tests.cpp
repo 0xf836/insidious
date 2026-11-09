@@ -777,6 +777,11 @@ void CoreTests::encryptedArchiveCapabilities()
             QVERIFY(bytes.data.isEmpty());
             QCOMPARE(count, -1);
             QCOMPARE(stream.errorMessage(), bytes.errorMessage);
+            for (int retry = 0; retry < 2; ++retry) {
+                QCOMPARE(stream.read(buffer, sizeof(buffer)), -1);
+                QCOMPARE(stream.errorReason(), expectedRead);
+                QCOMPARE(stream.errorMessage(), bytes.errorMessage);
+            }
             QCOMPARE(decoded.errorMessage, bytes.errorMessage);
         }
     }

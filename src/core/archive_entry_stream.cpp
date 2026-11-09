@@ -135,6 +135,9 @@ bool ArchiveEntryStreamReader::open()
 
 qint64 ArchiveEntryStreamReader::read(char *buffer, qint64 maxBytes)
 {
+    if (m_errorReason != ArchiveEntryReadErrorReason::None) {
+        return -1;
+    }
     if (!m_open || m_archive == nullptr || m_eof) {
         return 0;
     }
