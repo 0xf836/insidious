@@ -2906,7 +2906,12 @@ void MainWindow::applyScanResult(const ScanJobResult &job)
         }
 
         if (!m_controller.hasCollection()) {
+            if (archiveSelection) {
+                clearArchivePasswords();
+            }
             showError(job.result.errorMessage);
+        } else {
+            updateStatus(job.result.errorMessage);
         }
         return;
     }

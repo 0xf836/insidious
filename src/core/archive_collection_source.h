@@ -13,6 +13,7 @@ enum class ArchiveEntryReadErrorReason {
     Generic,
     PasswordRequired,
     InvalidPassword,
+    UnsupportedEncryption,
 };
 
 struct ArchiveEntryReadResult {

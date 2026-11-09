@@ -1,5 +1,7 @@
 #include "core/archive_entry_stream.h"
 
+#include "core/archive_read_error.h"
+
 #include <QFileInfo>
 #include <QObject>
 
@@ -12,27 +14,6 @@
 namespace insidious::core {
 namespace {
 
-QString archiveError(archive *archiveReader, const QString &fallback)
-{
-    const char *message = archive_error_string(archiveReader);
-    const QString text = QString::fromUtf8(message == nullptr ? "" : message).trimmed();
-    return text.isEmpty() ? fallback : text;
-}
-
-bool looksLikePasswordError(const QString &message)
-{
-    const QString text = message.toCaseFolded();
-    return text.contains(QStringLiteral("password"))
-        || text.contains(QStringLiteral("passphrase"))
-        || text.contains(QStringLiteral("encrypted"))
-        || text.contains(QStringLiteral("decrypt"));
-}
-
-ArchiveEntryReadErrorReason readPasswordReason(const QString &password)
-{
-    return password.isEmpty() ? ArchiveEntryReadErrorReason::PasswordRequired : ArchiveEntryReadErrorReason::InvalidPassword;
-}
-
 QString entryPath(archive_entry *entry)
 {
     const char *path = archive_entry_pathname_utf8(entry);
@@ -44,7 +25,7 @@ QString entryPath(archive_entry *entry)
     return QString::fromLocal8Bit(path == nullptr ? "" : path);
 }
 
-bool openArchive(archive *archiveReader, const QString &archivePath, const QString &password, QString *errorMessage)
+bool openArchive(archive *archiveReader, const QString &archivePath, const QString &password, ArchiveReadError *error)
 {
     archive_read_support_filter_all(archiveReader);
     archive_read_support_format_all(archiveReader);
@@ -52,8 +33,8 @@ bool openArchive(archive *archiveReader, const QString &archivePath, const QStri
     if (!password.isEmpty()) {
         const QByteArray passwordBytes = password.toUtf8();
         if (archive_read_add_passphrase(archiveReader, passwordBytes.constData()) != ARCHIVE_OK) {
-            if (errorMessage != nullptr) {
-                *errorMessage = archiveError(archiveReader, QObject::tr("Could not set archive password."));
+            if (error != nullptr) {
+                *error = archiveReadError(archiveReader, QObject::tr("Could not set archive password."), password);
             }
             return false;
         }
@@ -62,8 +43,8 @@ bool openArchive(archive *archiveReader, const QString &archivePath, const QStri
     const QByteArray path = QFileInfo(archivePath).absoluteFilePath().toUtf8();
     const int status = archive_read_open_filename(archiveReader, path.constData(), 10240);
     if (status != ARCHIVE_OK) {
-        if (errorMessage != nullptr) {
-            *errorMessage = archiveError(archiveReader, QObject::tr("Could not open archive."));
+        if (error != nullptr) {
+            *error = archiveReadError(archiveReader, QObject::tr("Could not open archive."), password);
         }
         return false;
     }
@@ -103,12 +84,12 @@ bool ArchiveEntryStreamReader::open()
     }
 
     m_archive = archive_read_new();
-    QString openError;
+    ArchiveReadError openError;
     if (!openArchive(m_archive, m_entry.archivePath, m_password, &openError)) {
         archive_read_free(m_archive);
         m_archive = nullptr;
-        m_errorMessage = openError;
-        m_errorReason = looksLikePasswordError(openError) ? readPasswordReason(m_password) : ArchiveEntryReadErrorReason::Generic;
+        m_errorMessage = openError.message;
+        m_errorReason = openError.reason;
         return false;
     }
 
@@ -126,7 +107,11 @@ bool ArchiveEntryStreamReader::open()
         }
 
         if (entryPath(archiveEntry) != m_entry.archiveEntryPath) {
-            archive_read_data_skip(m_archive);
+            const int skipStatus = archive_read_data_skip(m_archive);
+            if (skipStatus != ARCHIVE_OK && skipStatus != ARCHIVE_EOF) {
+                setReadError(QObject::tr("Could not read archive entry."));
+                return false;
+            }
             continue;
         }
 
@@ -136,10 +121,10 @@ bool ArchiveEntryStreamReader::open()
             return false;
         }
 
-        const bool entryEncrypted = archive_entry_is_encrypted(archiveEntry);
-        if (entryEncrypted && m_password.isEmpty()) {
-            m_errorMessage = QObject::tr("Archive password is required.");
-            m_errorReason = ArchiveEntryReadErrorReason::PasswordRequired;
+        const auto headerError = archiveReadError(m_archive, {}, m_password);
+        if (archive_entry_is_encrypted(archiveEntry) && headerError.reason == ArchiveEntryReadErrorReason::UnsupportedEncryption) {
+            m_errorMessage = headerError.message;
+            m_errorReason = headerError.reason;
             return false;
         }
 
@@ -184,9 +169,9 @@ ArchiveEntryReadErrorReason ArchiveEntryStreamReader::errorReason() const
 
 void ArchiveEntryStreamReader::setReadError(const QString &fallback)
 {
-    const QString message = archiveError(m_archive, fallback);
-    m_errorMessage = message;
-    m_errorReason = looksLikePasswordError(message) ? readPasswordReason(m_password) : ArchiveEntryReadErrorReason::Generic;
+    const auto error = archiveReadError(m_archive, fallback, m_password);
+    m_errorMessage = error.message;
+    m_errorReason = error.reason;
 }
 
 } // namespace insidious::core

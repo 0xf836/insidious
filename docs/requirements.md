@@ -133,7 +133,11 @@ RAW is not currently supported. A format must not become user-visible solely bec
 
 Archives must behave as virtual folder trees. Non-image entries are ignored. Image display reads must not extract entries to disk or require a persistent full-entry buffer.
 
-Password-protected archives must prompt when necessary. Passwords stay only in memory for the current source and are removed when that source is replaced or the process exits. Opening multiple archives asks once and applies the password to the selection; if any later archive rejects it, the multi-archive open fails as one operation.
+Password-protected archives prompt when the installed libarchive supports their encryption and requests a password. Supported ZIP encryption includes ZipCrypto and AES, subject to the library's crypto capabilities. The libarchive 3.8.11 baseline cannot decrypt RAR or 7z; archive-format support does not imply encryption support. Future encrypted 7z qualification is tracked in the [roadmap](roadmap.md#encrypted-7z-support); encrypted RAR support is deferred.
+
+Unsupported encryption produces a clear terminal error without a password retry. Only explicit password-required or password-rejected backend errors trigger a prompt; corruption, truncated input, memory failures, and crypto initialization failures must retain their actual error instead of being reported as an incorrect password. Image contents are validated by the decoder, not used to guess whether a password was correct.
+
+Passwords stay only in memory for the current source and are removed when that source is replaced, an archive open ends in a terminal failure, or the process exits. Opening multiple archives asks once and applies the password to the selection; if any later archive rejects it, the multi-archive open fails as one operation.
 
 Operations that require complete original bytes, such as clipboard copy, may use a separate bounded in-memory full-entry read. They must still avoid disk extraction and persistent state.
 

@@ -1,5 +1,6 @@
 #include "core/archive_collection_source.h"
 
+#include "core/archive_read_error.h"
 #include "core/image_formats.h"
 #include "core/image_sort.h"
 #include "core/natural_sort.h"
@@ -19,84 +20,6 @@
 namespace insidious::core {
 namespace {
 
-bool startsWithBytes(const QByteArray &data, std::initializer_list<unsigned char> bytes)
-{
-    if (data.size() < static_cast<qsizetype>(bytes.size())) {
-        return false;
-    }
-
-    qsizetype index = 0;
-    for (unsigned char byte : bytes) {
-        if (static_cast<unsigned char>(data.at(index)) != byte) {
-            return false;
-        }
-        ++index;
-    }
-    return true;
-}
-
-quint32 littleEndianU32(const QByteArray &data)
-{
-    if (data.size() < 4) {
-        return 0;
-    }
-
-    return static_cast<quint32>(static_cast<unsigned char>(data.at(0)))
-        | (static_cast<quint32>(static_cast<unsigned char>(data.at(1))) << 8)
-        | (static_cast<quint32>(static_cast<unsigned char>(data.at(2))) << 16)
-        | (static_cast<quint32>(static_cast<unsigned char>(data.at(3))) << 24);
-}
-
-bool looksLikeSupportedImageData(const QString &path, const QByteArray &prefix)
-{
-    const QString suffix = QFileInfo(path).suffix().toCaseFolded();
-    if (suffix == QLatin1String("png")) {
-        return startsWithBytes(prefix, { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a });
-    }
-    if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg")) {
-        return startsWithBytes(prefix, { 0xff, 0xd8 });
-    }
-    if (suffix == QLatin1String("webp")) {
-        return prefix.size() >= 12
-            && prefix.mid(0, 4) == QByteArrayLiteral("RIFF")
-            && prefix.mid(8, 4) == QByteArrayLiteral("WEBP");
-    }
-    if (suffix == QLatin1String("bmp")) {
-        return prefix.startsWith(QByteArrayLiteral("BM"));
-    }
-    if (suffix == QLatin1String("dib")) {
-        const quint32 headerSize = littleEndianU32(prefix);
-        return headerSize == 12 || headerSize == 40 || headerSize == 52 || headerSize == 56 || headerSize == 108 || headerSize == 124;
-    }
-    return true;
-}
-
-QString archiveError(archive *archiveReader, const QString &fallback)
-{
-    const char *message = archive_error_string(archiveReader);
-    const QString text = QString::fromUtf8(message == nullptr ? "" : message).trimmed();
-    return text.isEmpty() ? fallback : text;
-}
-
-bool looksLikePasswordError(const QString &message)
-{
-    const QString text = message.toCaseFolded();
-    return text.contains(QStringLiteral("password"))
-        || text.contains(QStringLiteral("passphrase"))
-        || text.contains(QStringLiteral("encrypted"))
-        || text.contains(QStringLiteral("decrypt"));
-}
-
-ScanErrorReason scanPasswordReason(const QString &password)
-{
-    return password.isEmpty() ? ScanErrorReason::PasswordRequired : ScanErrorReason::InvalidPassword;
-}
-
-ArchiveEntryReadErrorReason readPasswordReason(const QString &password)
-{
-    return password.isEmpty() ? ArchiveEntryReadErrorReason::PasswordRequired : ArchiveEntryReadErrorReason::InvalidPassword;
-}
-
 QString entryPath(archive_entry *entry)
 {
     const char *path = archive_entry_pathname_utf8(entry);
@@ -108,7 +31,7 @@ QString entryPath(archive_entry *entry)
     return QString::fromLocal8Bit(path == nullptr ? "" : path);
 }
 
-bool openArchive(archive *archiveReader, const QString &archivePath, const QString &password, QString *errorMessage)
+bool openArchive(archive *archiveReader, const QString &archivePath, const QString &password, ArchiveReadError *error)
 {
     archive_read_support_filter_all(archiveReader);
     archive_read_support_format_all(archiveReader);
@@ -116,8 +39,8 @@ bool openArchive(archive *archiveReader, const QString &archivePath, const QStri
     if (!password.isEmpty()) {
         const QByteArray passwordBytes = password.toUtf8();
         if (archive_read_add_passphrase(archiveReader, passwordBytes.constData()) != ARCHIVE_OK) {
-            if (errorMessage != nullptr) {
-                *errorMessage = archiveError(archiveReader, QObject::tr("Could not set archive password."));
+            if (error != nullptr) {
+                *error = archiveReadError(archiveReader, QObject::tr("Could not set archive password."), password);
             }
             return false;
         }
@@ -126,8 +49,8 @@ bool openArchive(archive *archiveReader, const QString &archivePath, const QStri
     const QByteArray path = QFileInfo(archivePath).absoluteFilePath().toUtf8();
     const int status = archive_read_open_filename(archiveReader, path.constData(), 10240);
     if (status != ARCHIVE_OK) {
-        if (errorMessage != nullptr) {
-            *errorMessage = archiveError(archiveReader, QObject::tr("Could not open archive."));
+        if (error != nullptr) {
+            *error = archiveReadError(archiveReader, QObject::tr("Could not open archive."), password);
         }
         return false;
     }
@@ -215,42 +138,32 @@ const CollectionFolderNode *firstFolderWithImages(const std::shared_ptr<Collecti
 
 void setScanArchiveReadError(ScanResult *result, archive *archiveReader, const QString &password)
 {
-    const QString message = archiveError(archiveReader, QObject::tr("Could not read archive."));
-    result->errorMessage = message;
-    result->errorReason = looksLikePasswordError(message) ? scanPasswordReason(password) : ScanErrorReason::Generic;
+    const auto error = archiveReadError(archiveReader, QObject::tr("Could not read archive."), password);
+    result->errorMessage = error.message;
+    result->errorReason = archiveScanErrorReason(error.reason);
 }
 
-bool validateEncryptedEntryPassword(ScanResult *result, archive *archiveReader, const QString &entryPath, const QString &password)
+bool validateEncryptedEntryPassword(ScanResult *result, archive *archiveReader, const QString &password)
 {
     std::array<char, 64 * 1024> buffer;
-    QByteArray prefix;
     for (;;) {
         const la_ssize_t bytesRead = archive_read_data(archiveReader, buffer.data(), buffer.size());
         if (bytesRead == 0) {
-            if (!password.isEmpty() && !looksLikeSupportedImageData(entryPath, prefix)) {
-                result->errorMessage = QObject::tr("Archive password was not accepted.");
-                result->errorReason = ScanErrorReason::InvalidPassword;
-                return false;
-            }
             return true;
         }
         if (bytesRead < 0) {
-            const QString message = archiveError(archiveReader, QObject::tr("Could not read encrypted archive entry."));
-            result->errorMessage = message;
-            result->errorReason = password.isEmpty() ? ScanErrorReason::PasswordRequired : ScanErrorReason::InvalidPassword;
+            setScanArchiveReadError(result, archiveReader, password);
             return false;
-        }
-        if (prefix.size() < 16) {
-            prefix.append(buffer.data(), static_cast<qsizetype>(std::min<la_ssize_t>(bytesRead, 16 - prefix.size())));
         }
     }
 }
 
 void setArchiveEntryReadError(ArchiveEntryReadResult *result, archive *archiveReader, const QString &password)
 {
-    const QString message = archiveError(archiveReader, QObject::tr("Could not read archive entry."));
-    result->errorMessage = message;
-    result->errorReason = looksLikePasswordError(message) ? readPasswordReason(password) : ArchiveEntryReadErrorReason::Generic;
+    const auto error = archiveReadError(archiveReader, QObject::tr("Could not read archive entry."), password);
+    result->data.clear();
+    result->errorMessage = error.message;
+    result->errorReason = error.reason;
 }
 
 } // namespace
@@ -282,11 +195,11 @@ ScanResult scanArchive(const QString &archivePath, const QString &password)
     }
 
     archive *archiveReader = archive_read_new();
-    QString openError;
+    ArchiveReadError openError;
     if (!openArchive(archiveReader, archiveInfo.absoluteFilePath(), password, &openError)) {
         archive_read_free(archiveReader);
-        result.errorMessage = openError;
-        result.errorReason = looksLikePasswordError(openError) ? scanPasswordReason(password) : ScanErrorReason::Generic;
+        result.errorMessage = openError.message;
+        result.errorReason = archiveScanErrorReason(openError.reason);
         return result;
     }
 
@@ -304,9 +217,11 @@ ScanResult scanArchive(const QString &archivePath, const QString &password)
 
         const QString path = entryPath(entry);
         if (isRegularFile(entry) && isSupportedImageExtension(QFileInfo(path).suffix())) {
-            if (archive_entry_is_encrypted(entry) && password.isEmpty()) {
-                result.errorMessage = QObject::tr("Archive password is required.");
-                result.errorReason = ScanErrorReason::PasswordRequired;
+            // RAR4 can report unsupported encryption even with a successful header read.
+            const auto headerError = archiveReadError(archiveReader, {}, password);
+            if (archive_entry_is_encrypted(entry) && headerError.reason == ArchiveEntryReadErrorReason::UnsupportedEncryption) {
+                result.errorMessage = headerError.message;
+                result.errorReason = ScanErrorReason::UnsupportedEncryption;
                 break;
             }
 
@@ -325,7 +240,7 @@ ScanResult scanArchive(const QString &archivePath, const QString &password)
             result.entries.append(imageEntry);
 
             if (archive_entry_is_encrypted(entry) && !passwordValidated) {
-                if (!validateEncryptedEntryPassword(&result, archiveReader, path, password)) {
+                if (!validateEncryptedEntryPassword(&result, archiveReader, password)) {
                     break;
                 }
                 passwordValidated = true;
@@ -381,11 +296,11 @@ CollectionTreeResult scanArchiveSourceTree(const QString &archivePath, const QSt
     }
 
     archive *archiveReader = archive_read_new();
-    QString openError;
+    ArchiveReadError openError;
     if (!openArchive(archiveReader, archiveInfo.absoluteFilePath(), password, &openError)) {
         archive_read_free(archiveReader);
-        result.errorMessage = openError;
-        result.errorReason = looksLikePasswordError(openError) ? scanPasswordReason(password) : ScanErrorReason::Generic;
+        result.errorMessage = openError.message;
+        result.errorReason = archiveScanErrorReason(openError.reason);
         return result;
     }
 
@@ -408,17 +323,19 @@ CollectionTreeResult scanArchiveSourceTree(const QString &archivePath, const QSt
             break;
         }
         if (headerStatus != ARCHIVE_OK) {
-            const QString message = archiveError(archiveReader, QObject::tr("Could not read archive."));
-            result.errorMessage = message;
-            result.errorReason = looksLikePasswordError(message) ? scanPasswordReason(password) : ScanErrorReason::Generic;
+            const auto error = archiveReadError(archiveReader, QObject::tr("Could not read archive."), password);
+            result.errorMessage = error.message;
+            result.errorReason = archiveScanErrorReason(error.reason);
             break;
         }
 
         const QString path = cleanArchiveRelativePath(entryPath(entry));
         if (isRegularFile(entry) && isSupportedImageExtension(QFileInfo(path).suffix())) {
-            if (archive_entry_is_encrypted(entry) && password.isEmpty()) {
-                result.errorMessage = QObject::tr("Archive password is required.");
-                result.errorReason = ScanErrorReason::PasswordRequired;
+            // RAR4 can report unsupported encryption even with a successful header read.
+            const auto headerError = archiveReadError(archiveReader, {}, password);
+            if (archive_entry_is_encrypted(entry) && headerError.reason == ArchiveEntryReadErrorReason::UnsupportedEncryption) {
+                result.errorMessage = headerError.message;
+                result.errorReason = ScanErrorReason::UnsupportedEncryption;
                 break;
             }
 
@@ -443,7 +360,7 @@ CollectionTreeResult scanArchiveSourceTree(const QString &archivePath, const QSt
 
             if (archive_entry_is_encrypted(entry) && !passwordValidated) {
                 ScanResult validationResult;
-                if (!validateEncryptedEntryPassword(&validationResult, archiveReader, path, password)) {
+                if (!validateEncryptedEntryPassword(&validationResult, archiveReader, password)) {
                     result.errorMessage = validationResult.errorMessage;
                     result.errorReason = validationResult.errorReason;
                     break;
@@ -455,9 +372,9 @@ CollectionTreeResult scanArchiveSourceTree(const QString &archivePath, const QSt
 
         const int skipStatus = archive_read_data_skip(archiveReader);
         if (skipStatus != ARCHIVE_OK && skipStatus != ARCHIVE_EOF) {
-            const QString message = archiveError(archiveReader, QObject::tr("Could not read archive."));
-            result.errorMessage = message;
-            result.errorReason = looksLikePasswordError(message) ? scanPasswordReason(password) : ScanErrorReason::Generic;
+            const auto error = archiveReadError(archiveReader, QObject::tr("Could not read archive."), password);
+            result.errorMessage = error.message;
+            result.errorReason = archiveScanErrorReason(error.reason);
             break;
         }
     }
@@ -493,11 +410,11 @@ ArchiveEntryReadResult readArchiveEntry(const ImageEntry &entry, const QString &
     }
 
     archive *archiveReader = archive_read_new();
-    QString openError;
+    ArchiveReadError openError;
     if (!openArchive(archiveReader, entry.archivePath, password, &openError)) {
         archive_read_free(archiveReader);
-        result.errorMessage = openError;
-        result.errorReason = looksLikePasswordError(openError) ? readPasswordReason(password) : ArchiveEntryReadErrorReason::Generic;
+        result.errorMessage = openError.message;
+        result.errorReason = openError.reason;
         return result;
     }
 
@@ -514,7 +431,11 @@ ArchiveEntryReadResult readArchiveEntry(const ImageEntry &entry, const QString &
         }
 
         if (entryPath(archiveEntry) != entry.archiveEntryPath) {
-            archive_read_data_skip(archiveReader);
+            const int skipStatus = archive_read_data_skip(archiveReader);
+            if (skipStatus != ARCHIVE_OK && skipStatus != ARCHIVE_EOF) {
+                setArchiveEntryReadError(&result, archiveReader, password);
+                break;
+            }
             continue;
         }
 
@@ -525,10 +446,10 @@ ArchiveEntryReadResult readArchiveEntry(const ImageEntry &entry, const QString &
             break;
         }
 
-        const bool entryEncrypted = archive_entry_is_encrypted(archiveEntry);
-        if (entryEncrypted && password.isEmpty()) {
-            result.errorMessage = QObject::tr("Archive password is required.");
-            result.errorReason = ArchiveEntryReadErrorReason::PasswordRequired;
+        const auto headerError = archiveReadError(archiveReader, {}, password);
+        if (archive_entry_is_encrypted(archiveEntry) && headerError.reason == ArchiveEntryReadErrorReason::UnsupportedEncryption) {
+            result.errorMessage = headerError.message;
+            result.errorReason = headerError.reason;
             break;
         }
 
@@ -555,12 +476,6 @@ ArchiveEntryReadResult readArchiveEntry(const ImageEntry &entry, const QString &
                 break;
             }
             result.data.append(buffer.data(), static_cast<qsizetype>(bytesRead));
-        }
-        if (result.errorMessage.isEmpty() && entryEncrypted && !password.isEmpty()
-            && !looksLikeSupportedImageData(entry.archiveEntryPath, result.data.left(16))) {
-            result.data.clear();
-            result.errorMessage = QObject::tr("Archive password was not accepted.");
-            result.errorReason = ArchiveEntryReadErrorReason::InvalidPassword;
         }
         break;
     }

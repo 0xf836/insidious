@@ -39,6 +39,8 @@ set(CORE_SOURCES
     src/core/archive_entry_stream.h
     src/core/archive_collection_source.cpp
     src/core/archive_collection_source.h
+    src/core/archive_read_error.cpp
+    src/core/archive_read_error.h
     src/core/decoded_image.h
     src/core/folder_collection_source.cpp
     src/core/folder_collection_source.h
