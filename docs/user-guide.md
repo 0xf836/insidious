@@ -117,7 +117,7 @@ Thumbnail selection follows the same viewer and comparison behavior as the List 
 
 Select images in List or Thumbnails, open the context menu, and choose a command from **Compare**:
 
-- **Add to Compare** appends new images to the current session without opening the tab.
+- **Add to Compare** appends new images to the current session without opening the tab. A new session uses the default comparison mode selected in Preferences → Interface (In Row by default); if the mode does not support the selected number of images, it starts in In Row.
 - **Open Compare** displays the accumulated session.
 - **In Row**, **Grid**, or **Carousel** replaces the session with the current selection.
 - **Hover Switch** replaces the session with exactly two selected images.

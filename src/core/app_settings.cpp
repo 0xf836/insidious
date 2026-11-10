@@ -220,6 +220,10 @@ AppSettings AppSettings::read(QSettings &settings)
     result.interface.theme = uiThemeFromSettingsString(
         settings.value(QStringLiteral("theme"), uiThemeToSettingsString(defaults.interface.theme)).toString(),
         defaults.interface.theme);
+    const int comparisonMode = settings.value(QStringLiteral("defaultComparisonMode"), 0).toInt();
+    if (comparisonMode >= 0 && comparisonMode <= static_cast<int>(ComparisonMode::HoverSwitch)) {
+        result.interface.defaultComparisonMode = static_cast<ComparisonMode>(comparisonMode);
+    }
     result.interface.rememberLayout = settings.value(QStringLiteral("rememberLayout"), defaults.interface.rememberLayout).toBool();
     result.interface.mainWindowGeometry = settings.value(QStringLiteral("mainWindowGeometry")).toByteArray();
     result.interface.mainWindowState = settings.value(QStringLiteral("mainWindowState")).toByteArray();
@@ -279,6 +283,7 @@ void AppSettings::write(QSettings &settings) const
 
     settings.beginGroup(QStringLiteral("interface"));
     settings.setValue(QStringLiteral("theme"), uiThemeToSettingsString(interface.theme));
+    settings.setValue(QStringLiteral("defaultComparisonMode"), static_cast<int>(interface.defaultComparisonMode));
     settings.setValue(QStringLiteral("rememberLayout"), interface.rememberLayout);
     if (interface.rememberLayout) {
         settings.setValue(QStringLiteral("mainWindowGeometry"), interface.mainWindowGeometry);
