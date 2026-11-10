@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/0xf836/insidious/compare/v0.3.0...v0.4.0) (2026-11-10)
+
+
+### Features
+
+* **settings:** add default comparison mode ([6ebe52b](https://github.com/0xf836/insidious/commit/6ebe52b47fe85a9ba9872ac52ecea2fc4b827a6e))
+* **settings:** add default comparison mode ([9064e6c](https://github.com/0xf836/insidious/commit/9064e6c4c6b4be4256ced983b77a160ab72aba0e))
+
 ## [0.3.0](https://github.com/0xf836/insidious/compare/v0.2.0...v0.3.0) (2026-11-09)
 
 
