@@ -2955,6 +2955,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     values.fullscreen.infoLineFontPointSize = 18;
     values.fullscreen.infoLineColor = QStringLiteral("#aabbcc");
     values.interface.theme = UiTheme::Dark;
+    values.interface.defaultComparisonMode = ComparisonMode::Carousel;
     values.interface.rememberLayout = true;
     values.interface.mainWindowGeometry = QByteArray("geometry");
     values.interface.mainWindowState = QByteArray("state");
@@ -2990,6 +2991,7 @@ void CoreTests::appSettingsRoundTripsThroughQSettings()
     QCOMPARE(loaded.fullscreen.infoLineFontPointSize, 18);
     QCOMPARE(loaded.fullscreen.infoLineColor, QStringLiteral("#aabbcc"));
     QCOMPARE(loaded.interface.theme, UiTheme::Dark);
+    QCOMPARE(loaded.interface.defaultComparisonMode, ComparisonMode::Carousel);
     QVERIFY(loaded.interface.rememberLayout);
     QCOMPARE(loaded.interface.mainWindowGeometry, QByteArray("geometry"));
     QCOMPARE(loaded.interface.mainWindowState, QByteArray("state"));

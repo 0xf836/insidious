@@ -24,6 +24,8 @@ enum class WheelAction {
     NoAction,
 };
 
+enum class ComparisonMode { Row, Grid, Carousel, HoverSwitch };
+
 enum class UiTheme {
     Light,
     Dark,
@@ -97,6 +99,7 @@ struct FullscreenSettings {
 
 struct InterfaceSettings {
     UiTheme theme = UiTheme::Light;
+    ComparisonMode defaultComparisonMode = ComparisonMode::Row;
     bool rememberLayout = true;
     QByteArray mainWindowGeometry;
     QByteArray mainWindowState;

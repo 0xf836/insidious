@@ -43,12 +43,7 @@ struct ComparisonRenderSettings {
     double devicePixelRatio = 1.0;
 };
 
-enum class ComparisonMode {
-    Row,
-    Grid,
-    Carousel,
-    HoverSwitch,
-};
+using ComparisonMode = core::ComparisonMode;
 
 enum class ComparisonAlignmentPreset {
     FitCenter,

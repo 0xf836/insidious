@@ -418,6 +418,13 @@ void SettingsDialog::setupInterfacePage()
     m_themeCombo->addItem(tr("Dark"), static_cast<int>(core::UiTheme::Dark));
     appearanceForm->addRow(tr("Theme:"), m_themeCombo);
 
+    m_comparisonModeCombo = stabilizeFieldHeight(new QComboBox(page));
+    m_comparisonModeCombo->addItem(tr("In Row"), static_cast<int>(core::ComparisonMode::Row));
+    m_comparisonModeCombo->addItem(tr("Grid"), static_cast<int>(core::ComparisonMode::Grid));
+    m_comparisonModeCombo->addItem(tr("Carousel"), static_cast<int>(core::ComparisonMode::Carousel));
+    m_comparisonModeCombo->addItem(tr("Hover Switch"), static_cast<int>(core::ComparisonMode::HoverSwitch));
+    appearanceForm->addRow(tr("Default comparison mode:"), m_comparisonModeCombo);
+
     QFormLayout *layoutForm = sectionForm(page, tr("Layout"));
 
     m_rememberLayoutCheck = new QCheckBox(tr("Remember window layout"), page);
@@ -451,6 +458,7 @@ void SettingsDialog::updateControlsFromSettings()
     m_fullscreenInfoLineSizeSpin->setValue(m_settings.fullscreen.infoLineFontPointSize);
     updateFullscreenInfoLineColorButton();
     setComboToData(m_themeCombo, static_cast<int>(m_settings.interface.theme));
+    setComboToData(m_comparisonModeCombo, static_cast<int>(m_settings.interface.defaultComparisonMode));
     m_rememberLayoutCheck->setChecked(m_settings.interface.rememberLayout);
 }
 
@@ -475,6 +483,7 @@ void SettingsDialog::updateSettingsFromControls()
     m_settings.fullscreen.infoLineFontPointSize = m_fullscreenInfoLineSizeSpin->value();
     m_settings.fullscreen.infoLineColor = m_fullscreenInfoLineColorButton->property("colorName").toString();
     m_settings.interface.theme = static_cast<core::UiTheme>(m_themeCombo->currentData().toInt());
+    m_settings.interface.defaultComparisonMode = static_cast<core::ComparisonMode>(m_comparisonModeCombo->currentData().toInt());
     m_settings.interface.rememberLayout = m_rememberLayoutCheck->isChecked();
 }
 

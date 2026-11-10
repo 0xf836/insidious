@@ -4414,7 +4414,7 @@ void MainWindow::appendToComparison(const QVector<ComparisonSessionItem> &items)
 
     int added = 0;
     if (!m_comparisonView->hasSession()) {
-        m_comparisonView->setSession(items, comparisonRenderSettings(), ComparisonMode::Row);
+        m_comparisonView->setSession(items, comparisonRenderSettings(), m_settings.interface.defaultComparisonMode);
         added = m_comparisonView->itemCount();
     } else {
         added = m_comparisonView->appendItems(items);
